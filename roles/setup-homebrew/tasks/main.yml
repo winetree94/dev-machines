@@ -1,0 +1,43 @@
+- name: Install required dependencies
+  become: true
+  when: ansible_distribution == 'Ubuntu'
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - curl
+    - git
+    - build-essential
+
+- name: Install the latest version of Apache
+  become: true
+  when: ansible_distribution == 'Fedora'
+  ansible.builtin.dnf5:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - "@development-tools"
+    - curl
+    - git
+# - name: Checking brew install
+#   ansible.builtin.stat:
+#     path: /home/linuxbrew/.linuxbrew/bin
+#   register: brew_check
+#
+# - name: Password prompter setting
+#   ansible.builtin.shell: echo "#!/bin/sh\n\necho $SUDO_PASSWORD" > ~/pw.sh && chmod +x ~/pw.sh
+#   environment:
+#     SUDO_PASSWORD: "{{ ansible_become_password }}"
+#   when: not (brew_check.stat.exists and brew_check.stat.isdir)
+#
+# - name: Install Linuxbrew
+#   ansible.builtin.shell: SUDO_ASKPASS=~/pw.sh NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+#   register: brew_install_result
+#   changed_when: "'Installation successful!' in brew_install_result.stdout"
+#   when: not (brew_check.stat.exists and brew_check.stat.isdir)
+#
+# - name: Password prompter removal
+#   ansible.builtin.shell: stat ~/pw.sh && rm ~/pw.sh
+#   when:
+#     - not (brew_check.stat.exists and brew_check.stat.isdir)
+#     - "'Installation successful!' in brew_install_result.stdout"

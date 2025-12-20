@@ -1,0 +1,64 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "theme": "opencode",
+  // "theme": "catppuccin",
+  "provider": {},
+  // "small_model": "openrouter/x-ai/grok-4-fast:free",
+  "small_model": "github-copilot/gpt-5-mini",
+  // "model": "openrouter/x-ai/grok-4-fast:free",
+  // "model": "anthropic/claude-sonnet-4-20250514",
+  "model": "github-copilot/claude-sonnet-4",
+  "permission": {
+    "bash": "allow",
+    "edit": "allow",
+    "webfetch": "allow"
+  },
+  "agent": {
+    // "build": {
+    //   "mode": "primary",
+    //   "model": "openrouter/x-ai/grok-4-fast:free",
+    //   "prompt": "{file:./prompts/build.md}",
+    //   "tools": {
+    //     "write": true,
+    //     "edit": true,
+    //     "bash": true,
+    //     "read": true,
+    //     "grep": true,
+    //     "glob": true
+    //   }
+    // },
+    // "ask": {
+    //   "mode": "subagent",
+    //   "model": "openrouter/x-ai/grok-4-fast:free",
+    //   "prompt": "{file:./prompts/ask.md}",
+    //   "tools": {
+    //     "write": false,
+    // <LeftMouse>   "edit": false,
+    //     "bash": false
+    //   }
+    // },
+    // "plan": {
+    //   "mode": "primary",
+    //   "model": "openrouter/x-ai/grok-4-fast:free",
+    //   "tools": {
+    //     "write": false,
+    //     "edit": false,
+    //     "bash": false
+    //   }
+    // }
+  },
+  // 글로벌 허용 툴
+  "tools": {
+    "tinyrack-mcp-dev": true
+  },
+  "mcp": {
+    "tinyrack-mcp-dev": {
+      "type": "remote",
+      "url": "https://mcp.tinyrack.net/metamcp/personal-dev-agent/mcp",
+      "enabled": true,
+      "headers": {
+        "x-api-key": "{env:MCP_TINYRACK_NET_DEV_API_KEY}"
+      }
+    }
+  }
+}

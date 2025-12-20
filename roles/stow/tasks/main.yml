@@ -1,0 +1,14 @@
+- name: Install stow
+  community.general.homebrew:
+    name: stow
+    state: present
+  become: false
+
+- name: Install Config
+  ansible.builtin.synchronize:
+    src: "stow"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/stow"
+    mode: push
+    delete: true
+    archive: true
+    recursive: true

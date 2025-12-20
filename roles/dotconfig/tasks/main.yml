@@ -1,0 +1,13 @@
+- name: Check Install
+  ansible.builtin.stat:
+    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.dotconfigs"
+  register: dotconfigs_path_result
+
+- name: Install Dotconfigs
+  ansible.builtin.git:
+    repo: 'git@github.com:winetree94/dotconfigs.git'
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.dotconfigs"
+    version: main
+  become: true
+  become_user: "{{ lookup('ansible.builtin.env', 'USER') }}"
+  when: not dotconfigs_path_result.stat.exists

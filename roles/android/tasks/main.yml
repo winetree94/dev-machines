@@ -1,0 +1,5 @@
+- name: Install Platform Tools
+  ansible.builtin.apt:
+    name: android-sdk-platform-tools
+    tate: present
+

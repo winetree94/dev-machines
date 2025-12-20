@@ -1,0 +1,51 @@
+- name: Install Dependencies (APT)
+  become: true
+  when: ansible_os_family == 'Ubuntu'
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - git
+    - make
+    - pip
+    - xclip
+    - wl-clipboard
+
+- name: Install Dependencies (Homebrew)
+  community.general.homebrew:
+    name: "{{ item }}"
+    state: present
+  become: false
+  with_items:
+    - lazygit
+    - neovim
+    - ripgrep
+    - lua
+    - luarocks
+    - fd
+
+- name: Setup config dir
+  ansible.builtin.file:
+    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config"
+    state: directory
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    # group: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0700"
+
+- name: Install Nvim Config
+  ansible.builtin.synchronize:
+    src: "nvim"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/"
+    mode: push
+    delete: true
+    archive: true
+    recursive: true
+    # owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    # group: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    # mode: '0755'
+# - name: Install Nvim Config
+#   ansible.posix.synchronize:
+#     src: "nvim"
+#     dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config"
+#     recursive: true
+#     delete: true

@@ -1,0 +1,28 @@
+- name: Install
+  become: true
+  ansible.builtin.apt:
+    name: flatpak
+    state: present
+
+- name: Check flathub repository
+  become: true
+  ansible.builtin.command: "flatpak remotes"
+  register: flatpak_remotes_result
+  changed_when: false
+
+- name: Regitser flathub repository
+  become: true
+  ansible.builtin.command: "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
+  when: >
+    'flathub' not in flatpak_remotes_result.stdout
+  changed_when: true
+
+- name: Install Gnome Software
+  when: gui
+  ansible.builtin.apt:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+  with_items:
+    - { name: gnome-software, state: present }
+    - { name: gnome-software-plugin-flatpak, state: present }
+    - { name: gnome-software-plugin-snap, state: present }

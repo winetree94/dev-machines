@@ -1,0 +1,40 @@
+- name: Setup Development Environment
+  hosts: local-machines
+  # hosts: dev-debian
+  # become: true
+  vars:
+    gui: false
+    is_linux: "{{ ansible_os_family != 'Darwin' }}"
+    is_macos: "{{ ansible_os_family == 'Darwin' }}"
+  roles:
+    - role: apt-update
+      when: ansible_distribution == 'Ubuntu'
+    - role: setup-snap
+      when: ansible_distribution == 'Ubuntu'
+    - role: setup-flatpak
+      when: ansible_distribution == 'Ubuntu'
+    - setup-homebrew
+    - role: rust
+    - role: python3
+    - role: git
+    - role: opencode
+    - role: zsh
+    - role: ssh
+    - role: tmux
+    - role: bw
+    # - role: aichat
+    - role: nvim
+    # - ansible
+    - role: kubectl
+    - role: docker
+    # - dotconfig
+    # - role: gui-apps
+    #   when: gui
+    # - role: stow
+  tasks:
+    - name: Print message
+      ansible.builtin.debug:
+        msg: |
+          user: {{ lookup('ansible.builtin.env', 'USER') }} \n
+          home: {{ lookup('ansible.builtin.env', 'HOME') }} \n
+          platform: {{ ansible_os_family }}

@@ -1,0 +1,54 @@
+- name: Setup Kubectl Dir
+  ansible.builtin.file:
+    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube"
+    state: directory
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    # group: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0700"
+
+- name: Copy Kubectl Config
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.kube/{{ item }}"
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0644"
+  with_items:
+    - k3s.yaml
+
+- name: Tap a Homebrew repository, state present
+  community.general.homebrew_tap:
+    name: fluxcd/tap
+
+- name: Install Brew Packages
+  community.general.homebrew:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+  become: false
+  with_items:
+    - { name: kubectl, state: present }
+    - { name: age, state: present }
+    - { name: sops, state: present }
+    - { name: k9s, state: present }
+    - { name: kubeseal, state: present }
+    - { name: talosctl, state: present }
+    - { name: talhelper, state: present }
+    - { name: kubectl-cnpg, state: present }
+    - { name: kubectl-ai, state: present }
+    - { name: helm, state: present }
+    - { name: fluxcd/tap/flux, state: present }
+
+- name: Create Config Dir
+  ansible.builtin.file:
+    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config"
+    state: directory
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    # group: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0700"
+
+- name: Install Config Dir
+  ansible.builtin.copy:
+    src: "kubectl-ai"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/"
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    # group: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0755"

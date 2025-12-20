@@ -1,0 +1,8 @@
+roles_galaxy/*
+collections/*
+.vault_pass
+.become_pass
+.ansible
+Session.vim
+.idea
+.vscode

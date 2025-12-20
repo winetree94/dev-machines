@@ -1,0 +1,11 @@
+- name: Setup SSH Environment
+  hosts: windows-machines
+  become: true
+  roles:
+    - ssh
+  tasks:
+    - name: Print message
+      ansible.builtin.debug:
+        msg: |
+          user: {{ lookup('ansible.builtin.env', 'USER') }} \n
+          home: {{ lookup('ansible.builtin.env', 'HOME') }}

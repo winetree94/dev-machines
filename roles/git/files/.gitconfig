@@ -1,0 +1,13 @@
+[user]
+  name = winetree94
+  email = me@winetree94.com
+  signingkey = C20D90288161417E
+[commit]
+  gpgsign = true
+[tag]
+  gpgsign = true
+[pull]
+  rebase = true
+[credential]
+  helper = /usr/share/doc/git/contrib/credential/libsecret/git-credential-libsecret
+

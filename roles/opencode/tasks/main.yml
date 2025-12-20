@@ -1,0 +1,20 @@
+- name: Tap a opencode repository, state present
+  community.general.homebrew_tap:
+    name: sst/tap
+
+- name: Install Brew Packages
+  community.general.homebrew:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+  become: false
+  with_items:
+    - { name: sst/tap/opencode, state: present }
+
+- name: Install Config
+  ansible.builtin.synchronize:
+    src: "opencode"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/"
+    mode: push
+    delete: true
+    archive: true
+    recursive: true

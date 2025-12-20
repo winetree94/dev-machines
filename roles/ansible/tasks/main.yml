@@ -1,0 +1,13 @@
+- name: Install Dependencies
+  become: true
+  ansible.builtin.apt:
+    name: pipx
+    state: present
+
+- name: Install Ansible
+  community.general.pipx:
+    executable: /usr/bin/pipx
+    name: "{{ item }}"
+  with_items:
+    - "ansible"
+    - "ansible-lint"
