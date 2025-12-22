@@ -14,23 +14,18 @@
     - role: setup-flatpak
       when: ansible_distribution == 'Ubuntu'
     - setup-homebrew
+    - role: chezmoi
     - role: rust
     - role: python3
-    - role: git
     - role: opencode
     - role: zsh
-    - role: ssh
     - role: tmux
     - role: bw
-    # - role: aichat
     - role: nvim
-    # - ansible
     - role: kubectl
     - role: docker
-    # - dotconfig
-    # - role: gui-apps
-    #   when: gui
-    # - role: stow
+    - role: gui-apps
+      when: gui
   tasks:
     - name: Print message
       ansible.builtin.debug:

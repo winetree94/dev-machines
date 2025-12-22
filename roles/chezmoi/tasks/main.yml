@@ -1,0 +1,30 @@
+- name: Install Chezmoi
+  community.general.homebrew:
+    name: chezmoi
+    state: present
+
+- name: Ensure chezmoi path exists
+  ansible.builtin.file:
+    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/chezmoi"
+    state: directory
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0755"
+
+- name: Copy Chezmoi Age Key
+  ansible.builtin.copy:
+    src: "chezmoi.txt"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/chezmoi/chezmoi.txt"
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0644"
+
+- name: Copy Chezmoi Configuration
+  ansible.builtin.copy:
+    src: "chezmoi.toml"
+    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/chezmoi/chezmoi.toml"
+    owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
+    mode: "0644"
+
+- name: Chezmoi Init
+  changed_when: false
+  ansible.builtin.command:
+    cmd: "chezmoi init https://git.winetree94.com/winetree94/chezmoi.git --apply"

@@ -9,12 +9,3 @@
   become: false
   with_items:
     - { name: sst/tap/opencode, state: present }
-
-- name: Install Config
-  ansible.builtin.synchronize:
-    src: "opencode"
-    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/"
-    mode: push
-    delete: true
-    archive: true
-    recursive: true
