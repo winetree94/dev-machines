@@ -27,4 +27,4 @@
 - name: Chezmoi Init
   changed_when: false
   ansible.builtin.command:
-    cmd: "chezmoi init https://git.winetree94.com/winetree94/chezmoi.git --apply"
+    cmd: "chezmoi init https://git.winetree94.com/winetree94/dotconfigs.git --apply"
