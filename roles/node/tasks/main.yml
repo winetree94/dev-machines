@@ -14,3 +14,4 @@
   become: false
   with_items:
     - { name: oven-sh/bun/bun, state: present }
+    - { name: pnpm, state: present }
