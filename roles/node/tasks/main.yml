@@ -3,18 +3,14 @@
     path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.local/share/nvm/v{{ node_version }}"
   register: check_node_result
 
-# - name: Install Node
-#   ansible.builtin.command: |
-#     zsh -l -c 'source {{ lookup('ansible.builtin.env', 'HOME') }}/.config/fish/config.zsh && \
-#     nvm install {{ node_version }} && \
-#     nvm use {{ node_version }}'
-#   become: false
-#   when: check_node_result.stat.isdir is undefined
-#   register: my_output
-#   changed_when: my_output.rc != 0
+- name: Install Bun
+  community.general.homebrew_tap:
+    name: oven-sh/bun
 
-# - name: Setup Node Variable
-#   ansible.builtin.command: |
-#     fish -l -c 'set --universal nvm_default_version v{{ node_version }}'
-#   become: false
-#   changed_when: false
+- name: Install Brew Packages
+  community.general.homebrew:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+  become: false
+  with_items:
+    - { name: oven-sh/bun/bun, state: present }
