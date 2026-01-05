@@ -1,8 +1,3 @@
-- name: Check Node Installation
-  ansible.builtin.stat:
-    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.local/share/nvm/v{{ node_version }}"
-  register: check_node_result
-
 - name: Install Bun
   community.general.homebrew_tap:
     name: oven-sh/bun
@@ -15,3 +10,4 @@
   with_items:
     - { name: oven-sh/bun/bun, state: present }
     - { name: pnpm, state: present }
+    - { name: deno, state: present }

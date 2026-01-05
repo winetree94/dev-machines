@@ -19,8 +19,8 @@
     - role: zsh
     - role: tmux
     - role: bw
-    - role: nvim
-    - role: kubectl
+    - role: neovim
+    - role: kubernetes
     - role: docker
     - role: gui-apps
       when: gui
