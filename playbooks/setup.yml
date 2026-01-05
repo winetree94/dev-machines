@@ -1,16 +1,16 @@
 - name: Setup Development Environment
-  hosts: local-machines
+  hosts: local_machines
   vars:
     gui: false
-    is_linux: "{{ ansible_os_family != 'Darwin' }}"
-    is_macos: "{{ ansible_os_family == 'Darwin' }}"
+    is_linux: "{{ ansible_facts['os_family'] != 'Darwin' }}"
+    is_macos: "{{ ansible_facts['os_family'] == 'Darwin' }}"
   roles:
     - role: apt-update
-      when: ansible_distribution == 'Ubuntu'
+      when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-snap
-      when: ansible_distribution == 'Ubuntu'
+      when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-flatpak
-      when: ansible_distribution == 'Ubuntu'
+      when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-homebrew
     - role: chezmoi
     - role: rust
@@ -30,4 +30,4 @@
         msg: |
           user: {{ lookup('ansible.builtin.env', 'USER') }} \n
           home: {{ lookup('ansible.builtin.env', 'HOME') }} \n
-          platform: {{ ansible_os_family }}
+          platform: {{ ansible_facts['os_family'] }}

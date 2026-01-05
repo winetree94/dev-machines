@@ -1,6 +1,6 @@
 - name: Install Dependencies (APT)
   become: true
-  when: ansible_os_family == 'Ubuntu'
+  when: ansible_facts['os_family'] == 'Ubuntu'
   ansible.builtin.apt:
     name: "{{ item }}"
     state: present

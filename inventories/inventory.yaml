@@ -1,4 +1,4 @@
-local-machines:
+local_machines:
   hosts:
     localhost:
       ansible_connection: local

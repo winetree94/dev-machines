@@ -1,19 +1,19 @@
 - name: Install tmux from apt
-  when: ansible_os_family == 'Ubuntu'
+  when: ansible_facts['os_family'] == 'Ubuntu'
   become: true
   ansible.builtin.apt:
     name: tmux
     state: present
 
 - name: Install tmux from dnf
-  when: ansible_os_family == 'Fedora'
+  when: ansible_facts['os_family'] == 'Fedora'
   become: true
   ansible.builtin.dnf:
     name: tmux
     state: present
 
 - name: Install tmux from homebrew
-  when: ansible_os_family == 'Darwin'
+  when: ansible_facts['os_family'] == 'Darwin'
   community.general.homebrew:
     name: tmux
     state: present

@@ -1,5 +1,5 @@
 - name: Install zsh
-  when: ansible_distribution == 'Ubuntu'
+  when: ansible_facts['distribution'] == 'Ubuntu'
   ansible.builtin.apt:
     name: "{{ item }}"
     state: present
@@ -8,7 +8,7 @@
     - zsh
 
 - name: Install zsh
-  when: ansible_distribution == 'Fedora'
+  when: ansible_facts['distribution'] == 'Fedora'
   ansible.builtin.dnf:
     name: "{{ item }}"
     state: present
@@ -26,7 +26,7 @@
 
 - name: Setup default shell (Linux)
   become: true
-  when: ansible_os_family != 'Darwin'
+  when: ansible_facts['os_family'] != 'Darwin'
   ansible.builtin.user:
     name: "{{ lookup('ansible.builtin.env', 'USER') }}"
     shell: /usr/bin/zsh
