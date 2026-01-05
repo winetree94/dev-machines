@@ -1,7 +1,5 @@
 - name: Setup Development Environment
   hosts: local-machines
-  # hosts: dev-debian
-  # become: true
   vars:
     gui: false
     is_linux: "{{ ansible_os_family != 'Darwin' }}"
@@ -13,7 +11,7 @@
       when: ansible_distribution == 'Ubuntu'
     - role: setup-flatpak
       when: ansible_distribution == 'Ubuntu'
-    - setup-homebrew
+    - role: setup-homebrew
     - role: chezmoi
     - role: rust
     - role: python3
