@@ -14,8 +14,8 @@
     - role: setup-homebrew
     - role: chezmoi
     - role: rust
-    - role: python3
-    - role: opencode
+    - role: python
+    - role: ai
     - role: zsh
     - role: tmux
     - role: bw
@@ -24,10 +24,3 @@
     - role: docker
     - role: gui-apps
       when: gui
-  tasks:
-    - name: Print message
-      ansible.builtin.debug:
-        msg: |
-          user: {{ lookup('ansible.builtin.env', 'USER') }} \n
-          home: {{ lookup('ansible.builtin.env', 'HOME') }} \n
-          platform: {{ ansible_facts['os_family'] }}

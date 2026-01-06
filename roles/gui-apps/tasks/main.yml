@@ -32,6 +32,5 @@
     state: "{{ item.state }}"
   with_items:
     - { name: remmina, classic: false, state: present }
-    - { name: tailscale, classic: false, state: present }
     - { name: thunderbird, classic: false, state: present }
     - { name: alacritty, classic: true, state: present }

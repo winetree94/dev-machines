@@ -16,6 +16,5 @@
     - { name: talosctl, state: present }
     - { name: talhelper, state: present }
     - { name: kubectl-cnpg, state: present }
-    - { name: kubectl-ai, state: present }
     - { name: helm, state: present }
     - { name: fluxcd/tap/flux, state: present }

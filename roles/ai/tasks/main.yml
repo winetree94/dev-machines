@@ -1,0 +1,32 @@
+- name: Ai | Tap sst/tap
+  community.general.homebrew_tap:
+    name: sst/tap
+
+- name: Ai | Install OpenCode via Homebrew
+  community.general.homebrew:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+  become: false
+  with_items:
+    - { name: sst/tap/opencode, state: present }
+
+- name: Ai | Check if Claude is already installed
+  ansible.builtin.stat:
+    path: "{{ lookup('ansible.builtin.env', 'HOME') }}/.local/bin/claude"
+  register: ai_claude_exists
+  become: false
+
+- name: Ai | Download Claude Installer
+  when: not ai_claude_exists.stat.exists
+  ansible.builtin.get_url:
+    url: https://claude.ai/install.sh
+    dest: /tmp/claude-install.sh
+    mode: "0755"
+    force: "yes"
+  become: false
+
+- name: Ai | Install Claude Code
+  when: not ai_claude_exists.stat.exists
+  ansible.builtin.command: /tmp/claude-install.sh
+  changed_when: true
+  become: false
