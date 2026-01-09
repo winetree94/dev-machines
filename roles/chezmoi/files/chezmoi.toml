@@ -2,3 +2,5 @@ encryption = "age"
 [age]
     identity = "~/.config/chezmoi/chezmoi.txt"
     recipient = "age1ul39zwh35hrlgkhc8su864qcxdv2qlhskgu9k62sla9g2xggdfes5jtflm"
+[data.group]
+    name = "personal"
