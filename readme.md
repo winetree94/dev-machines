@@ -19,7 +19,8 @@ ansible-galaxy role install --role-file ./requirement.yaml --force
 # Apply
 
 ```bash
-ansible-playbook ./playbooks/setup.yml
+ansible-playbook ./playbooks/setup.yml -e "group=vivident"
+ansible-playbook ./playbooks/setup.yml -e "group=personal"
 ```
 
 

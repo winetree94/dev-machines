@@ -17,9 +17,9 @@
     owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
     mode: "0644"
 
-- name: Copy Chezmoi Configuration
-  ansible.builtin.copy:
-    src: "chezmoi.toml"
+- name: Create Chezmoi Configuration
+  ansible.builtin.template:
+    src: "chezmoi.toml.j2"
     dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.config/chezmoi/chezmoi.toml"
     owner: "{{ lookup('ansible.builtin.env', 'USER') }}"
     mode: "0644"
