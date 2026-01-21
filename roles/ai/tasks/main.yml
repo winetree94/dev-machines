@@ -9,6 +9,7 @@
   become: false
   with_items:
     - { name: sst/tap/opencode, state: present }
+    - { name: codex, state: present }
 
 - name: Ai | Check if Claude is already installed
   ansible.builtin.stat:
