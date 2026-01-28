@@ -1,6 +1,6 @@
 - name: Ai | Tap sst/tap
   community.general.homebrew_tap:
-    name: sst/tap
+    name: anomalyco/tap
 
 - name: Ai | Install OpenCode via Homebrew
   community.general.homebrew:
@@ -8,7 +8,7 @@
     state: "{{ item.state }}"
   become: false
   with_items:
-    - { name: sst/tap/opencode, state: present }
+    - { name: anomalyco/tap/opencode, state: present }
     - { name: codex, state: present }
 
 - name: Ai | Check if Claude is already installed
