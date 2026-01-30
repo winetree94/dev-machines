@@ -1,3 +1,8 @@
+- name: Install Zellij
+  community.general.homebrew:
+    name: zellij
+    state: present
+
 - name: Tmux | Install tmux from apt
   when: ansible_facts['os_family'] == 'Ubuntu'
   become: true
