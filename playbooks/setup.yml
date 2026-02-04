@@ -18,6 +18,7 @@
     - role: ai
     - role: zsh
     - role: tmux
+    - role: node
     - role: bw
     - role: neovim
     - role: kubernetes
