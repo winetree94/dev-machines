@@ -23,5 +23,6 @@
     - role: neovim
     - role: kubernetes
     - role: docker
+    - role: doppler 
     - role: gui-apps
       when: gui
