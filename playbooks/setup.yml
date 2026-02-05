@@ -24,5 +24,6 @@
     - role: kubernetes
     - role: docker
     - role: doppler 
+    - role: graphite
     - role: gui-apps
       when: gui
