@@ -5,6 +5,7 @@
     is_linux: "{{ ansible_facts['os_family'] != 'Darwin' }}"
     is_macos: "{{ ansible_facts['os_family'] == 'Darwin' }}"
   roles:
+    - role: docker
     - role: apt-update
       when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-snap
@@ -22,7 +23,6 @@
     - role: bw
     - role: neovim
     - role: kubernetes
-    - role: docker
     - role: doppler 
     - role: graphite
     - role: gui-apps
