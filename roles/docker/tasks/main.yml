@@ -28,6 +28,7 @@
     - docker.io
     - docker-doc
     - docker-compose
+    - docker-compose-v2
     - containerd
     - runc
   become: true
@@ -53,10 +54,10 @@
 
 - name: Add Docker GPG key
   when: ansible_facts['distribution'] == 'Ubuntu'
-  ansible.builtin.apt_key:
+  ansible.builtin.get_url:
     url: https://download.docker.com/linux/ubuntu/gpg
-    keyring: /etc/apt/keyrings/docker.asc
-    state: present
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
   become: true
 
 - name: Add Docker APT repository
