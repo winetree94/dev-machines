@@ -23,7 +23,8 @@
     - role: bw
     - role: neovim
     - role: kubernetes
-    - role: doppler 
+    - role: doppler
+    - role: git
     - role: graphite
     - role: gui-apps
       when: gui
