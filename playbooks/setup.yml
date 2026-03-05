@@ -21,6 +21,7 @@
     - role: tmux
     - role: node
     - role: bw
+    - role: mise
     - role: neovim
     - role: kubernetes
     - role: doppler
