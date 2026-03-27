@@ -13,7 +13,6 @@
     - role: setup-flatpak
       when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-homebrew
-    - role: chezmoi
     - role: rust
     - role: python
     - role: ai
