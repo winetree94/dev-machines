@@ -6,3 +6,12 @@
   with_items:
     - gh
 
+- name: Install dependencies
+  when: ansible_facts['distribution'] == 'Fedora'
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  become: true
+  with_items:
+    - git-credential-libsecret
+    - git-credential-oauth

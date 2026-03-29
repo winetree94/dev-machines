@@ -9,16 +9,13 @@
     - role: apt-update
       when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-snap
-      when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-flatpak
-      when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup-homebrew
-    - role: rust
     - role: python
     - role: ai
     - role: zsh
     - role: tmux
-    - role: node
+    # - role: node
     - role: bw
     - role: mise
     - role: neovim
