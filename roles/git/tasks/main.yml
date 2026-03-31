@@ -13,5 +13,6 @@
     state: present
   become: true
   with_items:
+    - git-delta
     - git-credential-libsecret
     - git-credential-oauth
