@@ -12,6 +12,7 @@
     - role: setup-flatpak
     - role: setup-homebrew
     - role: python
+    - role: fedora
     - role: ai
     - role: zsh
     - role: tmux

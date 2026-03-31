@@ -1,0 +1,24 @@
+- name: Install dependencies
+  when: ansible_facts['distribution'] == 'Fedora'
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  become: true
+  with_items:
+    - gcc-c++
+    - nethogs
+    - iotop
+    - cascadia-fonts-all
+    - rclone
+    - tailscale
+    - pass
+    - gnupg
+
+- name: Install dependencies (GUI)
+  when: gui and ansible_facts['distribution'] == 'Fedora'
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  become: true
+  with_items:
+    - adw-gtk3-theme
