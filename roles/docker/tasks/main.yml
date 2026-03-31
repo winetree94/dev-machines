@@ -89,5 +89,8 @@
     state: present
   become: true
   with_items:
-    - git-credential-libsecret
-    - git-credential-oauth
+    - docker-cli
+    - containerd
+    - docker-compose
+    - docker-compose-switch
+
