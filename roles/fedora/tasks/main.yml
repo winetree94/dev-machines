@@ -13,6 +13,7 @@
     - tailscale
     - pass
     - gnupg
+    - fuse-libs
 
 - name: Install dependencies (GUI)
   when: gui and ansible_facts['distribution'] == 'Fedora'
