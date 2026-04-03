@@ -14,6 +14,8 @@
     - pass
     - gnupg
     - fuse-libs
+    - cascadia-fonts-all
+    - naver-nanum-fonts-all
 
 - name: Install dependencies (GUI)
   when: gui and ansible_facts['distribution'] == 'Fedora'

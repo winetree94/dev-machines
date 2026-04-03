@@ -15,6 +15,7 @@
   with_items:
     - { name: anomalyco/tap/opencode, state: present }
     - { name: codex, state: present }
+    - { name: copilot, state: present }
     - { name: charmbracelet/tap/crush, state: present }
 
 - name: Ai | Check if Claude is already installed
