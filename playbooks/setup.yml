@@ -4,6 +4,24 @@
     gui: false
     is_linux: "{{ ansible_facts['os_family'] != 'Darwin' }}"
     is_macos: "{{ ansible_facts['os_family'] == 'Darwin' }}"
+
+  pre_tasks:
+    - name: Check for GUI session directories
+      stat:
+        path: "{{ item }}"
+      register: gui_sessions
+      loop:
+        - /usr/share/xsessions
+        - /usr/share/wayland-sessions
+
+    - name: Automatically enable GUI apps if a desktop environment is detected
+      set_fact:
+        gui: true
+      when:
+        - gui == false
+        - not ('microsoft' in ansible_facts['kernel'] | lower)
+        - gui_sessions.results | selectattr('stat.exists') | list | length > 0
+
   roles:
     - role: docker
     - role: apt-update
