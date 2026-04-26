@@ -3,27 +3,29 @@
     name: "{{ item.name }}"
     state: "{{ item.state }}"
   with_items:
-    - { name: com.bitwarden.desktop, state: present }
-    - { name: org.videolan.VLC, state: present }
-    - { name: org.onlyoffice.desktopeditors, state: present }
-    - { name: org.libreoffice.LibreOffice, state: present }
-    - { name: org.gimp.GIMP, state: present }
-    - { name: org.flameshot.Flameshot, state: present }
-    - { name: md.obsidian.Obsidian, state: present }
-    - { name: com.xnview.XnViewMP, state: present }
-    - { name: com.valvesoftware.Steam, state: present }
-    - { name: com.usebottles.bottles, state: present }
-    - { name: com.sublimetext.three, state: present }
-    - { name: com.slack.Slack, state: present }
-    - { name: com.parsecgaming.parsec, state: present }
-    - { name: com.microsoft.Edge, state: present }
-    - { name: com.google.Chrome, state: present }
-    - { name: com.github.tchx84.Flatseal, state: present }
-    - { name: com.discordapp.Discord, state: present }
-    - { name: com.github.PintaProject.Pinta, state: present }
-    - { name: xyz.xclicker.xclicker, state: present }
-    - { name: com.redis.RedisInsight, state: present }
-    - { name: io.kinvolk.Headlamp, state: present }
+    - {name: com.bitwarden.desktop, state: present}
+    - {name: org.videolan.VLC, state: present}
+    - {name: org.onlyoffice.desktopeditors, state: present}
+    - {name: org.libreoffice.LibreOffice, state: present}
+    - {name: org.gimp.GIMP, state: present}
+    - {name: md.obsidian.Obsidian, state: present}
+    - {name: com.valvesoftware.Steam, state: present}
+    - {name: com.usebottles.bottles, state: present}
+    - {name: com.sublimetext.three, state: present}
+    - {name: com.slack.Slack, state: present}
+    - {name: com.parsecgaming.parsec, state: present}
+    - {name: com.microsoft.Edge, state: present}
+    - {name: com.google.Chrome, state: present}
+    - {name: com.github.tchx84.Flatseal, state: present}
+    - {name: com.discordapp.Discord, state: present}
+    - {name: com.github.PintaProject.Pinta, state: present}
+    - {name: xyz.xclicker.xclicker, state: present}
+    - {name: com.redis.RedisInsight, state: present}
+    - {name: io.kinvolk.Headlamp, state: present}
+    - {name: org.mozilla.Thunderbird, state: present}
+    - {name: org.remmina.Remmina, state: present}
+    - {name: net.cozic.joplin_desktop, state: present}
+    - {name: org.telegram.desktop, state: present}
 
 - name: Install Snap Apps
   community.general.snap:
@@ -31,6 +33,5 @@
     classic: "{{ item.classic }}"
     state: "{{ item.state }}"
   with_items:
-    - { name: remmina, classic: false, state: present }
-    - { name: thunderbird, classic: false, state: present }
-    - { name: alacritty, classic: true, state: present }
+    - {name: alacritty, classic: true, state: present}
+    - {name: ghostty, classic: true, state: present}
