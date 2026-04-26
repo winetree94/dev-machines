@@ -18,7 +18,7 @@
     state: present
 
 - name: Tmux | Install tmux from homebrew
-  when: ansible_facts['os_family'] == 'Darwin'
+  when: ansible_facts['os_family'] == 'Darwin' or ansible_facts['os_family'] == 'Ubuntu'
   community.general.homebrew:
     name: tmux
     state: present

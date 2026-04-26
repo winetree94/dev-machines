@@ -17,6 +17,25 @@
     - cascadia-fonts-all
     - naver-nanum-fonts-all
 
+- name: Tmux | Install tmux from apt
+  when: ansible_facts['os_family'] == 'Ubuntu'
+  become: true
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - build-essential
+    - git
+    - wget
+    - curl
+    - gnupg
+    - nethogs
+    - iotop
+    - fonts-agave
+    - fonts-cascadia-code
+    - fonts-nanum
+    - fonts-naver-d2coding
+
 - name: Install dependencies (GUI)
   when: gui and ansible_facts['distribution'] == 'Fedora'
   ansible.builtin.dnf:
