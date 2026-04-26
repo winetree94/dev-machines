@@ -20,6 +20,7 @@
 
 - name: Install Gnome Software
   when: gui and ansible_facts['distribution'] == 'Ubuntu'
+  become: true
   ansible.builtin.apt:
     name: "{{ item.name }}"
     state: "{{ item.state }}"
