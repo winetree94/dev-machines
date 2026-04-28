@@ -28,6 +28,7 @@
     - {name: org.telegram.desktop, state: present}
 
 - name: Install Snap Apps
+  become: true
   community.general.snap:
     name: "{{ item.name }}"
     classic: "{{ item.classic }}"
