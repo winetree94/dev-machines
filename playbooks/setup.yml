@@ -44,4 +44,4 @@
     - role: git
     - role: graphite
     - role: gui-apps
-      when: gui
+      when: gui | bool
