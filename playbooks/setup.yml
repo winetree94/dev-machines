@@ -34,6 +34,7 @@
     - role: ai
     - role: zsh
     - role: tmux
+    - role: aws
     # - role: node
     - role: bw
     - role: mise
