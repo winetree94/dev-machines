@@ -32,6 +32,7 @@
     name: "{{ item.name }}"
     classic: "{{ item.classic }}"
     state: "{{ item.state }}"
+  become: true
   with_items:
     - {name: alacritty, classic: true, state: present}
     - {name: ghostty, classic: true, state: present}
