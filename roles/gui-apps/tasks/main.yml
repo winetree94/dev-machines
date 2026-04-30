@@ -11,7 +11,6 @@
     - {name: md.obsidian.Obsidian, state: present}
     - {name: com.valvesoftware.Steam, state: present}
     - {name: com.usebottles.bottles, state: present}
-    - {name: com.sublimetext.three, state: present}
     - {name: com.slack.Slack, state: present}
     - {name: com.parsecgaming.parsec, state: present}
     - {name: com.microsoft.Edge, state: present}
