@@ -1,4 +1,5 @@
-- name: Install AWS cli
+- name: Install AWS cli (snap)
+  when: ansible_facts['distribution'] == 'Ubuntu'
   community.general.snap:
     name: "{{ item.name }}"
     classic: "{{ item.classic }}"
@@ -6,3 +7,10 @@
   become: true
   with_items:
     - {name: aws-cli, classic: true, state: present}
+
+- name: Install AWS cli (brew)
+  when: ansible_facts['os_family'] == 'Darwin'
+  community.general.homebrew:
+    name: awscli
+    state: present
+  become: false
