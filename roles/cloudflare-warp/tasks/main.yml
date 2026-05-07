@@ -1,0 +1,39 @@
+---
+- name: Add Cloudflare WARP GPG key
+  when: ansible_facts['distribution'] == 'Ubuntu'
+  ansible.builtin.get_url:
+    url: https://pkg.cloudflareclient.com/pubkey.gpg
+    dest: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+    mode: '0644'
+  become: true
+
+- name: Add Cloudflare WARP APT repository
+  when: ansible_facts['distribution'] == 'Ubuntu'
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ {{ ansible_facts['distribution_release'] }} main"
+    state: present
+    filename: cloudflare-client
+  become: true
+
+- name: Install cloudflare-warp
+  when: ansible_facts['distribution'] == 'Ubuntu'
+  ansible.builtin.apt:
+    name: cloudflare-warp
+    state: present
+    update_cache: true
+  become: true
+
+- name: Download Cloudflare WARP installer (macOS)
+  when: ansible_facts['os_family'] == 'Darwin'
+  ansible.builtin.get_url:
+    url: https://downloads.cloudflareclient.com/v1/download/macos/ga
+    dest: /tmp/cloudflare-warp.pkg
+    mode: '0644'
+
+- name: Install Cloudflare WARP (macOS)
+  when: ansible_facts['os_family'] == 'Darwin'
+  community.general.installp:
+    path: /tmp/cloudflare-warp.pkg
+    target_volumes: /
+    state: present
+  become: true

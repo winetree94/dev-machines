@@ -42,6 +42,7 @@
     - role: neovim
     - role: kubernetes
     - role: doppler
+    - role: cloudflare-warp
     - role: git
     - role: graphite
     - role: gui-apps
