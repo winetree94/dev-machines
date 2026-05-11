@@ -22,6 +22,23 @@
         - not ('microsoft' in ansible_facts['kernel'] | lower)
         - gui_sessions.results | selectattr('stat.exists') | list | length > 0
 
+    - name: Check for existing Cloudflare WARP APT source
+      when: ansible_facts['distribution'] == 'Ubuntu'
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/cloudflare-client.list
+      register: cloudflare_warp_apt_source
+
+    - name: Repair unsupported Cloudflare WARP APT release
+      when:
+        - ansible_facts['distribution'] == 'Ubuntu'
+        - ansible_facts['distribution_release'] == 'resolute'
+        - cloudflare_warp_apt_source.stat.exists
+      ansible.builtin.replace:
+        path: /etc/apt/sources.list.d/cloudflare-client.list
+        regexp: 'https://pkg\.cloudflareclient\.com/ resolute main'
+        replace: 'https://pkg.cloudflareclient.com/ noble main'
+      become: true
+
   roles:
     - role: docker
     - role: apt-update
