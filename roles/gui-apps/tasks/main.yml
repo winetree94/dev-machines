@@ -1,3 +1,69 @@
+- name: Ensure /etc/apt/keyrings directory exists
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['architecture'] in ['x86_64', 'amd64']
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Add Google Chrome GPG key
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['architecture'] in ['x86_64', 'amd64']
+  ansible.builtin.get_url:
+    url: https://dl.google.com/linux/linux_signing_key.pub
+    dest: /tmp/google-chrome-signing-key.pub
+    mode: '0644'
+
+- name: Dearmor Google Chrome GPG key
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['architecture'] in ['x86_64', 'amd64']
+  ansible.builtin.shell:
+    cmd: gpg --dearmor < /tmp/google-chrome-signing-key.pub > /usr/share/keyrings/google-chrome.gpg
+    creates: /usr/share/keyrings/google-chrome.gpg
+  become: true
+
+- name: Remove legacy Google Chrome APT list
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['architecture'] in ['x86_64', 'amd64']
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/google-chrome.list
+    state: absent
+  become: true
+
+- name: Add Google Chrome APT repository
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['architecture'] in ['x86_64', 'amd64']
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/google-chrome.sources
+    mode: '0644'
+    content: |
+      ### THIS FILE IS AUTOMATICALLY CONFIGURED ###
+      # Changes to this file will not be preserved.
+      # This file will not be recreated if removed.
+      X-Repolib-Name: Google Chrome
+      Types: deb
+      URIs: https://dl.google.com/linux/chrome-stable/deb/
+      Suites: stable
+      Components: main
+      Signed-By: /usr/share/keyrings/google-chrome.gpg
+  become: true
+
+- name: Install Google Chrome
+  when:
+    - ansible_facts['distribution'] == 'Ubuntu'
+    - ansible_facts['architecture'] in ['x86_64', 'amd64']
+  ansible.builtin.apt:
+    name: google-chrome-stable
+    state: present
+    update_cache: true
+  become: true
+
 - name: Install Flatpak Apps
   community.general.flatpak:
     name: "{{ item.name }}"
@@ -14,7 +80,7 @@
     - {name: com.slack.Slack, state: present}
     - {name: com.parsecgaming.parsec, state: present}
     - {name: com.microsoft.Edge, state: present}
-    - {name: com.google.Chrome, state: present}
+    # - {name: com.google.Chrome, state: present}
     - {name: com.github.tchx84.Flatseal, state: present}
     - {name: com.discordapp.Discord, state: present}
     - {name: com.github.PintaProject.Pinta, state: present}
