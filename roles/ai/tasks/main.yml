@@ -16,8 +16,6 @@
     - { name: anomalyco/tap/opencode, state: present }
     - { name: codex, state: present }
     - { name: copilot-cli, state: present }
-    - { name: charmbracelet/tap/crush, state: present }
-    - { name: gemini-cli, state: present }
 
 - name: Ai | Check if Claude is already installed
   ansible.builtin.stat:
