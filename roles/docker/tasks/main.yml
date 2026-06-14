@@ -82,6 +82,16 @@
     - docker-compose-plugin
   become: true
 
+- name: Install Distrobox
+  when: ansible_facts['distribution'] == 'Ubuntu'
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  with_items:
+    - distrobox
+  become: true
+
 - name: Install dependencies
   when: ansible_facts['distribution'] == 'Fedora'
   ansible.builtin.dnf:
