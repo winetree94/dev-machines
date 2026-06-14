@@ -1,8 +1,3 @@
-- name: Install Zellij
-  community.general.homebrew:
-    name: zellij
-    state: present
-
 - name: Tmux | Install tmux from apt
   when: ansible_facts['os_family'] == 'Ubuntu'
   become: true
@@ -18,15 +13,9 @@
     state: present
 
 - name: Tmux | Install tmux from homebrew
-  when: ansible_facts['os_family'] == 'Darwin' or ansible_facts['os_family'] == 'Ubuntu'
+  when: ansible_facts['os_family'] == 'Darwin'
   community.general.homebrew:
     name: tmux
     state: present
   become: false
 
-- name: Tmux | Install tmux package manager
-  ansible.builtin.git:
-    repo: "https://github.com/tmux-plugins/tpm"
-    dest: "{{ lookup('ansible.builtin.env', 'HOME') }}/.tmux/plugins/tpm"
-    update: true
-    clone: true
