@@ -51,8 +51,12 @@
 
 - name: Install Cloudflare WARP (macOS)
   when: ansible_facts['os_family'] == 'Darwin'
-  community.general.installp:
-    path: /tmp/cloudflare-warp.pkg
-    target_volumes: /
-    state: present
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/installer
+      - -pkg
+      - /tmp/cloudflare-warp.pkg
+      - -target
+      - /
+    creates: /Applications/Cloudflare WARP.app
   become: true

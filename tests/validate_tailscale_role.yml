@@ -1,0 +1,88 @@
+---
+- name: Validate Tailscale role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    tailscale_role_tasks_path: "{{ playbook_dir }}/../roles/tailscale/tasks/main.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+  tasks:
+    - name: Check Tailscale role tasks file exists
+      ansible.builtin.stat:
+        path: "{{ tailscale_role_tasks_path }}"
+      register: tailscale_role_tasks
+
+    - name: Assert Tailscale role tasks file exists
+      ansible.builtin.assert:
+        that:
+          - tailscale_role_tasks.stat.exists
+        fail_msg: roles/tailscale/tasks/main.yml must exist.
+
+    - name: Read Tailscale role tasks
+      ansible.builtin.set_fact:
+        tailscale_role_tasks_content: "{{ lookup('ansible.builtin.file', tailscale_role_tasks_path) }}"
+
+    - name: Read setup playbook
+      ansible.builtin.set_fact:
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert Tailscale role uses official stable APT repository
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.deb822_repository' in tailscale_role_tasks_content"
+          - "'https://pkgs.tailscale.com/stable/' in tailscale_role_tasks_content"
+          - "tailscale_role_tasks_content is search('distribution.*lower')"
+          - "'suites:' in tailscale_role_tasks_content"
+          - "'distribution_release' in tailscale_role_tasks_content"
+          - "'components:' in tailscale_role_tasks_content"
+          - "'- main' in tailscale_role_tasks_content"
+          - "'signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg' in tailscale_role_tasks_content"
+        fail_msg: Tailscale role must configure the official stable Tailscale APT repository with deb822_repository.
+
+    - name: Assert Tailscale role ensures keyring directory exists
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.file' in tailscale_role_tasks_content"
+          - "'path: /usr/share/keyrings' in tailscale_role_tasks_content"
+          - "'state: directory' in tailscale_role_tasks_content"
+        fail_msg: Tailscale role must ensure /usr/share/keyrings exists before writing the key.
+
+    - name: Assert Tailscale role downloads noarmor GPG key without curl pipe
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in tailscale_role_tasks_content"
+          - "'https://pkgs.tailscale.com/stable/' in tailscale_role_tasks_content"
+          - "tailscale_role_tasks_content is search('distribution.*lower')"
+          - "tailscale_role_tasks_content is search('distribution_release')"
+          - "'.noarmor.gpg' in tailscale_role_tasks_content"
+          - "'dest: /usr/share/keyrings/tailscale-archive-keyring.gpg' in tailscale_role_tasks_content"
+          - "'curl' not in tailscale_role_tasks_content"
+          - "'| sh' not in tailscale_role_tasks_content"
+        fail_msg: Tailscale role must download the noarmor key directly and must not use curl|sh.
+
+    - name: Assert Tailscale role installs package and manages systemd service only
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.apt' in tailscale_role_tasks_content"
+          - "'name: tailscale' in tailscale_role_tasks_content"
+          - "'ansible.builtin.systemd_service' in tailscale_role_tasks_content"
+          - "'name: tailscaled' in tailscale_role_tasks_content"
+          - "'enabled: true' in tailscale_role_tasks_content"
+          - "'state: started' in tailscale_role_tasks_content"
+          - "tailscale_role_tasks_content is search(\"ansible_facts\\['service_mgr'\\] == 'systemd'\")"
+          - "'tailscale up' not in tailscale_role_tasks_content"
+        fail_msg: Tailscale role must install tailscale, enable/start tailscaled under systemd, and never run tailscale up.
+
+    - name: Assert Tailscale role is Ubuntu/Debian only
+      ansible.builtin.assert:
+        that:
+          - "tailscale_role_tasks_content is search(\"ansible_facts\\['os_family'\\] == 'Debian'\")"
+          - "tailscale_role_tasks_content is search(\"ansible_facts\\['distribution'\\] in \\['Ubuntu', 'Debian'\\]\")"
+        fail_msg: Tailscale role tasks must be guarded to Ubuntu/Debian Debian-family hosts only.
+
+    - name: Assert setup playbook includes guarded Tailscale role without GUI guard
+      ansible.builtin.assert:
+        that:
+          - "'- role: tailscale' in setup_playbook_content"
+          - "setup_playbook_content is search(\"- role: tailscale\\n      when:\\n        - ansible_facts\\['os_family'\\] == 'Debian'\\n        - ansible_facts\\['distribution'\\] in \\['Ubuntu', 'Debian'\\]\")"
+        fail_msg: setup.yml must include tailscale only for Ubuntu/Debian Debian-family machines without a GUI guard.

@@ -60,7 +60,17 @@
     - role: kubernetes
     - role: doppler
     - role: cloudflare-warp
+    - role: tailscale
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] in ['Ubuntu', 'Debian']
     - role: git
     - role: graphite
+    - role: vscode
+      when:
+        - ansible_facts['os_family'] == 'Debian'
+        - ansible_facts['distribution'] in ['Ubuntu', 'Debian']
+        - ansible_facts['architecture'] in ['x86_64', 'amd64']
+        - gui | bool
     - role: gui-apps
       when: gui | bool

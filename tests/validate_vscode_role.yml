@@ -1,0 +1,46 @@
+---
+- name: Validate Visual Studio Code role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vscode_role_tasks_path: "{{ playbook_dir }}/../roles/vscode/tasks/main.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+  tasks:
+    - name: Check Visual Studio Code role tasks file exists
+      ansible.builtin.stat:
+        path: "{{ vscode_role_tasks_path }}"
+      register: vscode_role_tasks
+
+    - name: Assert Visual Studio Code role tasks file exists
+      ansible.builtin.assert:
+        that:
+          - vscode_role_tasks.stat.exists
+        fail_msg: roles/vscode/tasks/main.yml must exist.
+
+    - name: Read Visual Studio Code role tasks
+      ansible.builtin.set_fact:
+        vscode_role_tasks_content: "{{ lookup('ansible.builtin.file', vscode_role_tasks_path) }}"
+
+    - name: Read setup playbook
+      ansible.builtin.set_fact:
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert Visual Studio Code role downloads and installs official deb
+      ansible.builtin.assert:
+        that:
+          - "'https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64' in vscode_role_tasks_content"
+          - "'ansible.builtin.get_url' in vscode_role_tasks_content"
+          - "'ansible.builtin.apt' in vscode_role_tasks_content"
+          - "'deb:' in vscode_role_tasks_content"
+          - "'become: true' in vscode_role_tasks_content"
+        fail_msg: Visual Studio Code role must download Microsoft's official stable linux-deb-x64 package and install it with apt deb.
+
+    - name: Assert setup playbook includes guarded Visual Studio Code role
+      ansible.builtin.assert:
+        that:
+          - "'- role: vscode' in setup_playbook_content"
+          - setup_playbook_content is search("ansible_facts\\['os_family'\\] == 'Debian'")
+          - setup_playbook_content is search("ansible_facts\\['distribution'\\] in \\['Ubuntu', 'Debian'\\]")
+          - "'gui | bool' in setup_playbook_content"
+        fail_msg: setup.yml must include vscode only for GUI Ubuntu/Debian Debian-family machines.

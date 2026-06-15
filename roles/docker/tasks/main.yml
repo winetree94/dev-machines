@@ -1,10 +1,3 @@
-- name: Remove stale Docker repository sources file (DEB822 format)
-  when: ansible_facts['distribution'] == 'Ubuntu'
-  ansible.builtin.file:
-    path: /etc/apt/sources.list.d/docker.sources
-    state: absent
-  become: true
-
 - name: Remove stale Docker GPG key (.gpg)
   when: ansible_facts['distribution'] == 'Ubuntu'
   ansible.builtin.file:
@@ -62,10 +55,20 @@
 
 - name: Add Docker APT repository
   when: ansible_facts['distribution'] == 'Ubuntu'
-  ansible.builtin.apt_repository:
-    repo: "deb [arch={{ ansible_facts['architecture'] | replace('x86_64', 'amd64') }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_facts['distribution_release'] }} stable"
+  ansible.builtin.deb822_repository:
+    name: docker
+    types:
+      - deb
+    uris:
+      - https://download.docker.com/linux/ubuntu
+    suites:
+      - "{{ ansible_facts['distribution_release'] }}"
+    components:
+      - stable
+    architectures:
+      - "{{ ansible_facts['architecture'] | replace('x86_64', 'amd64') }}"
+    signed_by: /etc/apt/keyrings/docker.asc
     state: present
-    filename: docker
   become: true
 
 - name: Install Docker CE
@@ -103,4 +106,3 @@
     - containerd
     - docker-compose
     - docker-compose-switch
-
