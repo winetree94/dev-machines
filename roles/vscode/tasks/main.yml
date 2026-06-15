@@ -18,3 +18,34 @@
     deb: /tmp/code-stable-linux-deb-x64.deb
     state: present
   become: true
+
+- name: Import Microsoft RPM signing key
+  when: ansible_facts['distribution'] == 'Fedora'
+  ansible.builtin.rpm_key:
+    key: https://packages.microsoft.com/keys/microsoft.asc
+    state: present
+  become: true
+
+- name: Add Visual Studio Code RPM repository
+  when: ansible_facts['distribution'] == 'Fedora'
+  ansible.builtin.yum_repository:
+    name: code
+    description: Visual Studio Code
+    baseurl: https://packages.microsoft.com/yumrepos/vscode
+    enabled: true
+    gpgcheck: true
+    gpgkey: https://packages.microsoft.com/keys/microsoft.asc
+  become: true
+
+- name: Install Visual Studio Code on Fedora
+  when: ansible_facts['distribution'] == 'Fedora'
+  ansible.builtin.dnf:
+    name: code
+    state: present
+  become: true
+
+- name: Install Visual Studio Code on macOS
+  when: ansible_facts['os_family'] == 'Darwin'
+  community.general.homebrew_cask:
+    name: visual-studio-code
+    state: present

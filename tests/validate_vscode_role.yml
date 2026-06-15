@@ -36,11 +36,33 @@
           - "'become: true' in vscode_role_tasks_content"
         fail_msg: Visual Studio Code role must download Microsoft's official stable linux-deb-x64 package and install it with apt deb.
 
+    - name: Assert Visual Studio Code role supports Fedora with official Microsoft RPM repo
+      ansible.builtin.assert:
+        that:
+          - "'https://packages.microsoft.com/yumrepos/vscode' in vscode_role_tasks_content"
+          - "'https://packages.microsoft.com/keys/microsoft.asc' in vscode_role_tasks_content"
+          - "'ansible.builtin.rpm_key' in vscode_role_tasks_content"
+          - "'ansible.builtin.yum_repository' in vscode_role_tasks_content"
+          - "'ansible.builtin.dnf' in vscode_role_tasks_content"
+          - "'name: code' in vscode_role_tasks_content"
+          - "'state: present' in vscode_role_tasks_content"
+          - vscode_role_tasks_content is search("ansible_facts\\['distribution'\\] == 'Fedora'")
+          - "'ansible.builtin.yum:' not in vscode_role_tasks_content"
+        fail_msg: Visual Studio Code role must install VS Code on Fedora from Microsoft's official RPM/YUM repo with dnf and the Microsoft signing key.
+
+    - name: Assert Visual Studio Code role supports macOS with Homebrew cask
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' in vscode_role_tasks_content"
+          - "'visual-studio-code' in vscode_role_tasks_content"
+          - vscode_role_tasks_content is search("ansible_facts\\['os_family'\\] == 'Darwin'")
+        fail_msg: Visual Studio Code role must install VS Code on macOS using the Homebrew cask visual-studio-code.
+
     - name: Assert setup playbook includes guarded Visual Studio Code role
       ansible.builtin.assert:
         that:
           - "'- role: vscode' in setup_playbook_content"
-          - setup_playbook_content is search("ansible_facts\\['os_family'\\] == 'Debian'")
-          - setup_playbook_content is search("ansible_facts\\['distribution'\\] in \\['Ubuntu', 'Debian'\\]")
-          - "'gui | bool' in setup_playbook_content"
-        fail_msg: setup.yml must include vscode only for GUI Ubuntu/Debian Debian-family machines.
+          - setup_playbook_content is search("ansible_facts\\['distribution'\\] in \\['Ubuntu', 'Debian', 'Fedora'\\]")
+          - setup_playbook_content is search("ansible_facts\\['os_family'\\] == 'Darwin'")
+          - setup_playbook_content is search("ansible_facts\\['os_family'\\] == 'Darwin' or .*gui \\| bool")
+        fail_msg: setup.yml must include vscode for GUI Ubuntu/Debian/Fedora machines and macOS without requiring the gui-apps guard.
