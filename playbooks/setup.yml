@@ -7,7 +7,7 @@
 
   pre_tasks:
     - name: Check for GUI session directories
-      stat:
+      ansible.builtin.stat:
         path: "{{ item }}"
       register: gui_sessions
       loop:
@@ -15,10 +15,10 @@
         - /usr/share/wayland-sessions
 
     - name: Automatically enable GUI apps if a desktop environment is detected
-      set_fact:
+      ansible.builtin.set_fact:
         gui: true
       when:
-        - gui == false
+        - not gui
         - not ('microsoft' in ansible_facts['kernel'] | lower)
         - gui_sessions.results | selectattr('stat.exists') | list | length > 0
 
@@ -41,11 +41,11 @@
 
   roles:
     - role: docker
-    - role: apt-update
+    - role: apt_update
       when: ansible_facts['distribution'] == 'Ubuntu'
-    - role: setup-snap
-    - role: setup-flatpak
-    - role: setup-homebrew
+    - role: setup_snap
+    - role: setup_flatpak
+    - role: setup_homebrew
     - role: python
     - role: fedora
     - role: ai
@@ -59,7 +59,7 @@
     - role: neovim
     - role: kubernetes
     - role: doppler
-    - role: cloudflare-warp
+    - role: cloudflare_warp
     - role: tailscale
       when:
         - ansible_facts['os_family'] == 'Debian'
@@ -70,5 +70,5 @@
       when:
         - ansible_facts['os_family'] == 'Darwin' or (ansible_facts['distribution'] in ['Ubuntu', 'Debian', 'Fedora'] and gui | bool)
         - ansible_facts['os_family'] == 'Darwin' or ansible_facts['architecture'] in ['x86_64', 'amd64']
-    - role: gui-apps
+    - role: gui_apps
       when: gui | bool

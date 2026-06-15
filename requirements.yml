@@ -1,1 +1,4 @@
-collections: [ 'ansible.windows', 'ansible.posix', 'community.general' ]
+collections:
+  - ansible.windows
+  - ansible.posix
+  - community.general

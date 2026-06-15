@@ -13,9 +13,12 @@
     state: "{{ item.state }}"
   become: false
   with_items:
-    - { name: anomalyco/tap/opencode, state: present }
-    - { name: codex, state: present }
-    - { name: copilot-cli, state: present }
+    - name: anomalyco/tap/opencode
+      state: present
+    - name: codex
+      state: present
+    - name: copilot-cli
+      state: present
 
 - name: Ai | Check if Claude is already installed
   ansible.builtin.stat:

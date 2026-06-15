@@ -84,5 +84,8 @@
       ansible.builtin.assert:
         that:
           - "'- role: tailscale' in setup_playbook_content"
-          - "setup_playbook_content is search(\"- role: tailscale\\n      when:\\n        - ansible_facts\\['os_family'\\] == 'Debian'\\n        - ansible_facts\\['distribution'\\] in \\['Ubuntu', 'Debian'\\]\")"
+          - >-
+            setup_playbook_content is search("- role: tailscale\n      when:\n        -
+            ansible_facts\['os_family'\] == 'Debian'\n        -
+            ansible_facts\['distribution'\] in \['Ubuntu', 'Debian'\]")
         fail_msg: setup.yml must include tailscale only for Ubuntu/Debian Debian-family machines without a GUI guard.

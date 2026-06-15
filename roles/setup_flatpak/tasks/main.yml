@@ -9,11 +9,11 @@
   when: ansible_facts['distribution'] == 'Ubuntu'
   become: true
   ansible.builtin.command: "flatpak remotes"
-  register: flatpak_remotes_result
+  register: setup_flatpak_remotes_result
   changed_when: false
 
 - name: Regitser flathub repository
-  when: ansible_facts['distribution'] == 'Ubuntu' and 'flathub' not in flatpak_remotes_result.stdout
+  when: ansible_facts['distribution'] == 'Ubuntu' and 'flathub' not in setup_flatpak_remotes_result.stdout
   become: true
   ansible.builtin.command: "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
   changed_when: true
@@ -25,6 +25,9 @@
     name: "{{ item.name }}"
     state: "{{ item.state }}"
   with_items:
-    - { name: gnome-software, state: present }
-    - { name: gnome-software-plugin-flatpak, state: present }
-    - { name: gnome-software-plugin-snap, state: present }
+    - name: gnome-software
+      state: present
+    - name: gnome-software-plugin-flatpak
+      state: present
+    - name: gnome-software-plugin-snap
+      state: present

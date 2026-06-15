@@ -18,4 +18,3 @@
     name: tmux
     state: present
   become: false
-
