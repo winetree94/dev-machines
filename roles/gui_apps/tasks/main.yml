@@ -1,4 +1,5 @@
 - name: Install Flatpak Apps
+  become: true
   community.general.flatpak:
     name: "{{ item.name }}"
     state: "{{ item.state }}"
