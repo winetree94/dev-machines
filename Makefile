@@ -1,12 +1,14 @@
-.PHONY: install-tools install-requirements syntax validate lint check verify apply
+.PHONY: install-tools install-requirements syntax validate lint ping check verify apply
 
 ANSIBLE_PLAYBOOK ?= ansible-playbook
 ANSIBLE_GALAXY ?= ansible-galaxy
 YAMLLINT ?= yamllint
 ANSIBLE_LINT ?= ansible-lint
 PIPX ?= pipx
+ANSIBLE_ARGS ?=
 
 PLAYBOOK ?= ./playbooks/setup.yml
+PING_PLAYBOOK := ./playbooks/ping.yml
 VALIDATE_PLAYBOOKS := $(sort $(wildcard tests/validate_*.yml))
 
 install-tools:
@@ -17,7 +19,8 @@ install-requirements:
 	$(ANSIBLE_GALAXY) collection install -r ./requirements.yml --force
 
 syntax:
-	$(ANSIBLE_PLAYBOOK) --syntax-check $(PLAYBOOK)
+	$(ANSIBLE_PLAYBOOK) --syntax-check $(PLAYBOOK) $(ANSIBLE_ARGS)
+	$(ANSIBLE_PLAYBOOK) --syntax-check $(PING_PLAYBOOK) $(ANSIBLE_ARGS)
 
 validate:
 	@if [ -z "$(VALIDATE_PLAYBOOKS)" ]; then \
@@ -26,7 +29,7 @@ validate:
 	fi
 	@for playbook in $(VALIDATE_PLAYBOOKS); do \
 		printf '%s\n' "Running $$playbook"; \
-		$(ANSIBLE_PLAYBOOK) "$$playbook" || exit $$?; \
+		$(ANSIBLE_PLAYBOOK) "$$playbook" $(ANSIBLE_ARGS) || exit $$?; \
 	done
 
 lint:
@@ -35,10 +38,13 @@ lint:
 	$(YAMLLINT) .
 	$(ANSIBLE_LINT)
 
+ping:
+	$(ANSIBLE_PLAYBOOK) $(PING_PLAYBOOK) $(ANSIBLE_ARGS)
+
 check:
-	$(ANSIBLE_PLAYBOOK) --check --diff $(PLAYBOOK)
+	$(ANSIBLE_PLAYBOOK) --check --diff $(PLAYBOOK) $(ANSIBLE_ARGS)
 
 verify: syntax validate lint
 
 apply:
-	$(ANSIBLE_PLAYBOOK) $(PLAYBOOK)
+	$(ANSIBLE_PLAYBOOK) $(PLAYBOOK) $(ANSIBLE_ARGS)

@@ -1,0 +1,17 @@
+---
+# Connectivity check. Split by OS because ansible.builtin.ping is a Python
+# module and cannot run on Windows, where ansible.windows.win_ping is the
+# native equivalent.
+- name: Ping POSIX hosts
+  hosts: all:!windows
+  gather_facts: false
+  tasks:
+    - name: Ping host
+      ansible.builtin.ping:
+
+- name: Ping Windows hosts
+  hosts: windows
+  gather_facts: false
+  tasks:
+    - name: Ping host
+      ansible.windows.win_ping:
