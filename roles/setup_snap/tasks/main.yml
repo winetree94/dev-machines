@@ -4,12 +4,3 @@
   ansible.builtin.apt:
     name: snapd
     state: present
-
-- name: Install dependencies
-  when: ansible_facts['distribution'] == 'Fedora'
-  ansible.builtin.dnf:
-    name: "{{ item }}"
-    state: present
-  become: true
-  with_items:
-    - snapd

@@ -7,15 +7,6 @@
   with_items:
     - zsh
 
-- name: Install zsh
-  when: ansible_facts['distribution'] == 'Fedora'
-  ansible.builtin.dnf:
-    name: "{{ item }}"
-    state: present
-  become: true
-  with_items:
-    - zsh
-
 - name: Install tools
   community.general.homebrew:
     name: "{{ item }}"

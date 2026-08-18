@@ -112,15 +112,3 @@
   with_items:
     - distrobox
   become: true
-
-- name: Install dependencies
-  when: ansible_facts['distribution'] == 'Fedora'
-  ansible.builtin.dnf:
-    name: "{{ item }}"
-    state: present
-  become: true
-  with_items:
-    - docker-cli
-    - containerd
-    - docker-compose
-    - docker-compose-switch
