@@ -1,12 +1,8 @@
-- name: Tap a Homebrew repository
-  community.general.homebrew_tap:
-    name: dopplerhq/cli
-
-- name: Install Dependencies (Homebrew)
-  community.general.homebrew:
-    name: "{{ item }}"
-    state: present
-  become: false
-  with_items:
-    - gnupg
-    - dopplerhq/cli/doppler
+---
+- name: Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true

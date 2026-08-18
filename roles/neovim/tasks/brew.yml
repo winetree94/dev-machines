@@ -1,0 +1,14 @@
+---
+- name: Install Dependencies (Homebrew)
+  community.general.homebrew:
+    name: "{{ item }}"
+    state: present
+  become: false
+  with_items:
+    - lazygit
+    - neovim
+    - ripgrep
+    - lua
+    - luarocks
+    - fd
+    - tree-sitter-cli

@@ -1,0 +1,9 @@
+---
+- name: Install AWS cli (snap)
+  community.general.snap:
+    name: "{{ item.name }}"
+    classic: "{{ item.classic }}"
+    state: "{{ item.state }}"
+  become: true
+  with_items:
+    - {name: aws-cli, classic: true, state: present}

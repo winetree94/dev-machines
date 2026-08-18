@@ -1,16 +1,8 @@
-- name: Install AWS cli (snap)
-  when: ansible_facts['distribution'] == 'Ubuntu'
-  community.general.snap:
-    name: "{{ item.name }}"
-    classic: "{{ item.classic }}"
-    state: "{{ item.state }}"
-  become: true
-  with_items:
-    - {name: aws-cli, classic: true, state: present}
-
-- name: Install AWS cli (brew)
-  when: ansible_facts['os_family'] == 'Darwin'
-  community.general.homebrew:
-    name: awscli
-    state: present
-  become: false
+---
+- name: Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true

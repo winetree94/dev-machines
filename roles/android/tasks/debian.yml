@@ -1,0 +1,6 @@
+---
+- name: Install Platform Tools
+  become: true
+  ansible.builtin.apt:
+    name: android-sdk-platform-tools
+    state: present

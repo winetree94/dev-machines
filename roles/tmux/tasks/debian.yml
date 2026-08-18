@@ -1,0 +1,6 @@
+---
+- name: Tmux | Install tmux from apt
+  become: true
+  ansible.builtin.apt:
+    name: tmux
+    state: present

@@ -1,0 +1,15 @@
+---
+- name: Install Dependencies (APT)
+  become: true
+  ansible.builtin.apt:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - git
+    - make
+    - python3-pip
+    - xclip
+    - wl-clipboard
+
+- name: Install common Homebrew dependencies
+  ansible.builtin.include_tasks: brew.yml

@@ -3,7 +3,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    docker_role_tasks_path: "{{ playbook_dir }}/../roles/docker/tasks/main.yml"
+    docker_role_tasks_path: "{{ playbook_dir }}/../roles/docker/tasks/debian.yml"
 
   tasks:
     - name: Check Docker role tasks file exists
@@ -15,7 +15,7 @@
       ansible.builtin.assert:
         that:
           - docker_role_tasks.stat.exists
-        fail_msg: roles/docker/tasks/main.yml must exist.
+        fail_msg: roles/docker/tasks/debian.yml must exist.
 
     - name: Read Docker role tasks
       ansible.builtin.set_fact:
@@ -28,6 +28,5 @@
           - "'groups: docker' in docker_role_tasks_content"
           - "'append: true' in docker_role_tasks_content"
           - "docker_role_tasks_content is search('name: .*ansible_user_id')"
-          - "docker_role_tasks_content is search(\"ansible_facts\\['distribution'\\] == 'Ubuntu'\")"
           - "docker_role_tasks_content is search('Install Docker CE[\\s\\S]*Add current user to docker group')"
         fail_msg: Docker role must add ansible_user_id to the docker group after Docker CE is installed.

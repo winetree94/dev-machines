@@ -1,30 +1,8 @@
-- name: Tap a Homebrew repository, state present
-  community.general.homebrew_tap:
-    name: fluxcd/tap
-
-- name: Install Brew Packages
-  community.general.homebrew:
-    name: "{{ item.name }}"
-    state: "{{ item.state }}"
-  become: false
-  with_items:
-    - name: kubectl
-      state: present
-    - name: age
-      state: present
-    - name: sops
-      state: present
-    - name: k9s
-      state: present
-    - name: kubeseal
-      state: present
-    - name: talosctl
-      state: present
-    - name: talhelper
-      state: present
-    - name: kubectl-cnpg
-      state: present
-    - name: helm
-      state: present
-    - name: fluxcd/tap/flux
-      state: present
+---
+- name: Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true

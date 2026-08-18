@@ -1,18 +1,8 @@
-- name: Install Bun
-  community.general.homebrew_tap:
-    name: oven-sh/bun
-
-- name: Install Brew Packages
-  community.general.homebrew:
-    name: "{{ item.name }}"
-    state: "{{ item.state }}"
-  become: false
-  with_items:
-    - name: oven-sh/bun/bun
-      state: present
-    - name: pnpm
-      state: present
-    - name: deno
-      state: present
-    - name: biome
-      state: present
+---
+- name: Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true

@@ -1,29 +1,8 @@
-- name: Install zsh
-  when: ansible_facts['distribution'] == 'Ubuntu'
-  ansible.builtin.apt:
-    name: "{{ item }}"
-    state: present
-  become: true
-  with_items:
-    - zsh
-
-- name: Install tools
-  community.general.homebrew:
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - direnv
-    - fzf
-
-- name: Setup default shell (Linux)
-  become: true
-  when: ansible_facts['os_family'] != 'Darwin'
-  ansible.builtin.user:
-    name: "{{ lookup('ansible.builtin.env', 'USER') }}"
-    shell: /usr/bin/zsh
-# - name: Setup default shell (MacOS)
-#   become: true
-#   when: ansible_os_family == 'Darwin'
-#   ansible.builtin.user:
-#     name: "{{ lookup('ansible.builtin.env', 'USER') }}"
-#     shell: /bin/zsh
+---
+- name: Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ item }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true
