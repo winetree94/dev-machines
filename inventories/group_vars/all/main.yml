@@ -1,0 +1,16 @@
+---
+# GUI default. Overridden to true by group_vars/macos.yml and
+# group_vars/windows.yml, and by the desktop-detection set_fact in the
+# "Ubuntu bootstrap" play. Defined here so that hosts which are only sorted
+# into an OS group at runtime (localhost, via the "Group hosts by OS" play)
+# still have a defined value during the first play.
+gui: false
+
+# --- vault indirection -------------------------------------------------
+# Every secret lives in ./vault.yml (ansible-vault, one password).
+# Roles and playbooks must never reference a vault_* name directly.
+#
+# ansible_private_key holds the key *contents*, which ansible loads into an
+# ephemeral ssh-agent for the run - it requires "ssh_agent = auto" under
+# [connection] in ansible.cfg and never writes the key to disk.
+ansible_private_key: "{{ vault_ssh_private_key }}"

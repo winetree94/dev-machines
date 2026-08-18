@@ -4,6 +4,7 @@ extends: default
 ignore: |
   collections/
   roles_galaxy/
+  inventories/group_vars/all/vault.yml
 
 rules:
   braces:
