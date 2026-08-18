@@ -36,7 +36,7 @@
     - role: tmux
     - role: aws
     - role: rclone
-    # - role: node
+    - role: node
     - role: bw
     - role: mise
     - role: neovim
