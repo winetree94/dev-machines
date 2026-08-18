@@ -1,5 +1,5 @@
+---
 - name: Install snap
-  when: ansible_facts['distribution'] == 'Ubuntu'
   become: true
   ansible.builtin.apt:
     name: snapd

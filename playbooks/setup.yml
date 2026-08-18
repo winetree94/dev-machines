@@ -1,10 +1,17 @@
-- name: Setup Development Environment
-  hosts: local_machines
-  vars:
-    gui: false
-    is_linux: "{{ ansible_facts['os_family'] != 'Darwin' }}"
-    is_macos: "{{ ansible_facts['os_family'] == 'Darwin' }}"
+---
+- name: Group hosts by OS
+  hosts: all
+  tasks:
+    - name: Add hosts to OS groups
+      ansible.builtin.group_by:
+        key: >-
+          {{ 'windows' if ansible_facts['os_family'] == 'Windows'
+             else ('macos' if ansible_facts['os_family'] == 'Darwin'
+             else 'ubuntu') }}
+      changed_when: false
 
+- name: Ubuntu bootstrap
+  hosts: ubuntu
   pre_tasks:
     - name: Check for GUI session directories
       ansible.builtin.stat:
@@ -23,12 +30,16 @@
         - gui_sessions.results | selectattr('stat.exists') | list | length > 0
 
   roles:
-    - role: docker
     - role: apt_update
-      when: ansible_facts['distribution'] == 'Ubuntu'
     - role: setup_snap
     - role: setup_flatpak
     - role: setup_homebrew
+    - role: tailscale
+
+- name: Common tooling
+  hosts: all
+  roles:
+    - role: docker
     - role: python
     - role: ai
     - role: zsh
@@ -41,10 +52,6 @@
     - role: neovim
     - role: kubernetes
     - role: doppler
-    - role: tailscale
-      when:
-        - ansible_facts['os_family'] == 'Debian'
-        - ansible_facts['distribution'] in ['Ubuntu', 'Debian']
     - role: git
     - role: graphite
     - role: gui_apps
