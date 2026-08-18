@@ -1,0 +1,17 @@
+---
+# Windows hosts are managed over OpenSSH (Windows optional feature).
+# One-time host preparation (run in an elevated PowerShell on the target):
+#   Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+#   Set-Service sshd -StartupType Automatic; Start-Service sshd
+#   New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
+#     -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+ansible_connection: ssh
+ansible_shell_type: powershell
+ansible_become_method: runas
+ansible_become_user: "{{ ansible_user }}"
+gui: true
+
+# WinRM alternative:
+# ansible_connection: winrm
+# ansible_winrm_transport: ntlm
+# ansible_port: 5986

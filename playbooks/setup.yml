@@ -36,6 +36,11 @@
     - role: setup_homebrew
     - role: tailscale
 
+- name: Windows bootstrap
+  hosts: windows
+  roles:
+    - role: setup_chocolatey
+
 - name: Common tooling
   hosts: all
   roles:

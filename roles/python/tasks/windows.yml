@@ -1,0 +1,5 @@
+---
+- name: Install Python3 (Chocolatey)
+  chocolatey.chocolatey.win_chocolatey:
+    name: python3
+    state: present

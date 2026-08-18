@@ -1,0 +1,10 @@
+---
+- name: Install Neovim tooling (Chocolatey)
+  chocolatey.chocolatey.win_chocolatey:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - neovim
+    - ripgrep
+    - fd
+    - lazygit
