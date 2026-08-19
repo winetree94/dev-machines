@@ -76,6 +76,6 @@
     - (tailscale_version.stdout_lines | default([]) | first | default('0')) is version('1.96', '>=')
   ansible.builtin.command:
     cmd: tailscale configure systray --enable-startup=freedesktop
-    creates: "{{ ansible_env.HOME }}/.config/autostart/tailscale-systray.desktop"
+    creates: "{{ ansible_facts['env']['HOME'] }}/.config/autostart/tailscale-systray.desktop"
   # systray is not designed to run as superuser and the command fails under sudo
   become: false

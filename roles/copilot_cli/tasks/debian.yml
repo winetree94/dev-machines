@@ -4,7 +4,7 @@
 # under $HOME for a non-root user, which is why nothing here needs become.
 - name: Copilot cli | Check whether the Copilot CLI is installed
   ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/.local/bin/copilot"
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/copilot"
   register: copilot_cli_installed
   become: false
 

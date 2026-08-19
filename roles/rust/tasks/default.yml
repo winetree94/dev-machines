@@ -1,6 +1,6 @@
 - name: Check if cargo is installed
   ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/.cargo"
+    path: "{{ ansible_facts['env']['HOME'] }}/.cargo"
   register: rust_cargo_exists
   become: false
 

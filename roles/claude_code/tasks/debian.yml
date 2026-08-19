@@ -8,7 +8,7 @@
 # the fetch and the run are separate, inspectable steps.
 - name: Claude code | Check whether Claude Code is installed
   ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/.local/bin/claude"
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude"
   register: claude_code_installed
   become: false
 

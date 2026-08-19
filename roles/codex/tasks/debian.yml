@@ -4,7 +4,7 @@
 # shell, so the fetch and the run stay separate, inspectable steps.
 - name: Codex | Check whether the Codex CLI is installed
   ansible.builtin.stat:
-    path: "{{ ansible_env.HOME }}/.local/bin/codex"
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/codex"
   register: codex_installed
   become: false
 
