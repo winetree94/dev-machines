@@ -1,5 +1,6 @@
 ---
 - name: Biome | Install Biome (brew)
+  when: "'biome' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: biome
     state: present

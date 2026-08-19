@@ -1,5 +1,6 @@
 ---
 - name: Bitwarden desktop | Install Bitwarden (Flatpak)
+  when: "'com.bitwarden.desktop' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.bitwarden.desktop

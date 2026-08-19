@@ -1,5 +1,6 @@
 ---
 - name: Headlamp | Install Headlamp (Homebrew cask)
+  when: "'headlamp' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: headlamp
     state: present

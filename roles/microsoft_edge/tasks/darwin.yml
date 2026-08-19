@@ -1,5 +1,6 @@
 ---
 - name: Microsoft edge | Install Microsoft Edge (Homebrew cask)
+  when: "'microsoft-edge' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: microsoft-edge
     state: present

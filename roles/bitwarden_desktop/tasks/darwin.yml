@@ -1,5 +1,6 @@
 ---
 - name: Bitwarden desktop | Install Bitwarden (Homebrew cask)
+  when: "'bitwarden' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: bitwarden
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Libreoffice | Install LibreOffice (Flatpak)
+  when: "'org.libreoffice.LibreOffice' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.libreoffice.LibreOffice

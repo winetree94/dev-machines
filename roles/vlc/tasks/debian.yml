@@ -1,5 +1,6 @@
 ---
 - name: Vlc | Install VLC (Flatpak)
+  when: "'org.videolan.VLC' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.videolan.VLC

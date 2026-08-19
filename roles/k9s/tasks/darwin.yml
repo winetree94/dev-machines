@@ -1,5 +1,6 @@
 ---
 - name: K9s | Install k9s (brew)
+  when: "'k9s' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: k9s
     state: present

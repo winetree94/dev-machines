@@ -1,5 +1,6 @@
 ---
 - name: Gimp | Install GIMP (Homebrew cask)
+  when: "'gimp' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: gimp
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Thunderbird | Install Thunderbird (Homebrew cask)
+  when: "'thunderbird' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: thunderbird
     state: present

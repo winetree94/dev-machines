@@ -1,5 +1,6 @@
 ---
 - name: Microsoft edge | Install Microsoft Edge (Flatpak)
+  when: "'com.microsoft.Edge' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.microsoft.Edge

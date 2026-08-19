@@ -2,6 +2,7 @@
 # "claude-code" tracks the stable channel; "claude-code@latest" is the latest
 # channel. The channel is picked by cask token, not by a setting.
 - name: Claude code | Install Claude Code (Homebrew cask)
+  when: "'claude-code' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: claude-code
     state: present

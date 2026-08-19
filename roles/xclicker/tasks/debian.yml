@@ -1,5 +1,6 @@
 ---
 - name: Xclicker | Install XClicker (Flatpak)
+  when: "'xyz.xclicker.xclicker' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: xyz.xclicker.xclicker

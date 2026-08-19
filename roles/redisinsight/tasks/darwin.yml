@@ -2,6 +2,7 @@
 # The cask token is hyphenated. "redisinsight" still resolves through the
 # cask's old_tokens list, but it is deprecated and will stop working.
 - name: Redisinsight | Install RedisInsight (Homebrew cask)
+  when: "'redis-insight' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: redis-insight
     state: present

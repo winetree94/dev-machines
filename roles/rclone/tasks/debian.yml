@@ -1,5 +1,6 @@
 ---
 - name: Rclone | Install rclone (brew)
+  when: "'rclone' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: rclone
     state: present

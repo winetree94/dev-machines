@@ -14,6 +14,7 @@
   become: false
 
 - name: Bun | Install Bun (brew)
+  when: "'oven-sh/bun/bun' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: oven-sh/bun/bun
     state: present

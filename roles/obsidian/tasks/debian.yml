@@ -1,5 +1,6 @@
 ---
 - name: Obsidian | Install Obsidian (Flatpak)
+  when: "'md.obsidian.Obsidian' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: md.obsidian.Obsidian

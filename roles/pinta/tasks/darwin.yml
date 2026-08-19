@@ -1,5 +1,6 @@
 ---
 - name: Pinta | Install Pinta (Homebrew cask)
+  when: "'pinta' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: pinta
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Obsidian | Install Obsidian (Homebrew cask)
+  when: "'obsidian' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: obsidian
     state: present

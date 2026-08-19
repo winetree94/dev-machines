@@ -1,5 +1,6 @@
 ---
 - name: Bitwarden cli | Install the Bitwarden CLI (brew)
+  when: "'bitwarden-cli' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: bitwarden-cli
     state: present

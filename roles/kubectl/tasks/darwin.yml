@@ -3,6 +3,7 @@
 # alias for it. The canonical name keeps the module's installed-check off
 # alias resolution.
 - name: Kubectl | Install kubectl (brew)
+  when: "'kubernetes-cli' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: kubernetes-cli
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Talosctl | Install talosctl (brew)
+  when: "'talosctl' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: talosctl
     state: present

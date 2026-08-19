@@ -2,6 +2,7 @@
 # org.telegram.desktop is the Qt cross-platform build. On macOS the native
 # build (cask "telegram") is the better client, so the two differ on purpose.
 - name: Telegram | Install Telegram (Flatpak)
+  when: "'org.telegram.desktop' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.telegram.desktop

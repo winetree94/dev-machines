@@ -4,6 +4,7 @@
 # dependencies, not tools anyone on these machines uses directly. lazygit,
 # ripgrep and fd used to be in this list and are now roles in their own right.
 - name: Neovim | Install Neovim and its dependencies (brew)
+  when: item not in (brew_installed_formulae | default([]))
   community.general.homebrew:
     name: "{{ item }}"
     state: present

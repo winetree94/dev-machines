@@ -1,5 +1,6 @@
 ---
 - name: Onlyoffice | Install ONLYOFFICE Desktop Editors (Flatpak)
+  when: "'org.onlyoffice.desktopeditors' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.onlyoffice.desktopeditors

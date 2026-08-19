@@ -1,5 +1,6 @@
 ---
 - name: Gh | Install the GitHub CLI (brew)
+  when: "'gh' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: gh
     state: present

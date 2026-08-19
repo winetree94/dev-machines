@@ -1,5 +1,6 @@
 ---
 - name: Flatseal | Install Flatseal (Flatpak)
+  when: "'com.github.tchx84.Flatseal' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.github.tchx84.Flatseal

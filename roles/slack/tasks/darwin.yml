@@ -1,5 +1,6 @@
 ---
 - name: Slack | Install Slack (Homebrew cask)
+  when: "'slack' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: slack
     state: present

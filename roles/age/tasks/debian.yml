@@ -1,5 +1,6 @@
 ---
 - name: Age | Install age (brew)
+  when: "'age' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: age
     state: present

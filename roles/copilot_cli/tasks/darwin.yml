@@ -1,5 +1,6 @@
 ---
 - name: Copilot cli | Install the Copilot CLI (Homebrew cask)
+  when: "'copilot-cli' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: copilot-cli
     state: present

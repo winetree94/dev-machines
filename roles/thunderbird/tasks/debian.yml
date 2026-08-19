@@ -1,5 +1,6 @@
 ---
 - name: Thunderbird | Install Thunderbird (Flatpak)
+  when: "'org.mozilla.Thunderbird' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.mozilla.Thunderbird

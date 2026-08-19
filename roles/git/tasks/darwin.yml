@@ -2,6 +2,7 @@
 # macOS ships a git inside the Command Line Tools, but it lags badly. The brew
 # formula shadows it on PATH.
 - name: Git | Install git (brew)
+  when: "'git' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: git
     state: present

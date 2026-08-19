@@ -1,5 +1,6 @@
 ---
 - name: Steam | Install Steam (Flatpak)
+  when: "'com.valvesoftware.Steam' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.valvesoftware.Steam

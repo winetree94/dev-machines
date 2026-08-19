@@ -3,6 +3,7 @@
 # project moved out of Mozilla to getsops (which has no winget publisher).
 # Homebrew is on 3.13.3. A three-year-old manifest is not worth wiring in.
 - name: Sops | Install SOPS (brew)
+  when: "'sops' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: sops
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Wireguard | Install wireguard-tools (brew)
+  when: "'wireguard-tools' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: wireguard-tools
     state: present

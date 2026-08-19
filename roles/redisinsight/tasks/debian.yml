@@ -1,5 +1,6 @@
 ---
 - name: Redisinsight | Install RedisInsight (Flatpak)
+  when: "'com.redis.RedisInsight' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.redis.RedisInsight

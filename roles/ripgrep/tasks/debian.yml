@@ -1,5 +1,6 @@
 ---
 - name: Ripgrep | Install ripgrep (brew)
+  when: "'ripgrep' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: ripgrep
     state: present

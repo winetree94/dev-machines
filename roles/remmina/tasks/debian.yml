@@ -1,5 +1,6 @@
 ---
 - name: Remmina | Install Remmina (Flatpak)
+  when: "'org.remmina.Remmina' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.remmina.Remmina

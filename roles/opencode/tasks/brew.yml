@@ -17,6 +17,7 @@
 # formula and brew warns that the tap shadows it. The vendor recommends the tap
 # and ships releases there first.
 - name: Opencode | Install opencode (Homebrew)
+  when: "'anomalyco/tap/opencode' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: anomalyco/tap/opencode
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Codex | Install the Codex CLI (Homebrew cask)
+  when: "'codex' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: codex
     state: present

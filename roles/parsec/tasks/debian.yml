@@ -1,5 +1,6 @@
 ---
 - name: Parsec | Install Parsec (Flatpak)
+  when: "'com.parsecgaming.parsec' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.parsecgaming.parsec

@@ -2,6 +2,7 @@
 # The formula is git-delta; the binary it installs is called delta, which is
 # what the role and the winget id are named after.
 - name: Delta | Install delta (brew)
+  when: "'git-delta' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: git-delta
     state: present

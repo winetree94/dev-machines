@@ -1,5 +1,6 @@
 ---
 - name: Slack | Install Slack (Flatpak)
+  when: "'com.slack.Slack' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.slack.Slack

@@ -1,5 +1,6 @@
 ---
 - name: Onlyoffice | Install ONLYOFFICE Desktop Editors (Homebrew cask)
+  when: "'onlyoffice' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: onlyoffice
     state: present

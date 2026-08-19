@@ -1,5 +1,6 @@
 ---
 - name: Install AWS cli (brew)
+  when: "'awscli' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: awscli
     state: present

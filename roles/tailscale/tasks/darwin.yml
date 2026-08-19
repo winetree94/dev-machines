@@ -10,6 +10,7 @@
 # call "sudo -A" instead of trying to read a terminal. Homebrew itself must
 # stay unprivileged: it refuses to run as root.
 - name: Install the Tailscale GUI client (Homebrew cask)
+  when: "'tailscale-app' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: tailscale-app
     state: present

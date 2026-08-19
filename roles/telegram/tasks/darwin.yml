@@ -1,5 +1,6 @@
 ---
 - name: Telegram | Install Telegram (Homebrew cask)
+  when: "'telegram' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: telegram
     state: present

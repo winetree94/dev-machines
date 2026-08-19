@@ -1,5 +1,6 @@
 ---
 - name: Install Python3 (Brew)
+  when: item not in (brew_installed_formulae | default([]))
   become: false
   community.general.homebrew:
     name: "{{ item }}"

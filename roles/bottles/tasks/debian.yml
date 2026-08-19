@@ -1,5 +1,6 @@
 ---
 - name: Bottles | Install Bottles (Flatpak)
+  when: "'com.usebottles.bottles' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.usebottles.bottles

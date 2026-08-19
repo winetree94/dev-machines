@@ -1,5 +1,6 @@
 ---
 - name: Fzf | Install fzf (brew)
+  when: "'fzf' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: fzf
     state: present

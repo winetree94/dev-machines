@@ -1,5 +1,6 @@
 ---
 - name: Gimp | Install GIMP (Flatpak)
+  when: "'org.gimp.GIMP' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: org.gimp.GIMP

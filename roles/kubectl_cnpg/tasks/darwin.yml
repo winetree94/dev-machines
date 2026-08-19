@@ -1,6 +1,7 @@
 ---
 # No windows.yml: the CloudNativePG kubectl plugin has no winget package.
 - name: Kubectl cnpg | Install the CloudNativePG kubectl plugin (brew)
+  when: "'kubectl-cnpg' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: kubectl-cnpg
     state: present

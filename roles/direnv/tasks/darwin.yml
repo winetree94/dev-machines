@@ -1,5 +1,6 @@
 ---
 - name: Direnv | Install direnv (brew)
+  when: "'direnv' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: direnv
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Tmux | Install tmux from homebrew
+  when: "'tmux' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: tmux
     state: present

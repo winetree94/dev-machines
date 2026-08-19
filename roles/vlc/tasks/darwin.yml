@@ -1,5 +1,6 @@
 ---
 - name: Vlc | Install VLC (Homebrew cask)
+  when: "'vlc' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: vlc
     state: present

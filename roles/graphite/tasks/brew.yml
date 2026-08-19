@@ -12,6 +12,7 @@
   become: false
 
 - name: Graphite | Install the Graphite CLI (brew)
+  when: "'withgraphite/tap/graphite' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: withgraphite/tap/graphite
     state: present

@@ -1,5 +1,6 @@
 ---
 - name: Discord | Install Discord (Homebrew cask)
+  when: "'discord' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: discord
     state: present

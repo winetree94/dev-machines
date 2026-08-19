@@ -2,6 +2,7 @@
 # The Flathub ID keeps the old PintaProject namespace; the winget publisher
 # is plain "Pinta". Neither is a typo.
 - name: Pinta | Install Pinta (Flatpak)
+  when: "'com.github.PintaProject.Pinta' not in (flatpak_installed_ids | default([]))"
   become: true
   community.general.flatpak:
     name: com.github.PintaProject.Pinta

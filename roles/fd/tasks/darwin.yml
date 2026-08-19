@@ -1,5 +1,6 @@
 ---
 - name: Fd | Install fd (brew)
+  when: "'fd' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: fd
     state: present

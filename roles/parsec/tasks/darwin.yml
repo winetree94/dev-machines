@@ -6,6 +6,7 @@
 # Same shape as roles/tailscale/tasks/darwin.yml. Homebrew itself must stay
 # unprivileged: it refuses to run as root.
 - name: Parsec | Install Parsec (Homebrew cask)
+  when: "'parsec' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: parsec
     state: present

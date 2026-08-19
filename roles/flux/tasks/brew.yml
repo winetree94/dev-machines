@@ -13,6 +13,7 @@
   become: false
 
 - name: Flux | Install the Flux CLI (brew)
+  when: "'fluxcd/tap/flux' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: fluxcd/tap/flux
     state: present
