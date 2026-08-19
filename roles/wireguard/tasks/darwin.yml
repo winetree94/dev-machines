@@ -1,0 +1,33 @@
+---
+- name: Wireguard | Install wireguard-tools (brew)
+  community.general.homebrew:
+    name: wireguard-tools
+    state: present
+  become: false
+
+- name: Wireguard | Install mas (brew)
+  community.general.homebrew:
+    name: mas
+    state: present
+  become: false
+
+# "mas install" places the app in /Applications itself and refuses to run
+# unprivileged ("Requires root privileges to install apps"), so this task is
+# the one exception to the unprivileged-Homebrew rule above. Without become it
+# shells out to sudo, finds no terminal to prompt at during an Ansible run and
+# dies with an empty error message.
+- name: Wireguard | Install the WireGuard GUI client from the Mac App Store
+  block:
+    - name: Wireguard | Install WireGuard (mas)
+      community.general.mas:
+        id: 1451685025
+        state: present
+      become: true
+  rescue:
+    - name: Wireguard | Report Mac App Store install failure
+      ansible.builtin.debug:
+        msg: >-
+          mas could not install WireGuard (Mac App Store id 1451685025).
+          Sign in to the App Store GUI with an Apple ID that has the app in its
+          purchase history, then re-run, or install it manually. The
+          wireguard-tools CLI is installed either way.

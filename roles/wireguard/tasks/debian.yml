@@ -1,0 +1,6 @@
+---
+- name: Wireguard | Install wireguard-tools (Apt)
+  become: true
+  ansible.builtin.apt:
+    name: wireguard-tools
+    state: present

@@ -1,0 +1,136 @@
+---
+- name: Validate WireGuard role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    wireguard_tasks_dir: "{{ playbook_dir }}/../roles/wireguard/tasks"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    wireguard_task_files:
+      - main.yml
+      - debian.yml
+      - darwin.yml
+      - windows.yml
+
+  tasks:
+    - name: Check WireGuard role task files exist
+      ansible.builtin.stat:
+        path: "{{ wireguard_tasks_dir }}/{{ item }}"
+      register: wireguard_task_stats
+      loop: "{{ wireguard_task_files }}"
+
+    - name: Assert WireGuard role task files exist
+      ansible.builtin.assert:
+        that:
+          - wireguard_task_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          roles/wireguard/tasks must contain {{ wireguard_task_files | join(', ') }}.
+
+    - name: Read WireGuard role task files
+      ansible.builtin.set_fact:
+        wireguard_main: "{{ lookup('ansible.builtin.file', wireguard_tasks_dir ~ '/main.yml') }}"
+        wireguard_debian: "{{ lookup('ansible.builtin.file', wireguard_tasks_dir ~ '/debian.yml') }}"
+        wireguard_darwin: "{{ lookup('ansible.builtin.file', wireguard_tasks_dir ~ '/darwin.yml') }}"
+        wireguard_windows: "{{ lookup('ansible.builtin.file', wireguard_tasks_dir ~ '/windows.yml') }}"
+
+    - name: Read setup playbook
+      ansible.builtin.set_fact:
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert WireGuard role dispatches on OS family and holds no install logic
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in wireguard_main"
+          - "'with_first_found' in wireguard_main"
+          - "wireguard_main is search(\"ansible_facts\\['os_family'\\] \\| lower\")"
+          - "'default.yml' in wireguard_main"
+          - "'ansible.builtin.apt' not in wireguard_main"
+          - "'community.general.homebrew' not in wireguard_main"
+          - "'win_chocolatey' not in wireguard_main"
+        fail_msg: >-
+          roles/wireguard/tasks/main.yml must be the first_found OS dispatcher only,
+          with the install logic living in debian.yml / darwin.yml / windows.yml.
+
+    - name: Assert WireGuard role installs wireguard-tools from apt on Debian
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.apt' in wireguard_debian"
+          - "'name: wireguard-tools' in wireguard_debian"
+          - "'state: present' in wireguard_debian"
+          - "'become: true' in wireguard_debian"
+          - "'network-manager' not in wireguard_debian"
+        fail_msg: >-
+          WireGuard role must install wireguard-tools with apt on Debian. It must not
+          install network-manager, which would disrupt netplan/systemd-networkd hosts.
+
+    - name: Assert WireGuard role installs the CLI and the App Store client on macOS
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew' in wireguard_darwin"
+          - "'name: wireguard-tools' in wireguard_darwin"
+          - "'name: mas' in wireguard_darwin"
+          - "'community.general.mas' in wireguard_darwin"
+          - "'id: 1451685025' in wireguard_darwin"
+        fail_msg: >-
+          WireGuard role must install the wireguard-tools formula plus the Mac App Store
+          GUI client (id 1451685025) through mas on macOS.
+
+    - name: Assert the macOS App Store install runs with root privileges
+      ansible.builtin.assert:
+        that:
+          - >-
+            wireguard_darwin is search("community.general.mas[\s\S]*become: true")
+        fail_msg: >-
+          The mas task must run with become - "mas install" refuses to run unprivileged
+          and otherwise shells out to sudo, which has no terminal to prompt at during an
+          Ansible run.
+
+    - name: Assert the macOS App Store install never fails the whole run
+      ansible.builtin.assert:
+        that:
+          - "'rescue:' in wireguard_darwin"
+          - >-
+            wireguard_darwin is search("community.general.mas[\s\S]*rescue:")
+        fail_msg: >-
+          The mas install must sit in a block/rescue - it fails when no Apple ID is
+          signed in or the app is not in the purchase history, and that must not abort
+          the play.
+
+    - name: Assert WireGuard role installs the Windows client with Chocolatey
+      ansible.builtin.assert:
+        that:
+          - "'chocolatey.chocolatey.win_chocolatey' in wireguard_windows"
+          - "'name: wireguard' in wireguard_windows"
+        fail_msg: WireGuard role must install the WireGuard Windows client with win_chocolatey.
+
+    - name: Assert WireGuard role installs only and never deploys tunnel config or keys
+      ansible.builtin.assert:
+        that:
+          - "'/etc/wireguard' not in item"
+          - "'wg0.conf' not in item"
+          - "'PrivateKey' not in item"
+          - "'wg-quick' not in item"
+          - "'systemd_service' not in item"
+          - "'nmcli' not in item"
+          - "'vault_' not in item"
+          - "'curl' not in item"
+          - "'| sh' not in item"
+        fail_msg: >-
+          WireGuard role must install packages only. Tunnel config and private keys stay
+          manual and must never reach the repository or the vault.
+      loop:
+        - "{{ wireguard_main }}"
+        - "{{ wireguard_debian }}"
+        - "{{ wireguard_darwin }}"
+        - "{{ wireguard_windows }}"
+      loop_control:
+        index_var: wireguard_file_index
+        label: "{{ wireguard_task_files[wireguard_file_index] }}"
+
+    - name: Assert WireGuard role runs for every OS in the common tooling play
+      ansible.builtin.assert:
+        that:
+          - "'- role: wireguard' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search("Common tooling[\s\S]*- role: wireguard")
+        fail_msg: >-
+          setup.yml must include the wireguard role in the cross-OS "Common tooling" play.

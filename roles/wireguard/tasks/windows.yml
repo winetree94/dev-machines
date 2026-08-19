@@ -1,0 +1,5 @@
+---
+- name: Wireguard | Install WireGuard (Chocolatey)
+  chocolatey.chocolatey.win_chocolatey:
+    name: wireguard
+    state: present
