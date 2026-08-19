@@ -3,12 +3,21 @@
 # while Ubuntu got Docker CE and Windows got Docker Desktop. The cask token is
 # docker-desktop; the bare "docker" cask no longer exists.
 #
-# It is an .app cask with a binary artifact, not a pkg cask, so it needs no
-# sudo_password. Docker Desktop still asks for privileges once, interactively,
-# on its first launch - that stays a manual step, the same way tailscale and
-# wireguard leave authentication to the user.
+# It is an .app cask rather than a pkg cask, but it still needs sudo_password:
+# its `binary` artifacts are symlinked into /usr/local/bin, which is not
+# user-writable, so Homebrew shells out to "sudo ln" and an Ansible run has no
+# terminal for sudo to prompt at. Without it the install dies with "sudo: a
+# terminal is required to read the password". Same shape as
+# roles/parsec/tasks/darwin.yml and roles/tailscale/tasks/darwin.yml; Homebrew
+# itself must stay unprivileged because it refuses to run as root.
+#
+# Docker Desktop still asks for privileges once, interactively, on its first
+# launch - that stays a manual step, the same way tailscale and wireguard leave
+# authentication to the user.
 - name: Docker | Install Docker Desktop (Homebrew cask)
+  when: "'docker-desktop' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
     name: docker-desktop
     state: present
+    sudo_password: "{{ ansible_become_password }}"
   become: false
