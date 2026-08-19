@@ -1,0 +1,167 @@
+---
+- name: Validate Doppler role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    doppler_tasks_dir: "{{ playbook_dir }}/../roles/doppler/tasks"
+    scoop_tasks_path: "{{ playbook_dir }}/../roles/setup_scoop/tasks/main.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    doppler_task_files:
+      - main.yml
+      - debian.yml
+      - darwin.yml
+      - windows.yml
+
+  tasks:
+    - name: Check Doppler role task files exist
+      ansible.builtin.stat:
+        path: "{{ doppler_tasks_dir }}/{{ item }}"
+      register: doppler_task_stats
+      loop: "{{ doppler_task_files }}"
+
+    - name: Assert Doppler role task files exist
+      ansible.builtin.assert:
+        that:
+          - doppler_task_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          roles/doppler/tasks must contain {{ doppler_task_files | join(', ') }}.
+
+    - name: Check the Homebrew fallback is gone
+      ansible.builtin.stat:
+        path: "{{ doppler_tasks_dir }}/default.yml"
+      register: doppler_default_stat
+
+    - name: Assert Doppler role has no Homebrew fallback
+      ansible.builtin.assert:
+        that:
+          - not doppler_default_stat.stat.exists
+        fail_msg: >-
+          roles/doppler/tasks/default.yml must not exist - every supported OS now has
+          its own native install path, so the Homebrew fallback would only ever mask a
+          dispatcher mistake.
+
+    - name: Read Doppler role task files
+      ansible.builtin.set_fact:
+        doppler_main: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/main.yml') }}"
+        doppler_debian: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/debian.yml') }}"
+        doppler_darwin: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/darwin.yml') }}"
+        doppler_windows: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/windows.yml') }}"
+        doppler_scoop: "{{ lookup('ansible.builtin.file', scoop_tasks_path) }}"
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert Doppler role dispatches on OS family and holds no install logic
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in doppler_main"
+          - "'with_first_found' in doppler_main"
+          - "doppler_main is search(\"ansible_facts\\['os_family'\\] \\| lower\")"
+          - "'homebrew' not in doppler_main"
+          - "'deb822_repository' not in doppler_main"
+          - "'win_scoop' not in doppler_main"
+        fail_msg: >-
+          roles/doppler/tasks/main.yml must be the first_found OS dispatcher only,
+          with the install logic living in debian.yml / darwin.yml / windows.yml.
+
+    - name: Assert Doppler role installs the current tap and cask on macOS
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_tap' in doppler_darwin"
+          - "'name: dopplerhq/doppler' in doppler_darwin"
+          - "'brew install --cask dopplerhq/doppler/doppler' in doppler_darwin"
+          - "'dopplerhq/cli/doppler' not in doppler_darwin"
+          - >-
+            doppler_darwin is not search("(?m)^\\s+community\\.general\\.homebrew_cask:")
+        fail_msg: >-
+          Doppler moved the CLI from the dopplerhq/cli tap to dopplerhq/doppler and from
+          a formula to a cask. The role must tap dopplerhq/doppler and install the
+          fully-qualified cask token, never the retired dopplerhq/cli formula and never
+          the bare "doppler" token, which resolves to homebrew-cask's unrelated
+          doppler-app. homebrew_cask cannot be used: its installed-check runs
+          "brew list --cask <name>", which fails on a fully-qualified token.
+
+    - name: Assert the macOS cask install is guarded so it stays idempotent
+      ansible.builtin.assert:
+        that:
+          - "'brew info --json=v2 --cask dopplerhq/doppler/doppler' in doppler_darwin"
+          - "'installed is none' in doppler_darwin"
+        fail_msg: >-
+          The cask install must be gated on "brew info --json=v2", otherwise it reruns
+          on every play and fails on brew's "not upgrading" notice.
+
+    - name: Assert the macOS tap is trusted
+      ansible.builtin.assert:
+        that:
+          - >-
+            doppler_darwin is search("name: dopplerhq/doppler\n\\s*trust: true")
+        fail_msg: >-
+          Homebrew 6 refuses to load formulae, casks and commands from untrusted
+          third-party taps, so the tap must be tapped with trust: true or the install
+          below fails with "no available cask".
+
+    - name: Assert Doppler role uses the official APT repository on Debian
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in doppler_debian"
+          - "'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' in doppler_debian"
+          - "'ansible.builtin.deb822_repository' in doppler_debian"
+          - "'https://packages.doppler.com/public/cli/deb/debian' in doppler_debian"
+          - "'- any-version' in doppler_debian"
+          - "'- main' in doppler_debian"
+          - "'signed_by: /usr/share/keyrings/doppler-archive-keyring.asc' in doppler_debian"
+          - "'ansible.builtin.apt' in doppler_debian"
+          - "'name: doppler' in doppler_debian"
+          - "'community.general.homebrew' not in doppler_debian"
+        fail_msg: >-
+          Doppler role must install from the official Doppler APT repository on Debian,
+          not from Homebrew. The signing key is ASCII-armored, so it is stored as .asc
+          and referenced directly - there must be no gpg --dearmor shell-out.
+
+    - name: Assert Doppler role installs from the Scoop bucket on Windows
+      ansible.builtin.assert:
+        that:
+          - "'community.windows.win_scoop_bucket' in doppler_windows"
+          - "'https://github.com/DopplerHQ/scoop-doppler.git' in doppler_windows"
+          - "'community.windows.win_scoop' in doppler_windows"
+          - "'win_chocolatey' not in doppler_windows"
+        fail_msg: >-
+          There is no Chocolatey package for the Doppler CLI, so the Windows path is the
+          official Scoop bucket. This role is the deliberate exception to the
+          Chocolatey-only convention for Windows.
+
+    - name: Assert Scoop is bootstrapped by its own role before the common tooling play
+      ansible.builtin.assert:
+        that:
+          - "'community.windows.win_scoop' in doppler_scoop"
+          - "'- role: setup_scoop' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search("Windows bootstrap[\s\S]*- role: setup_scoop[\s\S]*Common tooling")
+        fail_msg: >-
+          win_scoop_bucket does not bootstrap Scoop - it fails when scoop.ps1 is missing
+          from PATH. setup_scoop must therefore install Scoop in the "Windows bootstrap"
+          play, before the common tooling play runs the doppler role.
+
+    - name: Assert Doppler role never shells out to an installer script
+      ansible.builtin.assert:
+        that:
+          - "'curl' not in item"
+          - "'| sh' not in item"
+          - "'dearmor' not in item"
+          - "'cli.doppler.com/install.sh' not in item"
+        fail_msg: Doppler role must use native package managers, never a piped install script.
+      loop:
+        - "{{ doppler_main }}"
+        - "{{ doppler_debian }}"
+        - "{{ doppler_darwin }}"
+        - "{{ doppler_windows }}"
+      loop_control:
+        index_var: doppler_file_index
+        label: "{{ doppler_task_files[doppler_file_index] }}"
+
+    - name: Assert Doppler role runs for every OS in the common tooling play
+      ansible.builtin.assert:
+        that:
+          - "'- role: doppler' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search("Common tooling[\s\S]*- role: doppler")
+        fail_msg: >-
+          setup.yml must include the doppler role in the cross-OS "Common tooling" play.

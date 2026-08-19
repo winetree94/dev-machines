@@ -1,0 +1,15 @@
+---
+# There is no dedicated "install Scoop" module. community.windows.win_scoop
+# bootstraps Scoop itself when it is missing, the same way win_chocolatey
+# bootstraps Chocolatey, so the bootstrap has to ride along with a package
+# install.
+#
+# git is the right package to ride on: Scoop needs it for every third-party
+# bucket, and community.windows.win_scoop_bucket does not bootstrap anything -
+# it fails outright when scoop.ps1 is not on PATH. Scoop keeps its own git
+# under the user profile; the machine-wide Chocolatey git from the git role
+# stays untouched.
+- name: Ensure Scoop is installed
+  community.windows.win_scoop:
+    name: git
+    state: present

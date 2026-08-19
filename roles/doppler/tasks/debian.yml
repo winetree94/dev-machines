@@ -1,0 +1,43 @@
+---
+# Official Doppler APT repository - https://docs.doppler.com/docs/install-cli
+#
+# Doppler publishes an ASCII-armored key. apt reads armored keys straight from
+# a path, so it is stored as .asc and neither a key-conversion shell-out nor a
+# piped download is needed.
+- name: Doppler | Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Doppler | Download the Doppler APT signing key
+  ansible.builtin.get_url:
+    url: https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key
+    dest: /usr/share/keyrings/doppler-archive-keyring.asc
+    mode: "0644"
+  become: true
+
+# The repository serves a single "any-version" suite for every distribution,
+# so unlike the Tailscale repo there is nothing to interpolate from facts.
+- name: Doppler | Add the Doppler APT repository
+  ansible.builtin.deb822_repository:
+    name: doppler-cli
+    types:
+      - deb
+    uris:
+      - https://packages.doppler.com/public/cli/deb/debian
+    suites:
+      - any-version
+    components:
+      - main
+    signed_by: /usr/share/keyrings/doppler-archive-keyring.asc
+    state: present
+  become: true
+
+- name: Doppler | Install the Doppler CLI
+  ansible.builtin.apt:
+    name: doppler
+    state: present
+    update_cache: true
+  become: true

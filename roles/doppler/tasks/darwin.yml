@@ -1,0 +1,49 @@
+---
+# Doppler moved the CLI from the dopplerhq/cli tap to dopplerhq/doppler, and
+# from a formula to a GoReleaser-built cask. dopplerhq/homebrew-cli is now a
+# migration stub whose own README points at "dopplerhq/doppler/doppler".
+#
+# trust: true is required from Homebrew 6 onwards - it refuses to load
+# formulae, casks and commands from untrusted third-party taps, so an
+# untrusted tap makes the install below fail with "no available cask".
+- name: Doppler | Tap and trust the Doppler repository
+  community.general.homebrew_tap:
+    name: dopplerhq/doppler
+    trust: true
+    state: present
+  become: false
+
+# The token has to stay fully qualified: the bare "doppler" cask token
+# resolves to homebrew-cask's unrelated (and disabled) doppler-app music
+# player through an old-token alias.
+#
+# community.general.homebrew_cask cannot express that. It decides whether a
+# cask is installed by running "brew list --cask <name>", which fails for a
+# fully-qualified token even when the cask is installed, so the module would
+# reinstall on every run and then fail on brew's "not upgrading" notice.
+# "brew info --json=v2" does resolve the qualified token, so gate on that.
+- name: Doppler | Install the Doppler CLI from the tap
+  environment:
+    # The same search path the community.general.homebrew_* modules default
+    # to, so this works on either Homebrew prefix and over non-login SSH.
+    PATH: "/opt/homebrew/bin:/usr/local/bin:{{ ansible_facts['env']['PATH'] }}"
+  become: false
+  block:
+    - name: Doppler | Check whether the Doppler CLI is installed
+      ansible.builtin.command: brew info --json=v2 --cask dopplerhq/doppler/doppler
+      register: doppler_cask_info
+      changed_when: false
+      check_mode: false
+
+    - name: Doppler | Install the Doppler CLI (Homebrew cask)
+      ansible.builtin.command: brew install --cask dopplerhq/doppler/doppler
+      when: (doppler_cask_info.stdout | from_json).casks[0].installed is none
+      changed_when: true
+
+# Doppler documents gnupg as the prerequisite for verifying its release
+# signatures.
+- name: Doppler | Install gnupg (Homebrew)
+  community.general.homebrew:
+    name: gnupg
+    state: present
+  become: false
