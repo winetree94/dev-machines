@@ -1,0 +1,10 @@
+---
+# git is the one tool here that comes from apt rather than Homebrew, against
+# the usual Ubuntu priority. Homebrew's own bootstrap needs git before brew can
+# install anything, so managing git with brew would be circular - roles/homebrew
+# already apt-installs it as a prerequisite.
+- name: Git | Install git (apt)
+  become: true
+  ansible.builtin.apt:
+    name: git
+    state: present

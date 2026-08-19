@@ -1,9 +1,0 @@
----
-# graphite is not packaged for Windows yet. This file exists so the first_found
-# dispatcher in tasks/main.yml stops here instead of falling back to the
-# Homebrew-based tasks/default.yml, which cannot run on Windows.
-# Replace with an include_role of the shared winget role once the packages
-# land in the winget community repository.
-- name: Report that graphite is not managed on Windows
-  ansible.builtin.debug:
-    msg: "graphite is not managed on Windows yet"

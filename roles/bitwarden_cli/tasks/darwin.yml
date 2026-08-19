@@ -1,0 +1,6 @@
+---
+- name: Bitwarden cli | Install the Bitwarden CLI (brew)
+  community.general.homebrew:
+    name: bitwarden-cli
+    state: present
+  become: false

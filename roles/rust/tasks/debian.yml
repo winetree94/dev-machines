@@ -1,0 +1,3 @@
+---
+- name: Rust | Install the Rust toolchain with rustup
+  ansible.builtin.include_tasks: rustup.yml

@@ -1,0 +1,6 @@
+---
+- name: Rclone | Install rclone (brew)
+  community.general.homebrew:
+    name: rclone
+    state: present
+  become: false

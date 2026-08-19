@@ -1,0 +1,6 @@
+---
+- name: Mise | Install mise (brew)
+  community.general.homebrew:
+    name: mise
+    state: present
+  become: false

@@ -1,9 +1,7 @@
 ---
-- name: Install Git tooling (winget)
+- name: Install git (winget)
   ansible.builtin.include_role:
     name: winget
   vars:
     winget_packages:
       - Git.Git
-      - GitHub.cli
-      - dandavison.delta

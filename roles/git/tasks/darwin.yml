@@ -1,0 +1,8 @@
+---
+# macOS ships a git inside the Command Line Tools, but it lags badly. The brew
+# formula shadows it on PATH.
+- name: Git | Install git (brew)
+  community.general.homebrew:
+    name: git
+    state: present
+  become: false

@@ -1,7 +1,0 @@
-- name: Install Dependencies (Homebrew)
-  community.general.homebrew:
-    name: "{{ item }}"
-    state: present
-  become: false
-  with_items:
-    - mise

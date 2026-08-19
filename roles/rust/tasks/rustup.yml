@@ -1,0 +1,33 @@
+---
+# Shared by darwin.yml and debian.yml. rustup is the vendor's own installer and
+# there is no Homebrew formula worth preferring - rustup manages toolchain
+# updates itself afterwards.
+#
+# Not tasks/default.yml: default.yml is also the dispatcher's fallback on
+# Windows, which installs Rustlang.Rustup through winget instead.
+#
+# The script is downloaded and then executed rather than piped into a shell, so
+# the fetch and the run stay separate, inspectable steps.
+- name: Rust | Check whether cargo is installed
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.cargo"
+  register: rust_cargo_installed
+  become: false
+
+- name: Rust | Download the rustup installer
+  when: not rust_cargo_installed.stat.exists
+  ansible.builtin.get_url:
+    url: https://sh.rustup.rs
+    dest: /tmp/rustup-init.sh
+    mode: "0755"
+    force: true
+  become: false
+
+- name: Rust | Install the Rust toolchain
+  when: not rust_cargo_installed.stat.exists
+  ansible.builtin.command:
+    argv:
+      - /tmp/rustup-init.sh
+      - -y
+  changed_when: true
+  become: false
