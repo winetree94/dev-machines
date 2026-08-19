@@ -1,0 +1,10 @@
+---
+# apt rather than the Homebrew formula, to stay on the same side of the split
+# as roles/cmake - see its debian.yml. The apt package is ninja-build, not
+# ninja, which is what Homebrew and winget call it; there is no "ninja"
+# package on noble at all.
+- name: Ninja | Install ninja (apt)
+  become: true
+  ansible.builtin.apt:
+    name: ninja-build
+    state: present

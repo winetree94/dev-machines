@@ -1,0 +1,7 @@
+---
+- name: Cmake | Install CMake (brew)
+  when: "'cmake' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: cmake
+    state: present
+  become: false

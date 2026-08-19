@@ -1,0 +1,7 @@
+---
+- name: Ninja | Install ninja (brew)
+  when: "'ninja' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: ninja
+    state: present
+  become: false

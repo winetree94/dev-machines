@@ -1,0 +1,15 @@
+---
+# Visual Studio's C++ workload bundles its own CMake, but it lives under
+# Common7\IDE\CommonExtensions and only a Developer Command Prompt puts it on
+# PATH - and this repository does not manage Visual Studio at all. The
+# standalone package is the only cmake a plain PowerShell session sees.
+#
+# The winget manifest passes ADD_CMAKE_TO_PATH=System as a custom MSI switch,
+# so the silent install already puts cmake on the system PATH - no PATH task
+# is needed here (the shared winget role has no per-package --override).
+- name: Install CMake (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Kitware.CMake

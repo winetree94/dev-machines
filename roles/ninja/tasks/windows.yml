@@ -1,0 +1,11 @@
+---
+# A zip package with NestedInstallerType: portable, so winget drops a shim in
+# %LOCALAPPDATA%\Microsoft\WinGet\Links, which is on the user PATH. Portable
+# packages are still tracked by "winget list --id", so the shared role's
+# exit-code idempotency check works unchanged.
+- name: Install ninja (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Ninja-build.Ninja

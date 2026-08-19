@@ -240,6 +240,21 @@
         windows: Rustlang.Rustup
         shared: rustup.yml
         shared_contains: https://sh.rustup.rs
+      # build tools. Both take apt on Ubuntu rather than the Homebrew
+      # formula - see roles/cmake/tasks/debian.yml for why - so the Ubuntu
+      # marker is the apt package name, and it is ninja-build there. On
+      # Windows the standalone packages are the only ones a plain PowerShell
+      # session sees: Visual Studio's C++ workload bundles both, but only
+      # inside a Developer Command Prompt, and this repository does not
+      # manage Visual Studio.
+      - name: cmake
+        debian: "name: cmake"
+        darwin: cmake
+        windows: Kitware.CMake
+      - name: ninja
+        debian: "name: ninja-build"
+        darwin: ninja
+        windows: Ninja-build.Ninja
 
     app_roles: "{{ ai_roles + cli_roles + gui_roles }}"
     # Everything that runs in the Common tooling play rather than the GUI one.

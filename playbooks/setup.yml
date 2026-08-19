@@ -172,6 +172,11 @@
       tags: [deno]
     - role: biome
       tags: [biome]
+    # build tools
+    - role: cmake
+      tags: [cmake]
+    - role: ninja
+      tags: [ninja]
     # kubernetes
     - role: kubectl
       tags: [kubectl]
