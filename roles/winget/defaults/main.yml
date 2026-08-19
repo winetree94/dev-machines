@@ -1,0 +1,4 @@
+---
+# The "Windows bootstrap" play includes this role with no packages, purely for
+# the availability assert in tasks/main.yml.
+winget_packages: []

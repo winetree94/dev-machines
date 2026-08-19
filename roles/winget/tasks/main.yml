@@ -9,6 +9,9 @@
 #       winget_packages:
 #         - Docker.DockerDesktop
 #
+# Including it with no `winget_packages` runs only the availability assert
+# below, which is how the "Windows bootstrap" play uses it.
+#
 # winget decides what is installed from the Add/Remove Programs registry, so
 # unlike Chocolatey it recognises software installed by any other means. That
 # is the whole reason this repository uses it: choco only tracks its own
@@ -17,6 +20,36 @@
 #
 # "--source winget" pins the community repository. The msstore source needs
 # separate agreement handling and returns IDs that cannot be automated.
+
+# winget ships with Windows 10 1809+ and Windows 11 as part of the App
+# Installer package, so there is nothing to bootstrap - unlike Chocolatey and
+# Scoop, which this repository used to install itself. Fail early and clearly
+# if it is somehow missing, rather than letting every package role fail one by
+# one further into the run. The `winget_available` fact keeps the check to one
+# WinRM round trip per host, not one per including role.
+- name: Winget | Check that winget is available
+  ansible.windows.win_shell: winget --version
+  register: winget_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: not (winget_available | default(false))
+
+- name: Winget | Assert that winget is available
+  ansible.builtin.assert:
+    that:
+      - winget_version.rc == 0
+    fail_msg: >-
+      winget was not found on this host. It ships with Windows 10 1809+ and
+      Windows 11 as the "App Installer" package - install or update App
+      Installer from the Microsoft Store, then re-run.
+    quiet: true
+  when: not (winget_available | default(false))
+
+- name: Winget | Remember that winget was verified on this host
+  ansible.builtin.set_fact:
+    winget_available: true
+
 - name: Winget | Check which packages are already installed
   ansible.windows.win_shell: >-
     winget list --id {{ item }} --exact --source winget
