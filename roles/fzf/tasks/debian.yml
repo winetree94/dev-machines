@@ -1,0 +1,6 @@
+---
+- name: Fzf | Install fzf (brew)
+  community.general.homebrew:
+    name: fzf
+    state: present
+  become: false

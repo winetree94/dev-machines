@@ -1,0 +1,14 @@
+---
+# The role had no macOS path at all, so the dispatcher silently no-opped there
+# while Ubuntu got Docker CE and Windows got Docker Desktop. The cask token is
+# docker-desktop; the bare "docker" cask no longer exists.
+#
+# It is an .app cask with a binary artifact, not a pkg cask, so it needs no
+# sudo_password. Docker Desktop still asks for privileges once, interactively,
+# on its first launch - that stays a manual step, the same way tailscale and
+# wireguard leave authentication to the user.
+- name: Docker | Install Docker Desktop (Homebrew cask)
+  community.general.homebrew_cask:
+    name: docker-desktop
+    state: present
+  become: false

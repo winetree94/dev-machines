@@ -1,0 +1,26 @@
+---
+# Shared macOS App Store helper. Include it from a darwin task file before
+# using community.general.mas:
+#
+#   - name: Install mas
+#     ansible.builtin.include_role:
+#       name: mas
+#
+# mas is a macOS-only Homebrew formula - there is no Linux bottle - so this
+# role is only ever reached from macOS task files and needs no first_found
+# dispatcher of its own. Like the shared winget role it is gated by its
+# callers, not by the OS dispatcher.
+#
+# The `mas_installed` fact keeps this to one brew call per host however many
+# roles include it. Both `xcode` and `wireguard` do, and every mas-installed
+# app added later will too.
+- name: Mas | Install mas (brew)
+  community.general.homebrew:
+    name: mas
+    state: present
+  become: false
+  when: not (mas_installed | default(false))
+
+- name: Mas | Remember that mas was installed on this host
+  ansible.builtin.set_fact:
+    mas_installed: true

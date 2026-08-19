@@ -1,0 +1,6 @@
+---
+- name: Fd | Install fd (brew)
+  community.general.homebrew:
+    name: fd
+    state: present
+  become: false

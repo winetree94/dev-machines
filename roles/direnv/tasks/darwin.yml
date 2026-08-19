@@ -1,0 +1,6 @@
+---
+- name: Direnv | Install direnv (brew)
+  community.general.homebrew:
+    name: direnv
+    state: present
+  become: false

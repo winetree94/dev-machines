@@ -1,0 +1,9 @@
+---
+# The winget package is the MSVC build; there is also a GNU one. MSVC is the
+# one upstream ships as the default Windows binary.
+- name: Install ripgrep (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - BurntSushi.ripgrep.MSVC

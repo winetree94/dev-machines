@@ -1,0 +1,6 @@
+---
+- name: Ripgrep | Install ripgrep (brew)
+  community.general.homebrew:
+    name: ripgrep
+    state: present
+  become: false

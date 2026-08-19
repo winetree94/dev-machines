@@ -1,0 +1,6 @@
+---
+- name: Gh | Install the GitHub CLI (brew)
+  community.general.homebrew:
+    name: gh
+    state: present
+  become: false

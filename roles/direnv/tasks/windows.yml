@@ -1,0 +1,7 @@
+---
+- name: Install direnv (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - direnv.direnv

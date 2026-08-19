@@ -1,0 +1,7 @@
+---
+- name: Install the GitHub CLI (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - GitHub.cli

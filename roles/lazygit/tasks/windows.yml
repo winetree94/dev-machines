@@ -1,0 +1,7 @@
+---
+- name: Install lazygit (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - JesseDuffield.lazygit

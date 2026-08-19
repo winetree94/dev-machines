@@ -1,0 +1,8 @@
+---
+# The formula is git-delta; the binary it installs is called delta, which is
+# what the role and the winget id are named after.
+- name: Delta | Install delta (brew)
+  community.general.homebrew:
+    name: git-delta
+    state: present
+  become: false
