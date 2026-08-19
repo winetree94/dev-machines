@@ -1,9 +1,7 @@
 ---
-- name: Install Kubernetes tooling (winget)
+- name: Install kubectl (winget)
   ansible.builtin.include_role:
     name: winget
   vars:
     winget_packages:
       - Kubernetes.kubectl
-      - Helm.Helm
-      - Derailed.k9s

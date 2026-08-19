@@ -1,0 +1,9 @@
+---
+# kubernetes-cli is the canonical formula name; "kubectl" is only an
+# alias for it. The canonical name keeps the module's installed-check off
+# alias resolution.
+- name: Kubectl | Install kubectl (brew)
+  community.general.homebrew:
+    name: kubernetes-cli
+    state: present
+  become: false

@@ -1,0 +1,6 @@
+---
+- name: Helm | Install Helm (brew)
+  community.general.homebrew:
+    name: helm
+    state: present
+  become: false

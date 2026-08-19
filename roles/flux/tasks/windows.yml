@@ -1,0 +1,7 @@
+---
+- name: Install the Flux CLI (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - FluxCD.Flux

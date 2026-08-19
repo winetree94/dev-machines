@@ -1,0 +1,6 @@
+---
+- name: Age | Install age (brew)
+  community.general.homebrew:
+    name: age
+    state: present
+  become: false

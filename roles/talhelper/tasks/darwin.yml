@@ -1,0 +1,6 @@
+---
+- name: Talhelper | Install talhelper (brew)
+  community.general.homebrew:
+    name: talhelper
+    state: present
+  become: false

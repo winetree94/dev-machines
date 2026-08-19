@@ -1,0 +1,6 @@
+---
+- name: K9s | Install k9s (brew)
+  community.general.homebrew:
+    name: k9s
+    state: present
+  become: false

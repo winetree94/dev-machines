@@ -1,0 +1,9 @@
+---
+# No windows.yml: winget only carries Mozilla.SOPS 3.7.3, abandoned when the
+# project moved out of Mozilla to getsops (which has no winget publisher).
+# Homebrew is on 3.13.3. A three-year-old manifest is not worth wiring in.
+- name: Sops | Install SOPS (brew)
+  community.general.homebrew:
+    name: sops
+    state: present
+  become: false

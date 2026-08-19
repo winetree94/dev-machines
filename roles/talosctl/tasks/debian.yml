@@ -1,0 +1,6 @@
+---
+- name: Talosctl | Install talosctl (brew)
+  community.general.homebrew:
+    name: talosctl
+    state: present
+  become: false

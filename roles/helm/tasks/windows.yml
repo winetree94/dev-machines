@@ -1,0 +1,7 @@
+---
+- name: Install Helm (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Helm.Helm

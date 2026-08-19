@@ -1,0 +1,19 @@
+---
+# Shared by darwin.yml and debian.yml - the formula has a Linux bottle, so the
+# same path works on Ubuntu. It is not tasks/default.yml on purpose:
+# default.yml is also the dispatcher's fallback on Windows, which has its own
+# winget path and must never reach Homebrew.
+#
+# Homebrew 6 refuses to load anything from an untrusted third-party tap.
+- name: Flux | Tap the Flux CD repository
+  community.general.homebrew_tap:
+    name: fluxcd/tap
+    state: present
+    trust: true
+  become: false
+
+- name: Flux | Install the Flux CLI (brew)
+  community.general.homebrew:
+    name: fluxcd/tap/flux
+    state: present
+  become: false

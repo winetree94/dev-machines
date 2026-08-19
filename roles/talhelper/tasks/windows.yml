@@ -1,0 +1,7 @@
+---
+- name: Install talhelper (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - talhelper.talhelper
