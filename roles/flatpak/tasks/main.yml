@@ -8,11 +8,11 @@
 - name: Check flathub repository
   become: true
   ansible.builtin.command: "flatpak remotes"
-  register: setup_flatpak_remotes_result
+  register: flatpak_remotes_result
   changed_when: false
 
 - name: Regitser flathub repository
-  when: "'flathub' not in setup_flatpak_remotes_result.stdout"
+  when: "'flathub' not in flatpak_remotes_result.stdout"
   become: true
   ansible.builtin.command: "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
   changed_when: true
