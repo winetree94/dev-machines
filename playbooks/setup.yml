@@ -47,16 +47,39 @@
 
   roles:
     - role: apt_update
-    - role: setup_snap
-    - role: setup_flatpak
-    - role: setup_homebrew
+    - role: snap
+    - role: flatpak
+    - role: homebrew
+
+- name: MacOS bootstrap
+  hosts: macos
+  roles:
+    # The Command Line Tools are the prerequisite for Homebrew and for every
+    # role that compiles anything, so they have to land before Common tooling.
+    # The role installs Xcode.app from the Mac App Store on top of them.
+    - role: xcode
 
 - name: Windows bootstrap
   hosts: windows
   roles:
-    # Nothing to install - winget ships with the OS. This only asserts it is
-    # there, so a host without it fails once, up front, with a clear message.
-    - role: setup_winget
+    # Nothing to install - winget ships with the OS. Including the shared
+    # winget role with no packages runs only its availability assert, so a host
+    # without it fails once, up front, with a clear message.
+    - role: winget
+
+- name: Group GUI-enabled hosts
+  hosts: all
+  tasks:
+    # `gui` is only final after the Ubuntu bootstrap play's desktop detection,
+    # so this cannot be folded into the "Group hosts by OS" play at the top.
+    # Grouping here keeps the GUI application roles gated by play targeting,
+    # like the OS-exclusive bootstrap roles, instead of repeating a `when:` on
+    # every one of them.
+    - name: Add GUI hosts to the gui_enabled group
+      ansible.builtin.group_by:
+        key: gui_enabled
+      when: gui | bool
+      changed_when: false
 
 - name: Common tooling
   hosts: all
@@ -64,13 +87,16 @@
     - role: tailscale
     - role: docker
     - role: python
-    - role: ai
+    - role: claude_code
+    - role: codex
+    - role: copilot_cli
+    - role: opencode
     - role: zsh
     - role: tmux
-    - role: aws
+    - role: awscli
     - role: rclone
     - role: node
-    - role: bw
+    - role: bitwarden_cli
     - role: mise
     - role: neovim
     - role: kubernetes
@@ -78,5 +104,28 @@
     - role: git
     - role: graphite
     - role: wireguard
-    - role: gui_apps
-      when: gui | bool
+
+- name: GUI applications
+  # Empty when no host has gui enabled, in which case the play is skipped.
+  hosts: gui_enabled
+  roles:
+    - role: bitwarden_desktop
+    - role: bottles
+    - role: discord
+    - role: flatseal
+    - role: gimp
+    - role: headlamp
+    - role: libreoffice
+    - role: microsoft_edge
+    - role: obsidian
+    - role: onlyoffice
+    - role: parsec
+    - role: pinta
+    - role: redisinsight
+    - role: remmina
+    - role: slack
+    - role: steam
+    - role: telegram
+    - role: thunderbird
+    - role: vlc
+    - role: xclicker
