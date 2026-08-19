@@ -458,17 +458,24 @@
           Every application in this set is available on Ubuntu, so each role
           needs tasks/debian.yml.
 
-    - name: Assert no Debian task file adds a third-party APT repository
+    # A third-party APT repository is allowed for a tool the Ubuntu archive
+    # does not carry, but only added the way roles/tailscale and roles/doppler
+    # do it: deb822_repository with signed_by pointing at a keyring fetched by
+    # get_url. The deprecated apt-key and the old apt_repository module stay
+    # banned outright, and none of the roles in this table needs a repository
+    # at all - every one is in the archive, on Flathub, or ships an installer.
+    - name: Assert no Debian task file adds an APT repository the deprecated way
       ansible.builtin.assert:
         that:
-          - "'deb822_repository' not in debian_content"
           - "'apt_repository' not in debian_content"
           - "'apt-key' not in debian_content"
+          - "not ('deb822_repository' in debian_content and 'signed_by' not in debian_content)"
         fail_msg: >-
-          roles/{{ item.name }}/tasks/debian.yml must not add an APT
-          repository. Ubuntu installs go Homebrew formula > Flathub > snap >
-          apt; every application here is on Flathub or ships an installer that
-          needs no repository at all.
+          roles/{{ item.name }}/tasks/debian.yml adds an APT repository with
+          apt-key or the old apt_repository module, or adds an unsigned
+          deb822_repository. Use deb822_repository with signed_by, the way
+          roles/tailscale and roles/doppler do - and only for a tool the
+          official Ubuntu archive does not carry.
       loop: "{{ app_roles }}"
       loop_control:
         label: "{{ item.name }}"
