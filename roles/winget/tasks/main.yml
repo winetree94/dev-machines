@@ -62,6 +62,15 @@
   failed_when: false
   check_mode: false
 
+# Retried because a first install attempt fails intermittently on a freshly
+# downloaded installer: RedisInsight.RedisInsight died with exit code
+# 3221225477 (0xC0000005, access violation) right after "Successfully verified
+# installer hash", and the identical command succeeded seconds later once
+# winget had the installer cached. That signature - a crash only on the run that
+# also downloads - is a race against on-access antivirus scanning, not a broken
+# package, so it must not fail the host and skip every role after it. A genuine
+# failure (wrong ID, unsupported install technology) still fails, just three
+# attempts later.
 - name: Winget | Install missing packages
   ansible.windows.win_shell: >-
     winget install --id {{ item.item }} --exact --source winget --silent
@@ -71,4 +80,8 @@
   loop_control:
     label: "{{ item.item }}"
   when: item.rc != 0
+  register: winget_install
+  until: winget_install is succeeded
+  retries: 2
+  delay: 10
   changed_when: true
