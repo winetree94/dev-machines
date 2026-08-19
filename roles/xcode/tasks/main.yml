@@ -105,11 +105,9 @@
     quiet: true
   when: not ansible_check_mode
 
-- name: Xcode | Install mas (brew)
-  community.general.homebrew:
+- name: Xcode | Install mas
+  ansible.builtin.include_role:
     name: mas
-    state: present
-  become: false
 
 # Same shape as roles/wireguard/tasks/darwin.yml: "mas install" places the app
 # in /Applications itself and refuses to run unprivileged, so it is one of the

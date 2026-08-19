@@ -1,14 +1,15 @@
 ---
-- name: Install Dependencies (Homebrew)
+# Shared by darwin.yml and debian.yml. lua, luarocks and tree-sitter-cli stay
+# here rather than becoming roles of their own: they are Neovim's own runtime
+# dependencies, not tools anyone on these machines uses directly. lazygit,
+# ripgrep and fd used to be in this list and are now roles in their own right.
+- name: Neovim | Install Neovim and its dependencies (brew)
   community.general.homebrew:
     name: "{{ item }}"
     state: present
   become: false
   with_items:
-    - lazygit
     - neovim
-    - ripgrep
     - lua
     - luarocks
-    - fd
     - tree-sitter-cli

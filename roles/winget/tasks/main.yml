@@ -50,12 +50,27 @@
   ansible.builtin.set_fact:
     winget_available: true
 
-- name: Winget | Check which packages are already installed
+# Installed state is answered from a single per-host export rather than one
+# "winget list" per package - see snapshot.yml for why that round trip is the
+# dominant cost of a Windows run. Guarded the same way as winget_available
+# above, so it costs one round trip per host rather than one per including role.
+- name: Winget | Snapshot the installed packages
+  ansible.builtin.include_tasks: snapshot.yml
+  when: winget_installed_ids is not defined
+
+# Only the packages the snapshot could not vouch for. An export lists a package
+# only while the source still carries a matching manifest, so anything missing
+# from it falls through to the per-package check below and behaves exactly as
+# it did before - slower for that one package, never wrong.
+- name: Winget | Confirm the packages the snapshot did not account for
+  vars:
+    winget_unaccounted: >-
+      {{ winget_packages | reject('in', winget_installed_ids) | list }}
   ansible.windows.win_shell: >-
     winget list --id {{ item }} --exact --source winget
     --accept-source-agreements
   register: winget_present
-  loop: "{{ winget_packages }}"
+  loop: "{{ winget_unaccounted }}"
   # rc 0 means installed; a missing package returns -1978335212
   # (0x8A150014, APPINSTALLER_CLI_ERROR_NO_APPLICATIONS_FOUND).
   changed_when: false
@@ -76,7 +91,9 @@
     winget install --id {{ item.item }} --exact --source winget --silent
     --disable-interactivity --accept-source-agreements
     --accept-package-agreements
-  loop: "{{ winget_present.results }}"
+  # default([]) because the task above is skipped outright when the snapshot
+  # accounted for every package, and a skipped loop registers no "results".
+  loop: "{{ winget_present.results | default([]) }}"
   loop_control:
     label: "{{ item.item }}"
   when: item.rc != 0

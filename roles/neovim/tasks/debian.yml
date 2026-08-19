@@ -1,5 +1,9 @@
 ---
-- name: Install Dependencies (APT)
+# Neovim's own build/runtime dependencies on Ubuntu. git is listed even though
+# the git role installs it too: these are Neovim's declared prerequisites and
+# should not depend on another role having run first. apt is idempotent, so the
+# overlap costs nothing.
+- name: Neovim | Install Neovim dependencies (apt)
   become: true
   ansible.builtin.apt:
     name: "{{ item }}"
@@ -11,5 +15,5 @@
     - xclip
     - wl-clipboard
 
-- name: Install common Homebrew dependencies
+- name: Neovim | Install Neovim from Homebrew
   ansible.builtin.include_tasks: brew.yml

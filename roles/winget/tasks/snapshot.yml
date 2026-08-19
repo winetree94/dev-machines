@@ -1,0 +1,30 @@
+---
+# One-shot inventory of everything winget already knows is installed on this
+# host, so the 49 roles that include this role can answer "is it installed?"
+# from a fact instead of one remote round trip each.
+#
+# The round trip is the cost, not winget: on the Windows host an empty command
+# takes 1.82s and "winget list --id X --exact --source winget" takes 2.40s, so
+# 49 of them spend ~118s, ~89s of which is SSH plus PowerShell start-up. That
+# is why this is a snapshot rather than a cheaper per-package command - there
+# is no cheaper per-package command to find. (Dropping "--source winget" makes
+# it worse, 3.13s, because winget then also queries msstore.)
+#
+# "winget export" rather than "winget list" because list prints a table whose
+# Id column is truncated to the console width, while export emits exact
+# PackageIdentifiers as JSON. It has no stdout mode - "-o <file>" is required -
+# hence the temp file, which is removed in the same command.
+- name: Winget | Export the installed packages
+  ansible.windows.win_shell: |
+    $out = Join-Path $env:TEMP 'winget-export.json'
+    winget export -o $out --source winget --accept-source-agreements | Out-Null
+    (Get-Content $out -Raw | ConvertFrom-Json).Sources.Packages.PackageIdentifier -join "`n"
+    Remove-Item $out -Force -ErrorAction SilentlyContinue
+  register: winget_export
+  changed_when: false
+  check_mode: false
+
+- name: Winget | Remember the installed package IDs
+  ansible.builtin.set_fact:
+    winget_installed_ids: >-
+      {{ winget_export.stdout_lines | map('trim') | reject('equalto', '') | list }}

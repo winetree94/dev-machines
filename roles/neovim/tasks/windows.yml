@@ -1,10 +1,7 @@
 ---
-- name: Install Neovim tooling (winget)
+- name: Install Neovim (winget)
   ansible.builtin.include_role:
     name: winget
   vars:
     winget_packages:
       - Neovim.Neovim
-      - BurntSushi.ripgrep.MSVC
-      - sharkdp.fd
-      - JesseDuffield.lazygit

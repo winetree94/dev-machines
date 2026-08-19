@@ -5,11 +5,9 @@
     state: present
   become: false
 
-- name: Wireguard | Install mas (brew)
-  community.general.homebrew:
+- name: Wireguard | Install mas
+  ansible.builtin.include_role:
     name: mas
-    state: present
-  become: false
 
 # "mas install" places the app in /Applications itself and refuses to run
 # unprivileged ("Requires root privileges to install apps"), so this task is
