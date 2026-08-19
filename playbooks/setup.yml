@@ -84,26 +84,61 @@
 - name: Common tooling
   hosts: all
   roles:
+    # One role per piece of software, grouped by comment rather than by play:
+    # extra plays cost a fact-gathering and connection round trip each, and the
+    # role-ordering assertions in tests/validate_*.yml key off this play name.
+    #
+    # networking / containers
     - role: tailscale
+    - role: wireguard
     - role: docker
+    # secrets
+    - role: doppler
+    - role: bitwarden_cli
+    - role: age
+    - role: sops
+    # shell
+    - role: zsh
+    - role: direnv
+    - role: fzf
+    - role: tmux
+    # editor
+    - role: neovim
+    - role: ripgrep
+    - role: fd
+    # version control
+    - role: git
+    - role: gh
+    - role: delta
+    - role: lazygit
+    - role: graphite
+    # languages and runtimes
+    - role: mise
     - role: python
+    - role: rust
+    - role: bun
+    - role: pnpm
+    - role: deno
+    - role: biome
+    # kubernetes
+    - role: kubectl
+    - role: helm
+    - role: k9s
+    - role: flux
+    - role: kubeseal
+    - role: kubectl_cnpg
+    - role: talosctl
+    - role: talhelper
+    # cloud and storage
+    - role: awscli
+    - role: rclone
+    # mobile
+    - role: android
+    # AI CLI
     - role: claude_code
     - role: codex
     - role: copilot_cli
     - role: opencode
-    - role: zsh
-    - role: tmux
-    - role: awscli
-    - role: rclone
-    - role: node
-    - role: bitwarden_cli
-    - role: mise
-    - role: neovim
-    - role: kubernetes
-    - role: doppler
-    - role: git
-    - role: graphite
-    - role: wireguard
 
 - name: GUI applications
   # Empty when no host has gui enabled, in which case the play is skipped.
