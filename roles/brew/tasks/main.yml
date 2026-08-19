@@ -1,0 +1,48 @@
+---
+# One-shot inventory of the Homebrew packages already installed on this host,
+# so the ~77 roles that install a formula or a cask can answer "is it there?"
+# from a fact instead of spawning their own brew process.
+#
+# Same reasoning as roles/winget/tasks/snapshot.yml, for the same reason:
+# asking once is dramatically cheaper than asking per package. Measured on the
+# macOS host, "brew list --cask <one token>" takes 0.49s while listing every
+# cask takes 0.03s - a single query is 16x faster than one lookup, before the
+# per-task connection overhead is counted at all.
+#
+# This role is a snapshot only; it never installs anything. It runs in the
+# Ubuntu and macOS bootstrap plays, before any role that consumes the facts.
+#
+# Both lookups tolerate failure. A host with no Homebrew at all (or a Linux
+# host, where there are no casks) simply yields an empty list, and every
+# consuming role falls through to its own module call exactly as before -
+# slower, never wrong.
+
+- name: Brew | List the installed formulae
+  ansible.builtin.command: brew list --formula -1
+  register: brew_formula_list
+  # brew is not on the default non-interactive PATH: Apple Silicon puts it in
+  # /opt/homebrew, Intel in /usr/local, Linuxbrew in /home/linuxbrew.
+  environment: &brew_path
+    PATH: >-
+      /opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:{{
+      ansible_facts['env']['PATH'] }}
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: false
+
+- name: Brew | List the installed casks
+  ansible.builtin.command: brew list --cask -1
+  register: brew_cask_list
+  environment: *brew_path
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: false
+
+- name: Brew | Remember the installed formulae and casks
+  ansible.builtin.set_fact:
+    brew_installed_formulae: >-
+      {{ brew_formula_list.stdout_lines | default([]) if brew_formula_list.rc == 0 else [] }}
+    brew_installed_casks: >-
+      {{ brew_cask_list.stdout_lines | default([]) if brew_cask_list.rc == 0 else [] }}

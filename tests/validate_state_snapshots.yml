@@ -1,0 +1,112 @@
+---
+# Every package manager here answers "is it already installed?" from one
+# snapshot per host instead of one query per package. This test locks that
+# convention in: the snapshot exists, it is guarded so it runs once, and the
+# roles that consume it gate on the fact rather than querying for themselves.
+- name: Validate the per-host state snapshots
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir }}/.."
+    brew_snapshot_path: "{{ playbook_dir }}/../roles/brew/tasks/main.yml"
+    flatpak_tasks_path: "{{ playbook_dir }}/../roles/flatpak/tasks/main.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+  tasks:
+    - name: Read the snapshot task files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      register: snapshot_raw
+      loop:
+        - "{{ brew_snapshot_path }}"
+        - "{{ flatpak_tasks_path }}"
+        - "{{ setup_playbook_path }}"
+
+    - name: Decode the snapshot task files
+      ansible.builtin.set_fact:
+        brew_snapshot: "{{ snapshot_raw.results[0].content | b64decode }}"
+        flatpak_tasks: "{{ snapshot_raw.results[1].content | b64decode }}"
+        setup_playbook: "{{ snapshot_raw.results[2].content | b64decode }}"
+
+    - name: Assert the brew snapshot publishes both facts and never installs
+      ansible.builtin.assert:
+        that:
+          - "'brew list --formula' in brew_snapshot"
+          - "'brew list --cask' in brew_snapshot"
+          - "'brew_installed_formulae' in brew_snapshot"
+          - "'brew_installed_casks' in brew_snapshot"
+          - "'state: present' not in brew_snapshot"
+          - "'failed_when: false' in brew_snapshot"
+        fail_msg: >-
+          roles/brew must only snapshot state - list the installed formulae and casks
+          into brew_installed_formulae / brew_installed_casks and install nothing. Both
+          lookups need failed_when: false so a host without Homebrew (or a Linux host,
+          which has no casks) yields an empty list and every consumer falls back to its
+          own module call.
+
+    - name: Assert the flatpak role publishes the installed application IDs
+      ansible.builtin.assert:
+        that:
+          - "'flatpak_installed_ids' in flatpak_tasks"
+          - "'--columns=application' in flatpak_tasks"
+          - "'failed_when: false' in flatpak_tasks"
+        fail_msg: >-
+          roles/flatpak must snapshot the installed application IDs into
+          flatpak_installed_ids. community.general.flatpak runs a full
+          "flatpak list --system" inside every invocation, so without the snapshot the
+          same listing is produced once per GUI role.
+
+    - name: Assert both bootstrap plays run the brew snapshot
+      ansible.builtin.assert:
+        that:
+          # Quoted whole: the regexes contain "- role: brew", and an unquoted
+          # YAML scalar would read that colon as a mapping.
+          - 'setup_playbook is search("Ubuntu bootstrap[\s\S]*- role: brew")'
+          - 'setup_playbook is search("MacOS bootstrap[\s\S]*- role: brew")'
+          - 'setup_playbook is search("- role: homebrew[\s\S]*- role: brew")'
+        fail_msg: >-
+          The brew snapshot must run in the Ubuntu and macOS bootstrap plays, after
+          `homebrew` (which installs its dependencies) and before any play whose roles
+          read the facts.
+
+    # Both halves use find's `contains`, which greps the file itself. Slurping
+    # every match and decoding it here would work too, but it read ~100 files
+    # over the connection and took 40s where this takes under a second.
+    - name: Find the task files that install through a snapshotted package manager
+      ansible.builtin.find:
+        paths: "{{ repo_root }}/roles"
+        patterns: "*.yml"
+        recurse: true
+        contains: '^\s+community\.general\.(homebrew|homebrew_cask|flatpak):\s*$'
+      register: snapshot_consumers
+
+    - name: Find the task files that gate on a snapshot fact
+      ansible.builtin.find:
+        paths: "{{ repo_root }}/roles"
+        patterns: "*.yml"
+        recurse: true
+        # Leading/trailing .* because find's `contains` anchors with re.match,
+        # not re.search - an unanchored pattern silently matches nothing.
+        contains: '.*(brew_installed_formulae|brew_installed_casks|flatpak_installed_ids).*'
+      register: snapshot_gated
+
+    - name: Collect the consumers that never look at the snapshot
+      ansible.builtin.set_fact:
+        ungated_consumers: >-
+          {{ snapshot_consumers.files | map(attribute='path') | list
+             | difference(snapshot_gated.files | map(attribute='path') | list)
+             | map('regex_replace', '^.*/roles/', 'roles/')
+             | sort | list }}
+
+    - name: Assert every consumer gates on the snapshot
+      ansible.builtin.assert:
+        that:
+          - ungated_consumers | length == 0
+        fail_msg: >-
+          These task files call homebrew / homebrew_cask / flatpak without first
+          checking the per-host snapshot, so they spawn their own query on every run:
+          {{ ungated_consumers | join(', ') }}.
+          Gate them with `when: "'<token>' not in (<fact> | default([]))"` - the
+          default([]) is what makes the role still work when the snapshot did not run,
+          for instance under a tag-filtered invocation.
+        quiet: true
