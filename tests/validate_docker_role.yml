@@ -27,6 +27,8 @@
           - "'ansible.builtin.user' in docker_role_tasks_content"
           - "'groups: docker' in docker_role_tasks_content"
           - "'append: true' in docker_role_tasks_content"
-          - "docker_role_tasks_content is search('name: .*ansible_user_id')"
+          - "docker_role_tasks_content is search(\"name: .*ansible_facts\\\\['user_id'\\\\]\")"
           - "docker_role_tasks_content is search('Install Docker CE[\\s\\S]*Add current user to docker group')"
-        fail_msg: Docker role must add ansible_user_id to the docker group after Docker CE is installed.
+        fail_msg: >-
+          Docker role must add ansible_facts['user_id'] to the docker group after
+          Docker CE is installed.
