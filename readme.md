@@ -27,12 +27,23 @@ make install-requirements
 | desktop | 10.132.247.31 | windows | Windows 10/11 |
 | ubuntu-dev | 10.132.247.36 | ubuntu | Ubuntu 24.04+ |
 | macmini | 10.132.245.38 | macos | macOS |
-| localhost | – | (런타임 판별) | 컨트롤 머신 |
+| localhost | – | (런타임 판별) | 컨트롤 머신 (macOS / Ubuntu) |
 
 원격 머신은 `inventories/hosts.yml` 의 정적 OS 그룹에 들어있다. `group_vars/<group>.yml` 의
 접속 변수(`ansible_shell_type`, `ansible_become_method`)가 첫 접속 *이전*에 결정되어야 하기
 때문이다. `localhost` 만 그룹 없이 두고 `playbooks/setup.yml` 의 `Group hosts by OS` 플레이가
-런타임에 분류한다 — 컨트롤 머신은 mac/linux/windows 무엇이든 될 수 있다.
+런타임에 분류한다.
+
+`localhost` 는 macOS 나 Ubuntu 만 될 수 있다. ansible 은 네이티브 Windows 를 컨트롤
+노드로 지원하지 않기 때문에, Windows 머신은 WSL 안에서 ansible 을 돌리더라도 `localhost`
+는 WSL 리눅스 게스트를 가리킨다. Windows 본체는 `desktop` 처럼 SSH 원격 호스트로 잡아야
+한다.
+
+지원하지 않는 OS 는 롤이 하나라도 돌기 전에 걸러진다. `Group hosts by OS` 플레이의
+`Assert the host runs a supported OS` 가 Windows / macOS / **Ubuntu** 가 아닌 호스트를
+즉시 실패시킨다. 그 아래 `group_by` 가 Windows·macOS 가 아닌 모든 호스트를 `ubuntu`
+그룹으로 몰아넣기 때문에, 예컨대 Fedora 를 그냥 두면 apt/snap 태스크를 맞고 실행 도중에
+깨진다. 해당 호스트만 실패하고 나머지 호스트는 계속 진행한다.
 
 `make apply` 를 `--limit` 없이 돌리면 이제 **4대 전부**를 건드린다. 범위를 좁히려면
 `ANSIBLE_ARGS` 를 쓴다.
@@ -79,6 +90,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
+`gui` 는 `gui_apps` 롤과 Linux 의 tailscale systray 자동 시작을 함께 제어한다.
 
 # 사람이 수동으로 해야 하는 작업
 
@@ -93,6 +105,10 @@ ansible 로 최대한 자동화했지만 머신별 초기 설정은 사람이 �
 **macOS**
 - 시스템 설정 → 일반 → 공유 → 원격 로그인 켜기
 - 계정 비밀번호를 vault 의 `vault_<host>_become_password` 에 저장
+- App Store 에 Apple ID 로 로그인하고, WireGuard 를 한 번 받아 구매 이력에
+  넣어 둔다. `wireguard` 롤이 `mas` 로 WireGuard GUI 앱을 설치하는데,
+  로그인이 안 되어 있거나 구매 이력에 앱이 없으면 설치가 실패한다.
+  이 경우 플레이는 죽지 않고 안내 메시지만 남기고 넘어간다.
 
 **Windows** (관리자 PowerShell)
 
@@ -127,19 +143,100 @@ Each role's `tasks/main.yml` is a dispatcher that includes the first matching fi
 
 - `debian.yml` — Ubuntu (apt/snap/flatpak/homebrew)
 - `darwin.yml` — macOS (homebrew)
-- `windows.yml` — Windows (chocolatey)
+- `windows.yml` — Windows (chocolatey, 예외적으로 doppler 만 scoop)
 - `default.yml` — fallback shared by Ubuntu/macOS (homebrew-only roles)
 
 If no file matches, the role is a no-op for that OS.
 
-**알려진 제약:** `ai`, `bw`, `doppler`, `graphite`, `mise`, `node`, `rclone` 은 아직
+**알려진 제약:** `ai`, `bw`, `graphite`, `mise`, `node`, `rclone` 은 아직
 Windows 패키지가 없어서 `windows.yml` 이 no-op 이다. 이 파일들이 존재하는 이유는
 dispatcher 가 Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다.
 실제 설치는 후속 작업으로 `chocolatey.chocolatey.win_chocolatey` 를 채워 넣는다.
 
 OS-exclusive roles (`apt_update`, `setup_snap`, `setup_flatpak`, `setup_homebrew`,
-`tailscale`, `setup_chocolatey`) are instead gated by OS-targeted plays in
+`setup_chocolatey`, `setup_scoop`) are instead gated by OS-targeted plays in
 `playbooks/setup.yml`.
+
+## tailscale
+
+`tailscale` 롤은 OS 별로 설치 형태가 다르다.
+
+- `debian.yml` — 공식 stable APT 저장소 + `tailscaled` 서비스. `gui` 가 참인
+  호스트에서는 systray 의존 패키지(`gnome-shell-extension-appindicator`,
+  `xsel`, `wl-clipboard`)를 설치하고
+  `tailscale configure systray --enable-startup=freedesktop` 로 로그인 시
+  자동 시작 항목(`~/.config/autostart/tailscale-systray.desktop`)을 만든다.
+  systray 하위 명령은 Tailscale 1.96 이상에서만 존재하므로 버전이 낮으면 건너뛴다.
+- `darwin.yml` — Homebrew cask `tailscale-app` (GUI 클라이언트). cask 는 CLI 를
+  앱 번들 안에 두므로 `/usr/local/bin/tailscale` 래퍼 스크립트를 함께 만든다.
+  심볼릭 링크는 쓸 수 없다 — 바이너리가 자기 실행 경로로 번들을 찾기 때문에
+  링크로 실행하면 `The current bundleIdentifier is unknown to the registry` 로
+  죽는다. 앱의 "Install CLI" 메뉴가 하는 것과 같은 `exec` 래퍼를 쓴다.
+  또한 `tailscale-app` 은 pkg 기반 cask 라 Homebrew 가 내부적으로 `sudo` 를
+  호출한다. ansible 실행에는 터미널이 없으므로 vault 의 become 비밀번호를
+  일회용 `SUDO_ASKPASS` 헬퍼로 넘겨준다(작업 후 즉시 삭제).
+- `windows.yml` — Chocolatey `tailscale` 패키지. 트레이 GUI 가 포함되어 있다.
+
+롤은 절대 `tailscale up` 을 실행하지 않는다. 각 머신의 최초 인증은 수동이다.
+macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한다.
+
+## wireguard
+
+`wireguard` 롤은 **설치만** 담당한다. 터널 설정(`wg0.conf`)과 개인키는
+리포에도 vault 에도 들어가지 않으며, 각 머신에서 수동으로 넣는다.
+
+- `debian.yml` — apt 로 `wireguard-tools` 설치. 커널 모듈은 Linux 5.6 이상에
+  내장되어 있으므로 DKMS 패키지는 필요 없다. `network-manager` 는 일부러
+  설치하지 않는다 — netplan/systemd-networkd 로 도는 헤드리스 호스트에
+  NetworkManager 를 밀어넣으면 네트워크가 끊길 수 있다.
+- `darwin.yml` — Homebrew formula `wireguard-tools`(CLI) 와 `mas`, 그리고
+  `mas` 로 Mac App Store GUI 클라이언트(id `1451685025`)를 설치한다.
+  WireGuard 는 macOS 용 Homebrew cask 가 없어서 App Store 가 유일한 경로다.
+  `mas install` 은 root 권한을 요구하므로 이 작업만 `become: true` 로 돈다.
+- `windows.yml` — Chocolatey `wireguard` 패키지. 공식 GUI 클라이언트가 포함된다.
+
+### 터널 설정 (수동)
+
+- **Ubuntu (데스크톱, NetworkManager)** — conf 파일을 NetworkManager 에 import 하면
+  GNOME/KDE 네트워크 메뉴에 VPN 토글로 뜬다. NetworkManager 1.16 부터 WireGuard 를
+  기본 지원하므로 별도 플러그인은 필요 없다.
+
+  ```bash
+  sudo nmcli connection import type wireguard file /path/to/wg0.conf
+  nmcli connection up wg0     # 내리기: nmcli connection down wg0
+  ```
+
+- **Ubuntu (헤드리스)** — NetworkManager 가 없는 호스트는 `wg-quick` 을 쓴다.
+
+  ```bash
+  sudo install -m 600 wg0.conf /etc/wireguard/wg0.conf
+  sudo wg-quick up wg0
+  sudo systemctl enable --now wg-quick@wg0   # 부팅 시 자동 연결이 필요하면
+  ```
+
+- **macOS** — WireGuard 앱에서 conf 파일을 import 한다.
+- **Windows** — WireGuard GUI 의 "Import tunnel(s) from file".
+
+## doppler
+
+`doppler` 롤은 OS 마다 Doppler 공식 배포 경로를 그대로 쓴다.
+
+- `debian.yml` — 공식 APT 저장소(`packages.doppler.com/public/cli/deb/debian`,
+  `any-version` suite). 서명 키는 ASCII armored 로 배포되므로 `.asc` 그대로
+  `/usr/share/keyrings` 에 두고 `signed_by` 로 참조한다. 별도 변환 명령이나
+  파이프 설치 스크립트는 쓰지 않는다.
+- `darwin.yml` — Homebrew tap `dopplerhq/doppler` + cask. 주의할 점이 두 개 있다.
+  - Homebrew 6 은 신뢰하지 않는 서드파티 탭의 formula/cask 를 아예 로드하지
+    않으므로 `homebrew_tap` 에 `trust: true` 가 필요하다.
+  - cask 토큰은 반드시 `dopplerhq/doppler/doppler` 로 정규화해서 쓴다. 짧은
+    `doppler` 는 homebrew-cask 의 무관한 음악 앱 `doppler-app` 으로 해석된다.
+    `community.general.homebrew_cask` 는 설치 여부를 `brew list --cask <name>`
+    으로 판단하는데 정규화된 토큰에서 실패하므로, `brew info --json=v2` 로
+    가드한 `brew install --cask` 를 쓴다.
+- `windows.yml` — Doppler 공식 Scoop 버킷. Chocolatey 패키지는 존재하지 않고,
+  winget 은 ansible 모듈이 없다. Scoop 자체는 `setup_scoop` 롤이 "Windows
+  bootstrap" 플레이에서 먼저 설치한다 — `win_scoop_bucket` 은 scoop 을
+  부트스트랩하지 않고 `scoop.ps1` 이 없으면 그냥 실패한다.
 
 # Validation
 
@@ -165,6 +262,8 @@ This runs:
 
 `tests/validate_inventory_secrets.yml` 은 인벤토리의 모든 자격증명이 `vault_*` 참조인지,
 SSH 키가 디스크 경로가 아닌 vault 내용으로 오는지, 호스트가 정적 OS 그룹에 있는지 검사한다.
+검사 대상 호스트 목록은 `groups['all']` 에서 `localhost` 를 뺀 것으로 **인벤토리에서 유도**한다.
+호스트를 추가·삭제·주석 처리해도 테스트를 같이 고칠 필요가 없다.
 
 To preview changes before applying the playbook:
 
