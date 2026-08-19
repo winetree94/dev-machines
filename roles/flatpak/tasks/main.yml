@@ -30,3 +30,25 @@
       state: present
     - name: gnome-software-plugin-snap
       state: present
+
+# One-shot inventory of the Flatpak applications already installed, so the 20
+# GUI roles that install from Flathub can answer "is it there?" from a fact.
+# community.general.flatpak runs a full "flatpak list --system" inside every
+# single invocation, so without this the same listing is produced 20 times.
+#
+# --system matches the module's default method. A host where the listing fails
+# yields an empty list and every consuming role falls through to its own module
+# call exactly as before - slower, never wrong.
+- name: Flatpak | List the installed applications
+  become: true
+  ansible.builtin.command: flatpak list --system --app --columns=application
+  register: flatpak_app_list
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Flatpak | Remember the installed application IDs
+  ansible.builtin.set_fact:
+    flatpak_installed_ids: >-
+      {{ flatpak_app_list.stdout_lines | map('trim') | reject('equalto', '') | list
+         if flatpak_app_list.rc == 0 else [] }}
