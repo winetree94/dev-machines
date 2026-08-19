@@ -1,0 +1,19 @@
+---
+# The official Chocolatey package installs the standard Windows client,
+# which already bundles the system tray GUI alongside the service.
+#
+# Chocolatey only knows about installs it made itself, and its package
+# regularly lags behind the version Tailscale ships. On a machine where the
+# client was installed any other way, choco would try to lay an older MSI over
+# a newer install and die with a generic 1603, so check for the client first
+# and leave an existing one alone. Upgrading such an install stays manual.
+- name: Check whether the Tailscale client is already installed
+  ansible.windows.win_stat:
+    path: C:\Program Files\Tailscale\tailscale.exe
+  register: tailscale_client
+
+- name: Install the Tailscale client (Chocolatey)
+  when: not tailscale_client.stat.exists
+  chocolatey.chocolatey.win_chocolatey:
+    name: tailscale
+    state: present

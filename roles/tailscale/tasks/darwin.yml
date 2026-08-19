@@ -1,0 +1,42 @@
+---
+# The Homebrew cask token was renamed from "tailscale" to "tailscale-app".
+# The "tailscale" *formula* is a separate package that ships the CLI and
+# daemon only, without the menu bar client.
+#
+# tailscale-app is a pkg-based cask, so Homebrew shells out to
+# "sudo installer" to place the app, and an Ansible run has no terminal for
+# sudo to prompt at. sudo_password hands the module the vault become password
+# and it writes a throwaway SUDO_ASKPASS helper, which is what makes Homebrew
+# call "sudo -A" instead of trying to read a terminal. Homebrew itself must
+# stay unprivileged: it refuses to run as root.
+- name: Install the Tailscale GUI client (Homebrew cask)
+  community.general.homebrew_cask:
+    name: tailscale-app
+    state: present
+    sudo_password: "{{ ansible_become_password }}"
+  become: false
+
+# The cask keeps the CLI inside the app bundle, which is not on PATH.
+# /usr/local/bin is in the default PATH via /etc/paths on both Intel and
+# Apple Silicon, so it works regardless of the Homebrew prefix.
+- name: Ensure /usr/local/bin exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    mode: "0755"
+  become: true
+
+# A symlink does not work here: the binary resolves its own bundle from the
+# path it was executed as, so it dies with "The current bundleIdentifier is
+# unknown to the registry". Ship the same exec wrapper the app's own
+# "Install CLI" menu item writes (Resources/InstallTailscaleCLI.scpt), which
+# keeps the executable at its real path inside the bundle.
+- name: Put the bundled tailscale CLI on PATH
+  ansible.builtin.copy:
+    dest: /usr/local/bin/tailscale
+    mode: "0755"
+    follow: false
+    content: |
+      #!/bin/sh
+      exec /Applications/Tailscale.app/Contents/MacOS/Tailscale "$@"
+  become: true

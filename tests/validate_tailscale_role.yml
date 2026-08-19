@@ -3,80 +3,192 @@
   hosts: localhost
   gather_facts: false
   vars:
-    tailscale_role_tasks_path: "{{ playbook_dir }}/../roles/tailscale/tasks/main.yml"
+    tailscale_tasks_dir: "{{ playbook_dir }}/../roles/tailscale/tasks"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    tailscale_task_files:
+      - main.yml
+      - debian.yml
+      - darwin.yml
+      - windows.yml
 
   tasks:
-    - name: Check Tailscale role tasks file exists
+    - name: Check Tailscale role task files exist
       ansible.builtin.stat:
-        path: "{{ tailscale_role_tasks_path }}"
-      register: tailscale_role_tasks
+        path: "{{ tailscale_tasks_dir }}/{{ item }}"
+      register: tailscale_task_stats
+      loop: "{{ tailscale_task_files }}"
 
-    - name: Assert Tailscale role tasks file exists
+    - name: Assert Tailscale role task files exist
       ansible.builtin.assert:
         that:
-          - tailscale_role_tasks.stat.exists
-        fail_msg: roles/tailscale/tasks/main.yml must exist.
+          - tailscale_task_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          roles/tailscale/tasks must contain {{ tailscale_task_files | join(', ') }}.
 
-    - name: Read Tailscale role tasks
+    - name: Read Tailscale role task files
       ansible.builtin.set_fact:
-        tailscale_role_tasks_content: "{{ lookup('ansible.builtin.file', tailscale_role_tasks_path) }}"
+        tailscale_main: "{{ lookup('ansible.builtin.file', tailscale_tasks_dir ~ '/main.yml') }}"
+        tailscale_debian: "{{ lookup('ansible.builtin.file', tailscale_tasks_dir ~ '/debian.yml') }}"
+        tailscale_darwin: "{{ lookup('ansible.builtin.file', tailscale_tasks_dir ~ '/darwin.yml') }}"
+        tailscale_windows: "{{ lookup('ansible.builtin.file', tailscale_tasks_dir ~ '/windows.yml') }}"
 
     - name: Read setup playbook
       ansible.builtin.set_fact:
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
 
+    - name: Assert Tailscale role dispatches on OS family and holds no install logic
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in tailscale_main"
+          - "'with_first_found' in tailscale_main"
+          - "tailscale_main is search(\"ansible_facts\\['os_family'\\] \\| lower\")"
+          - "'default.yml' in tailscale_main"
+          - "'deb822_repository' not in tailscale_main"
+          - "'homebrew_cask' not in tailscale_main"
+          - "'win_chocolatey' not in tailscale_main"
+        fail_msg: >-
+          roles/tailscale/tasks/main.yml must be the first_found OS dispatcher only,
+          with the install logic living in debian.yml / darwin.yml / windows.yml.
+
     - name: Assert Tailscale role uses official stable APT repository
       ansible.builtin.assert:
         that:
-          - "'ansible.builtin.deb822_repository' in tailscale_role_tasks_content"
-          - "'https://pkgs.tailscale.com/stable/' in tailscale_role_tasks_content"
-          - "tailscale_role_tasks_content is search('distribution.*lower')"
-          - "'suites:' in tailscale_role_tasks_content"
-          - "'distribution_release' in tailscale_role_tasks_content"
-          - "'components:' in tailscale_role_tasks_content"
-          - "'- main' in tailscale_role_tasks_content"
-          - "'signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg' in tailscale_role_tasks_content"
+          - "'ansible.builtin.deb822_repository' in tailscale_debian"
+          - "'https://pkgs.tailscale.com/stable/' in tailscale_debian"
+          - "tailscale_debian is search('distribution.*lower')"
+          - "'suites:' in tailscale_debian"
+          - "'distribution_release' in tailscale_debian"
+          - "'components:' in tailscale_debian"
+          - "'- main' in tailscale_debian"
+          - "'signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg' in tailscale_debian"
         fail_msg: Tailscale role must configure the official stable Tailscale APT repository with deb822_repository.
 
     - name: Assert Tailscale role ensures keyring directory exists
       ansible.builtin.assert:
         that:
-          - "'ansible.builtin.file' in tailscale_role_tasks_content"
-          - "'path: /usr/share/keyrings' in tailscale_role_tasks_content"
-          - "'state: directory' in tailscale_role_tasks_content"
+          - "'ansible.builtin.file' in tailscale_debian"
+          - "'path: /usr/share/keyrings' in tailscale_debian"
+          - "'state: directory' in tailscale_debian"
         fail_msg: Tailscale role must ensure /usr/share/keyrings exists before writing the key.
 
     - name: Assert Tailscale role downloads noarmor GPG key without curl pipe
       ansible.builtin.assert:
         that:
-          - "'ansible.builtin.get_url' in tailscale_role_tasks_content"
-          - "'https://pkgs.tailscale.com/stable/' in tailscale_role_tasks_content"
-          - "tailscale_role_tasks_content is search('distribution.*lower')"
-          - "tailscale_role_tasks_content is search('distribution_release')"
-          - "'.noarmor.gpg' in tailscale_role_tasks_content"
-          - "'dest: /usr/share/keyrings/tailscale-archive-keyring.gpg' in tailscale_role_tasks_content"
-          - "'curl' not in tailscale_role_tasks_content"
-          - "'| sh' not in tailscale_role_tasks_content"
+          - "'ansible.builtin.get_url' in tailscale_debian"
+          - "'https://pkgs.tailscale.com/stable/' in tailscale_debian"
+          - "tailscale_debian is search('distribution.*lower')"
+          - "tailscale_debian is search('distribution_release')"
+          - "'.noarmor.gpg' in tailscale_debian"
+          - "'dest: /usr/share/keyrings/tailscale-archive-keyring.gpg' in tailscale_debian"
         fail_msg: Tailscale role must download the noarmor key directly and must not use curl|sh.
 
     - name: Assert Tailscale role installs package and manages systemd service only
       ansible.builtin.assert:
         that:
-          - "'ansible.builtin.apt' in tailscale_role_tasks_content"
-          - "'name: tailscale' in tailscale_role_tasks_content"
-          - "'ansible.builtin.systemd_service' in tailscale_role_tasks_content"
-          - "'name: tailscaled' in tailscale_role_tasks_content"
-          - "'enabled: true' in tailscale_role_tasks_content"
-          - "'state: started' in tailscale_role_tasks_content"
-          - "tailscale_role_tasks_content is search(\"ansible_facts\\['service_mgr'\\] == 'systemd'\")"
-          - "'tailscale up' not in tailscale_role_tasks_content"
-        fail_msg: Tailscale role must install tailscale, enable/start tailscaled under systemd, and never run tailscale up.
+          - "'ansible.builtin.apt' in tailscale_debian"
+          - "'name: tailscale' in tailscale_debian"
+          - "'ansible.builtin.systemd_service' in tailscale_debian"
+          - "'name: tailscaled' in tailscale_debian"
+          - "'enabled: true' in tailscale_debian"
+          - "'state: started' in tailscale_debian"
+          - "tailscale_debian is search(\"ansible_facts\\['service_mgr'\\] == 'systemd'\")"
+        fail_msg: Tailscale role must install tailscale and enable/start tailscaled under systemd.
 
-    - name: Assert Tailscale role runs only in the Ubuntu bootstrap play
+    - name: Assert Tailscale role configures the Linux systray behind the gui flag
+      ansible.builtin.assert:
+        that:
+          - "'gnome-shell-extension-appindicator' in tailscale_debian"
+          - "'xsel' in tailscale_debian"
+          - "'wl-clipboard' in tailscale_debian"
+          - "'tailscale configure systray --enable-startup=freedesktop' in tailscale_debian"
+          - "'.config/autostart/tailscale-systray.desktop' in tailscale_debian"
+          - "'creates:' in tailscale_debian"
+          - "tailscale_debian is search('gui \\| bool')"
+        fail_msg: >-
+          Tailscale role must install the systray desktop dependencies and enable the
+          freedesktop autostart entry, both gated on the gui flag and made idempotent
+          with creates.
+
+    - name: Assert Tailscale systray tasks never run as superuser
+      ansible.builtin.assert:
+        that:
+          - >-
+            tailscale_debian is search("tailscale configure systray[\s\S]*become: false")
+        fail_msg: >-
+          The systray tasks must run unprivileged - "tailscale systray" is not designed
+          to run as superuser.
+
+    - name: Assert Tailscale role installs the macOS GUI client and exposes its CLI
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' in tailscale_darwin"
+          - "'name: tailscale-app' in tailscale_darwin"
+          - "'dest: /usr/local/bin/tailscale' in tailscale_darwin"
+          - >-
+            tailscale_darwin is search("exec /Applications/Tailscale.app/Contents/MacOS/Tailscale")
+          - "'state: link' not in tailscale_darwin"
+        fail_msg: >-
+          Tailscale role must install the tailscale-app cask on macOS and put an exec
+          wrapper for the bundled CLI on PATH. A symlink must not be used - the binary
+          resolves its own bundle from the path it is executed as and aborts with
+          "The current bundleIdentifier is unknown to the registry".
+
+    - name: Assert the macOS cask install never prompts for a password
+      ansible.builtin.assert:
+        that:
+          - >-
+            tailscale_darwin is search("homebrew_cask[\s\S]*sudo_password:")
+          - "'ansible_become_password' in tailscale_darwin"
+        fail_msg: >-
+          tailscale-app is a pkg-based cask, so Homebrew shells out to sudo and there is
+          no terminal to prompt at. The role must hand the vault become password to
+          homebrew_cask through its sudo_password option, which writes the throwaway
+          SUDO_ASKPASS helper Homebrew needs. Never hand-roll that helper.
+
+    - name: Assert Tailscale role installs the Windows client with Chocolatey
+      ansible.builtin.assert:
+        that:
+          - "'chocolatey.chocolatey.win_chocolatey' in tailscale_windows"
+          - "'name: tailscale' in tailscale_windows"
+        fail_msg: Tailscale role must install the Tailscale Windows client with win_chocolatey.
+
+    - name: Assert the Windows install never lays an older MSI over a newer client
+      ansible.builtin.assert:
+        that:
+          - "'ansible.windows.win_stat' in tailscale_windows"
+          - >-
+            'path: C:\\Program Files\\Tailscale\\tailscale.exe' in tailscale_windows
+          - "'when: not tailscale_client.stat.exists' in tailscale_windows"
+        fail_msg: >-
+          Chocolatey only tracks installs it made itself and its tailscale package lags
+          behind upstream, so an out-of-band install makes choco try to downgrade and
+          fail with MSI 1603. The role must skip the install when the client is already
+          on the machine.
+
+    - name: Assert Tailscale role never authenticates or shells out to installers
+      ansible.builtin.assert:
+        that:
+          - "'tailscale up' not in item"
+          - "'curl' not in item"
+          - "'| sh' not in item"
+        fail_msg: Tailscale role must never run tailscale up and must never use curl|sh.
+      loop:
+        - "{{ tailscale_main }}"
+        - "{{ tailscale_debian }}"
+        - "{{ tailscale_darwin }}"
+        - "{{ tailscale_windows }}"
+      loop_control:
+        index_var: tailscale_file_index
+        label: "{{ tailscale_task_files[tailscale_file_index] }}"
+
+    - name: Assert Tailscale role runs for every OS in the common tooling play
       ansible.builtin.assert:
         that:
           - "'- role: tailscale' in setup_playbook_content"
           - >-
-            setup_playbook_content is search("Ubuntu bootstrap[\s\S]*- role: tailscale[\s\S]*Common tooling")
-        fail_msg: setup.yml must include the tailscale role only in the Ubuntu-targeted play.
+            setup_playbook_content is search("Common tooling[\s\S]*- role: tailscale")
+          - >-
+            setup_playbook_content is not search("Ubuntu bootstrap[\s\S]*- role: tailscale[\s\S]*Common tooling")
+        fail_msg: >-
+          setup.yml must include the tailscale role in the cross-OS "Common tooling"
+          play, not in the Ubuntu-targeted bootstrap play.

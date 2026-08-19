@@ -1,0 +1,81 @@
+---
+- name: Ensure Tailscale keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+  become: true
+
+- name: Download Tailscale noarmor GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.tailscale.com/stable/{{ ansible_facts['distribution'] | lower }}/{{ ansible_facts['distribution_release'] }}.noarmor.gpg"
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: '0644'
+  become: true
+
+- name: Add Tailscale stable APT repository
+  ansible.builtin.deb822_repository:
+    name: tailscale
+    types:
+      - deb
+    uris:
+      - "https://pkgs.tailscale.com/stable/{{ ansible_facts['distribution'] | lower }}"
+    suites:
+      - "{{ ansible_facts['distribution_release'] }}"
+    components:
+      - main
+    signed_by: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    state: present
+  become: true
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+  become: true
+
+- name: Enable and start tailscaled
+  when: ansible_facts['service_mgr'] == 'systemd'
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    enabled: true
+    state: started
+  become: true
+
+# --- systray (desktop hosts only) --------------------------------------
+# https://tailscale.com/docs/features/client/linux-systray
+
+- name: Install desktop dependencies for the Tailscale systray
+  when: gui | bool
+  ansible.builtin.apt:
+    name:
+      # GNOME hides StatusNotifierItem icons without this extension
+      - gnome-shell-extension-appindicator
+      # systray menu clipboard actions: X11 and Wayland respectively
+      - xsel
+      - wl-clipboard
+    state: present
+  become: true
+
+- name: Check the installed Tailscale version
+  when: gui | bool
+  ansible.builtin.command: tailscale version
+  register: tailscale_version
+  # Read-only, so run it in check mode too; tolerate a missing binary there,
+  # since the install task above is a no-op under --check on a fresh host.
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  become: false
+
+- name: Enable the Tailscale systray autostart entry
+  when:
+    - gui | bool
+    # "tailscale configure systray" only exists from 1.96 onwards
+    - (tailscale_version.stdout_lines | default([]) | first | default('0')) is version('1.96', '>=')
+  ansible.builtin.command:
+    cmd: tailscale configure systray --enable-startup=freedesktop
+    creates: "{{ ansible_env.HOME }}/.config/autostart/tailscale-systray.desktop"
+  # systray is not designed to run as superuser and the command fails under sudo
+  become: false
