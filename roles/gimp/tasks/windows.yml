@@ -1,0 +1,7 @@
+---
+- name: Install GIMP (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - GIMP.GIMP

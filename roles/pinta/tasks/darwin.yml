@@ -1,0 +1,6 @@
+---
+- name: Pinta | Install Pinta (Homebrew cask)
+  community.general.homebrew_cask:
+    name: pinta
+    state: present
+  become: false

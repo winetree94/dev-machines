@@ -1,0 +1,8 @@
+---
+# Flathub still publishes under the original Kinvolk namespace even though
+# the project moved to kubernetes-sigs. winget has no Kinvolk publisher at all.
+- name: Headlamp | Install Headlamp (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: io.kinvolk.Headlamp
+    state: present

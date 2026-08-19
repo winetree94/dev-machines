@@ -1,0 +1,6 @@
+---
+- name: Gimp | Install GIMP (Homebrew cask)
+  community.general.homebrew_cask:
+    name: gimp
+    state: present
+  become: false

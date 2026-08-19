@@ -1,0 +1,7 @@
+---
+- name: Install Claude Code (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Anthropic.ClaudeCode

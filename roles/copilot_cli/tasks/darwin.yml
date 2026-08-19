@@ -1,0 +1,6 @@
+---
+- name: Copilot cli | Install the Copilot CLI (Homebrew cask)
+  community.general.homebrew_cask:
+    name: copilot-cli
+    state: present
+  become: false

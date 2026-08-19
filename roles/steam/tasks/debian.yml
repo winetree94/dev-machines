@@ -1,0 +1,6 @@
+---
+- name: Steam | Install Steam (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: com.valvesoftware.Steam
+    state: present

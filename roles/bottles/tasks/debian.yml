@@ -1,0 +1,6 @@
+---
+- name: Bottles | Install Bottles (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: com.usebottles.bottles
+    state: present

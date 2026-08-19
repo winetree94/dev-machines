@@ -1,0 +1,6 @@
+---
+- name: Codex | Install the Codex CLI (Homebrew cask)
+  community.general.homebrew_cask:
+    name: codex
+    state: present
+  become: false

@@ -1,0 +1,6 @@
+---
+- name: Slack | Install Slack (Homebrew cask)
+  community.general.homebrew_cask:
+    name: slack
+    state: present
+  become: false

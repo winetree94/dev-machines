@@ -1,0 +1,7 @@
+---
+- name: Install Thunderbird (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Mozilla.Thunderbird

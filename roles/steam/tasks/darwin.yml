@@ -1,0 +1,6 @@
+---
+- name: Steam | Install Steam (Homebrew cask)
+  community.general.homebrew_cask:
+    name: steam
+    state: present
+  become: false

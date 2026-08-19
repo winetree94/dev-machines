@@ -1,0 +1,6 @@
+---
+- name: Microsoft edge | Install Microsoft Edge (Homebrew cask)
+  community.general.homebrew_cask:
+    name: microsoft-edge
+    state: present
+  become: false

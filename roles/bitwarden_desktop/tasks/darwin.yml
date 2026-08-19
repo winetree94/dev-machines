@@ -1,0 +1,6 @@
+---
+- name: Bitwarden desktop | Install Bitwarden (Homebrew cask)
+  community.general.homebrew_cask:
+    name: bitwarden
+    state: present
+  become: false

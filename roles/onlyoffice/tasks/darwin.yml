@@ -1,0 +1,6 @@
+---
+- name: Onlyoffice | Install ONLYOFFICE Desktop Editors (Homebrew cask)
+  community.general.homebrew_cask:
+    name: onlyoffice
+    state: present
+  become: false

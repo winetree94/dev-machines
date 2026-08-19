@@ -1,0 +1,6 @@
+---
+- name: Xclicker | Install XClicker (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: xyz.xclicker.xclicker
+    state: present

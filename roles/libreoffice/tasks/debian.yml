@@ -1,0 +1,6 @@
+---
+- name: Libreoffice | Install LibreOffice (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: org.libreoffice.LibreOffice
+    state: present

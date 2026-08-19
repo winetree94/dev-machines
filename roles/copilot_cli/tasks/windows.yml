@@ -1,0 +1,10 @@
+---
+# The winget ID is GitHub.Copilot - "GitHub.CopilotCLI" does not exist, and
+# GitHub.CopilotApp is the separate desktop app. The package declares a
+# dependency on PowerShell 7+.
+- name: Install the Copilot CLI (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - GitHub.Copilot

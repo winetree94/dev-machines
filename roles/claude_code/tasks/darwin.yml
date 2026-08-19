@@ -1,0 +1,8 @@
+---
+# "claude-code" tracks the stable channel; "claude-code@latest" is the latest
+# channel. The channel is picked by cask token, not by a setting.
+- name: Claude code | Install Claude Code (Homebrew cask)
+  community.general.homebrew_cask:
+    name: claude-code
+    state: present
+  become: false

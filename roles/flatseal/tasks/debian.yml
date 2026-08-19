@@ -1,0 +1,6 @@
+---
+- name: Flatseal | Install Flatseal (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: com.github.tchx84.Flatseal
+    state: present

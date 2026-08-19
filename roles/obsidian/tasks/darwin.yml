@@ -1,0 +1,6 @@
+---
+- name: Obsidian | Install Obsidian (Homebrew cask)
+  community.general.homebrew_cask:
+    name: obsidian
+    state: present
+  become: false

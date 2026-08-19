@@ -1,0 +1,6 @@
+---
+- name: Vlc | Install VLC (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: org.videolan.VLC
+    state: present

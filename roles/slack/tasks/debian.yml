@@ -1,0 +1,6 @@
+---
+- name: Slack | Install Slack (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: com.slack.Slack
+    state: present

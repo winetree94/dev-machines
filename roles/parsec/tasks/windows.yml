@@ -1,0 +1,7 @@
+---
+- name: Install Parsec (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Parsec.Parsec

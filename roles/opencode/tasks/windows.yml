@@ -1,0 +1,9 @@
+---
+# Published under the SST publisher (manifests/s/SST/opencode) - the project
+# repository moved to anomalyco but the winget package identifier did not.
+- name: Install opencode (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - SST.opencode

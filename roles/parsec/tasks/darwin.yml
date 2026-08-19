@@ -1,0 +1,13 @@
+---
+# parsec is a pkg-based cask, so Homebrew shells out to "sudo installer" to
+# place the app, and an Ansible run has no terminal for sudo to prompt at.
+# sudo_password hands the module the vault become password and it writes a
+# throwaway SUDO_ASKPASS helper, which is what makes Homebrew call "sudo -A".
+# Same shape as roles/tailscale/tasks/darwin.yml. Homebrew itself must stay
+# unprivileged: it refuses to run as root.
+- name: Parsec | Install Parsec (Homebrew cask)
+  community.general.homebrew_cask:
+    name: parsec
+    state: present
+    sudo_password: "{{ ansible_become_password }}"
+  become: false

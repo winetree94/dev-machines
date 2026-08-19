@@ -1,0 +1,6 @@
+---
+- name: Vlc | Install VLC (Homebrew cask)
+  community.general.homebrew_cask:
+    name: vlc
+    state: present
+  become: false

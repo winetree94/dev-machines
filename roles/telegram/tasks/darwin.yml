@@ -1,0 +1,6 @@
+---
+- name: Telegram | Install Telegram (Homebrew cask)
+  community.general.homebrew_cask:
+    name: telegram
+    state: present
+  become: false

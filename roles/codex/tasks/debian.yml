@@ -1,0 +1,41 @@
+---
+# The Homebrew package for Codex is a cask, so it is macOS-only and Linux uses
+# the vendor installer. Downloaded and then executed rather than piped into a
+# shell, so the fetch and the run stay separate, inspectable steps.
+- name: Codex | Check whether the Codex CLI is installed
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.local/bin/codex"
+  register: codex_installed
+  become: false
+
+- name: Codex | Download the official installer
+  when: not codex_installed.stat.exists
+  ansible.builtin.get_url:
+    url: https://chatgpt.com/codex/install.sh
+    dest: /tmp/codex-install.sh
+    mode: "0755"
+    force: true
+  become: false
+
+# Run through "setsid --wait" so the installer gets no controlling terminal.
+# Ansible's SSH connection hands the task a pty, and the installer opens
+# /dev/tty directly - redirecting stdin does not reach it. With a tty present it
+# asks "Uninstall the existing brew-managed Codex now? [y/N]" on any host that
+# already has a Codex from another package manager, and an Ansible run has
+# nobody to answer, so the play hangs forever (measured: 30+ minutes on
+# ubuntu-dev). Without a tty the script falls through to its non-interactive
+# branch. "--wait" is what keeps the child's exit status, so a failed install
+# still fails the task. CODEX_NON_INTERACTIVE is the vendor's documented switch
+# and is set as well, belt and braces, since it also covers the "Start Codex
+# now?" prompt.
+- name: Codex | Install the Codex CLI
+  when: not codex_installed.stat.exists
+  ansible.builtin.command:
+    argv:
+      - setsid
+      - --wait
+      - /tmp/codex-install.sh
+  environment:
+    CODEX_NON_INTERACTIVE: "1"
+  changed_when: true
+  become: false

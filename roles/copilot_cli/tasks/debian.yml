@@ -1,0 +1,35 @@
+---
+# The Homebrew package for Copilot CLI is a cask (macOS binaries only) despite
+# the README mentioning Linux, so Linux uses the vendor installer. It installs
+# under $HOME for a non-root user, which is why nothing here needs become.
+- name: Copilot cli | Check whether the Copilot CLI is installed
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.local/bin/copilot"
+  register: copilot_cli_installed
+  become: false
+
+- name: Copilot cli | Download the official installer
+  when: not copilot_cli_installed.stat.exists
+  ansible.builtin.get_url:
+    url: https://gh.io/copilot-install
+    dest: /tmp/copilot-cli-install.sh
+    mode: "0755"
+    force: true
+  become: false
+
+# "setsid --wait" for the same reason as roles/codex: the task gets a pty from
+# the SSH connection and the installer reads its prompt straight off /dev/tty,
+# so stdin redirection cannot silence it. This one asks "Would you like to add
+# it to ~/.zprofile? [y/N]" and has no environment switch to skip prompts at
+# all, so removing the controlling terminal is the only lever - its `[ -t 0 ] ||
+# [ -e /dev/tty ]` guard then fails and it prints the PATH line instead of
+# waiting. "--wait" preserves the exit status.
+- name: Copilot cli | Install the Copilot CLI
+  when: not copilot_cli_installed.stat.exists
+  ansible.builtin.command:
+    argv:
+      - setsid
+      - --wait
+      - /tmp/copilot-cli-install.sh
+  changed_when: true
+  become: false

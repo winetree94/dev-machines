@@ -1,0 +1,6 @@
+---
+- name: Onlyoffice | Install ONLYOFFICE Desktop Editors (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: org.onlyoffice.desktopeditors
+    state: present

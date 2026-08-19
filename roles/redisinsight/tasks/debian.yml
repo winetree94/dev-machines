@@ -1,0 +1,6 @@
+---
+- name: Redisinsight | Install RedisInsight (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: com.redis.RedisInsight
+    state: present

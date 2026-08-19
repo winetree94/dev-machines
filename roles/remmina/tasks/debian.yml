@@ -1,0 +1,6 @@
+---
+- name: Remmina | Install Remmina (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: org.remmina.Remmina
+    state: present

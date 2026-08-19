@@ -1,0 +1,6 @@
+---
+- name: Microsoft edge | Install Microsoft Edge (Flatpak)
+  become: true
+  community.general.flatpak:
+    name: com.microsoft.Edge
+    state: present

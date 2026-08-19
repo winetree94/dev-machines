@@ -1,0 +1,36 @@
+---
+# The Homebrew package for Claude Code is a cask, and casks are macOS-only, so
+# Linux has to go through the vendor installer. Anthropic also publishes an APT
+# repository, which this repository deliberately does not add: third-party apt
+# sources are avoided here, and the installer needs no root at all.
+#
+# The script is downloaded and then executed rather than piped into a shell, so
+# the fetch and the run are separate, inspectable steps.
+- name: Claude code | Check whether Claude Code is installed
+  ansible.builtin.stat:
+    path: "{{ ansible_env.HOME }}/.local/bin/claude"
+  register: claude_code_installed
+  become: false
+
+- name: Claude code | Download the official installer
+  when: not claude_code_installed.stat.exists
+  ansible.builtin.get_url:
+    url: https://claude.ai/install.sh
+    dest: /tmp/claude-code-install.sh
+    mode: "0755"
+    force: true
+  become: false
+
+# "setsid --wait" for the same reason as roles/codex and roles/copilot_cli. This
+# installer has no prompt today, but it is the same kind of vendor script fetched
+# fresh on every run, and a prompt added upstream would hang the play forever
+# rather than fail it. "--wait" preserves the exit status.
+- name: Claude code | Install Claude Code
+  when: not claude_code_installed.stat.exists
+  ansible.builtin.command:
+    argv:
+      - setsid
+      - --wait
+      - /tmp/claude-code-install.sh
+  changed_when: true
+  become: false

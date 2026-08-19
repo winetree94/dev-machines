@@ -1,0 +1,23 @@
+---
+# Shared by darwin.yml and debian.yml: the tap formula carries an on_linux
+# block, so this same path works on Ubuntu. It is not tasks/default.yml on
+# purpose - default.yml is also the fallback for Windows, which has its own
+# winget path and must never reach Homebrew.
+#
+# Homebrew 6 refuses to load anything from an untrusted third-party tap, so the
+# tap has to be marked trusted here.
+- name: Opencode | Tap the opencode formula repository
+  community.general.homebrew_tap:
+    name: anomalyco/tap
+    state: present
+    trust: true
+  become: false
+
+# The token stays fully qualified: homebrew-core now carries its own "opencode"
+# formula and brew warns that the tap shadows it. The vendor recommends the tap
+# and ships releases there first.
+- name: Opencode | Install opencode (Homebrew)
+  community.general.homebrew:
+    name: anomalyco/tap/opencode
+    state: present
+  become: false

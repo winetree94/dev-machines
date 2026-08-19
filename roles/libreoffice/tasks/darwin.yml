@@ -1,0 +1,6 @@
+---
+- name: Libreoffice | Install LibreOffice (Homebrew cask)
+  community.general.homebrew_cask:
+    name: libreoffice
+    state: present
+  become: false

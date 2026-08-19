@@ -1,0 +1,3 @@
+---
+- name: Opencode | Install opencode from Homebrew
+  ansible.builtin.include_tasks: brew.yml

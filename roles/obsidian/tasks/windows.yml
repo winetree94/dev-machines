@@ -1,0 +1,7 @@
+---
+- name: Install Obsidian (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Obsidian.Obsidian

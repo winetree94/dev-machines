@@ -1,0 +1,7 @@
+---
+- name: Install Pinta (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Pinta.Pinta

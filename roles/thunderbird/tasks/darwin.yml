@@ -1,0 +1,6 @@
+---
+- name: Thunderbird | Install Thunderbird (Homebrew cask)
+  community.general.homebrew_cask:
+    name: thunderbird
+    state: present
+  become: false

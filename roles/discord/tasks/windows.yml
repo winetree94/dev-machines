@@ -1,0 +1,7 @@
+---
+- name: Install Discord (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Discord.Discord
