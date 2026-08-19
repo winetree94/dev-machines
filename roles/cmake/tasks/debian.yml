@@ -1,11 +1,10 @@
 ---
-# apt rather than the Homebrew formula, against the usual Ubuntu priority.
-# Homebrew is on CMake 4.x, which removed support for
-# cmake_minimum_required(VERSION < 3.5) and so fails to configure older
-# projects outright; noble's 3.28 builds them unchanged. A project that needs
-# the newer CMake can still be configured with
-# -DCMAKE_POLICY_VERSION_MINIMUM=3.5 on this one, so the older package is the
-# safer default here. macOS and Windows have no equally old package to pick.
+# The Ubuntu archive carries cmake, so apt is the install path here. It lands
+# on noble's 3.28 while macOS and Windows get 4.x, and that gap is fine in
+# both directions: CMake 4.x removed support for
+# cmake_minimum_required(VERSION < 3.5) and fails to configure older projects
+# outright, while a project that needs 4.x behaviour can still be configured
+# with -DCMAKE_POLICY_VERSION_MINIMUM=3.5 on this one.
 - name: Cmake | Install CMake (apt)
   become: true
   ansible.builtin.apt:
