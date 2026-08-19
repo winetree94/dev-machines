@@ -1,6 +1,10 @@
 ---
 - name: Group hosts by OS
   hosts: all
+  # `always` because every later play targets a group built here. Without it a
+  # tag-filtered run (`--tags docker`) would skip this play, leave ubuntu/macos/
+  # windows empty and silently do nothing at all.
+  tags: always
   tasks:
     # Fail before any role runs: the group_by below funnels every non-Windows,
     # non-macOS host into `ubuntu`, so an unsupported Linux would otherwise get
@@ -36,6 +40,10 @@
       loop:
         - /usr/share/xsessions
         - /usr/share/wayland-sessions
+      # `always` because the gui_enabled grouping downstream reads the `gui`
+      # value this pair produces; skipping it would leave gui false and drop
+      # every GUI role from a tag-filtered run.
+      tags: always
 
     - name: Automatically enable GUI apps if a desktop environment is detected
       ansible.builtin.set_fact:
@@ -44,12 +52,22 @@
         - not gui
         - not ('microsoft' in ansible_facts['kernel'] | lower)
         - gui_sessions.results | selectattr('stat.exists') | list | length > 0
+      tags: always
 
   roles:
     - role: apt_update
+      tags: [apt_update]
     - role: snap
+      tags: [snap]
     - role: flatpak
+      tags: [flatpak]
     - role: homebrew
+      tags: [homebrew]
+    # Snapshot of the installed formulae/casks, consumed by every brew-backed
+    # role in the later plays. Must come after `homebrew` so its dependencies
+    # are in place, and before any play that reads the facts.
+    - role: brew
+      tags: [brew]
 
 - name: MacOS bootstrap
   hosts: macos
@@ -58,6 +76,10 @@
     # role that compiles anything, so they have to land before Common tooling.
     # The role installs Xcode.app from the Mac App Store on top of them.
     - role: xcode
+      tags: [xcode]
+    # Snapshot of the installed formulae/casks - see the Ubuntu bootstrap play.
+    - role: brew
+      tags: [brew]
 
 - name: Windows bootstrap
   hosts: windows
@@ -66,9 +88,13 @@
     # winget role with no packages runs only its availability assert, so a host
     # without it fails once, up front, with a clear message.
     - role: winget
+      tags: [winget]
 
 - name: Group GUI-enabled hosts
   hosts: all
+  # `always` for the same reason as the OS grouping play: the GUI applications
+  # play targets gui_enabled, so skipping this would silently skip all of them.
+  tags: always
   tasks:
     # `gui` is only final after the Ubuntu bootstrap play's desktop detection,
     # so this cannot be folded into the "Group hosts by OS" play at the top.
@@ -90,77 +116,138 @@
     #
     # networking / containers
     - role: tailscale
+      tags: [tailscale]
     - role: wireguard
+      tags: [wireguard]
     - role: docker
+      tags: [docker]
     # secrets
     - role: doppler
+      tags: [doppler]
     - role: bitwarden_cli
+      tags: [bitwarden_cli]
     - role: age
+      tags: [age]
     - role: sops
+      tags: [sops]
     # shell
     - role: zsh
+      tags: [zsh]
     - role: direnv
+      tags: [direnv]
     - role: fzf
+      tags: [fzf]
     - role: tmux
+      tags: [tmux]
     # editor
     - role: neovim
+      tags: [neovim]
     - role: ripgrep
+      tags: [ripgrep]
     - role: fd
+      tags: [fd]
     # version control
     - role: git
+      tags: [git]
     - role: gh
+      tags: [gh]
     - role: delta
+      tags: [delta]
     - role: lazygit
+      tags: [lazygit]
     - role: graphite
+      tags: [graphite]
     # languages and runtimes
     - role: mise
+      tags: [mise]
     - role: python
+      tags: [python]
     - role: rust
+      tags: [rust]
     - role: bun
+      tags: [bun]
     - role: pnpm
+      tags: [pnpm]
     - role: deno
+      tags: [deno]
     - role: biome
+      tags: [biome]
     # kubernetes
     - role: kubectl
+      tags: [kubectl]
     - role: helm
+      tags: [helm]
     - role: k9s
+      tags: [k9s]
     - role: flux
+      tags: [flux]
     - role: kubeseal
+      tags: [kubeseal]
     - role: kubectl_cnpg
+      tags: [kubectl_cnpg]
     - role: talosctl
+      tags: [talosctl]
     - role: talhelper
+      tags: [talhelper]
     # cloud and storage
     - role: awscli
+      tags: [awscli]
     - role: rclone
+      tags: [rclone]
     # mobile
     - role: android
+      tags: [android]
     # AI CLI
     - role: claude_code
+      tags: [claude_code]
     - role: codex
+      tags: [codex]
     - role: copilot_cli
+      tags: [copilot_cli]
     - role: opencode
+      tags: [opencode]
 
 - name: GUI applications
   # Empty when no host has gui enabled, in which case the play is skipped.
   hosts: gui_enabled
   roles:
     - role: bitwarden_desktop
+      tags: [bitwarden_desktop]
     - role: bottles
+      tags: [bottles]
     - role: discord
+      tags: [discord]
     - role: flatseal
+      tags: [flatseal]
     - role: gimp
+      tags: [gimp]
     - role: headlamp
+      tags: [headlamp]
     - role: libreoffice
+      tags: [libreoffice]
     - role: microsoft_edge
+      tags: [microsoft_edge]
     - role: obsidian
+      tags: [obsidian]
     - role: onlyoffice
+      tags: [onlyoffice]
     - role: parsec
+      tags: [parsec]
     - role: pinta
+      tags: [pinta]
     - role: redisinsight
+      tags: [redisinsight]
     - role: remmina
+      tags: [remmina]
     - role: slack
+      tags: [slack]
     - role: steam
+      tags: [steam]
     - role: telegram
+      tags: [telegram]
     - role: thunderbird
+      tags: [thunderbird]
     - role: vlc
+      tags: [vlc]
     - role: xclicker
+      tags: [xclicker]
