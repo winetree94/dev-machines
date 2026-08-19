@@ -1,0 +1,22 @@
+---
+# winget ships with Windows 10 1809+ and Windows 11 as part of the App
+# Installer package, so there is nothing to bootstrap - unlike Chocolatey and
+# Scoop, which this repository used to install itself. Fail early and clearly
+# if it is somehow missing, rather than letting every package role fail one by
+# one further into the run.
+- name: Check that winget is available
+  ansible.windows.win_shell: winget --version
+  register: setup_winget_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Assert that winget is available
+  ansible.builtin.assert:
+    that:
+      - setup_winget_version.rc == 0
+    fail_msg: >-
+      winget was not found on this host. It ships with Windows 10 1809+ and
+      Windows 11 as the "App Installer" package - install or update App
+      Installer from the Microsoft Store, then re-run.
+    quiet: true

@@ -54,11 +54,9 @@
 - name: Windows bootstrap
   hosts: windows
   roles:
-    - role: setup_chocolatey
-    # Scoop is only here because the Doppler CLI has no Chocolatey package.
-    # It has to be bootstrapped before the common tooling play, since
-    # win_scoop_bucket fails when scoop.ps1 is not already on PATH.
-    - role: setup_scoop
+    # Nothing to install - winget ships with the OS. This only asserts it is
+    # there, so a host without it fails once, up front, with a clear message.
+    - role: setup_winget
 
 - name: Common tooling
   hosts: all
