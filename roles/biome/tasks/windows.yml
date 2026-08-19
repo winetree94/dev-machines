@@ -1,0 +1,7 @@
+---
+- name: Install Biome (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - BiomeJS.Biome

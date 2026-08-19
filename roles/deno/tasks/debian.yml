@@ -1,0 +1,6 @@
+---
+- name: Deno | Install Deno (brew)
+  community.general.homebrew:
+    name: deno
+    state: present
+  become: false

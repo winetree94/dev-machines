@@ -1,0 +1,6 @@
+---
+- name: Biome | Install Biome (brew)
+  community.general.homebrew:
+    name: biome
+    state: present
+  become: false

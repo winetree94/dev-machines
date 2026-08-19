@@ -1,0 +1,7 @@
+---
+- name: Install Deno (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - DenoLand.Deno

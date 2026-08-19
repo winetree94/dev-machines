@@ -1,0 +1,20 @@
+---
+# Shared by darwin.yml and debian.yml - the tap formula has a Linux build, so
+# the same path works on Ubuntu. Not tasks/default.yml, which would also be the
+# Windows fallback.
+#
+# homebrew-core now carries its own "bun" formula at the same version, but
+# Bun's own documentation points at this tap, so the token stays fully
+# qualified and the tap stays - the same call made for anomalyco/tap/opencode.
+- name: Bun | Tap the Bun repository
+  community.general.homebrew_tap:
+    name: oven-sh/bun
+    state: present
+    trust: true
+  become: false
+
+- name: Bun | Install Bun (brew)
+  community.general.homebrew:
+    name: oven-sh/bun/bun
+    state: present
+  become: false

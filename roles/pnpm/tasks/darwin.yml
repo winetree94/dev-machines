@@ -1,0 +1,6 @@
+---
+- name: Pnpm | Install pnpm (brew)
+  community.general.homebrew:
+    name: pnpm
+    state: present
+  become: false
