@@ -1,0 +1,209 @@
+---
+# macOS bootstrap. The Command Line Tools are the prerequisite for Homebrew and
+# for every later role that compiles anything, so they have to land before the
+# "Common tooling" play. Xcode.app follows because iOS/macOS work needs the full
+# toolchain and the simulators, which the Command Line Tools do not ship.
+#
+# This role is macOS-exclusive and carries no OS `when:` conditions - like
+# apt_update / snap / flatpak / homebrew it is gated by play targeting in
+# playbooks/setup.yml instead.
+
+- name: Xcode | Check whether the Command Line Tools are installed
+  ansible.builtin.command: xcode-select --print-path
+  register: xcode_select_path
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# "xcode-select --install" is deliberately never used here: it opens a GUI
+# dialog and returns immediately, so over SSH there is nobody to click it and
+# the run would silently continue without the tools. softwareupdate installs the
+# very same package headlessly, but it only lists the Command Line Tools while
+# the sentinel file below exists - creating that file is exactly what the GUI
+# installer does before it calls softwareupdate itself.
+- name: Xcode | Install the Command Line Tools headlessly
+  when: xcode_select_path.rc != 0
+  block:
+    - name: Xcode | Create the softwareupdate sentinel file
+      ansible.builtin.file:
+        path: /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+        state: touch
+        mode: "0644"
+      become: true
+
+    - name: Xcode | List the available software updates
+      ansible.builtin.command: softwareupdate --list
+      register: xcode_updates
+      changed_when: false
+      check_mode: false
+
+    # macOS 10.15+ prints "* Label: Command Line Tools for Xcode-16.2" while
+    # older releases print "* Command Line Tools (macOS ...) for Xcode-10.1".
+    # Only the bulleted line is the label - the indented "Title: ... Size: ..."
+    # line right below it repeats the name and must not be matched, so the
+    # select anchors on the bullet. One regex then strips the bullet and the
+    # optional "Label:" so both output formats parse.
+    - name: Xcode | Pick the Command Line Tools update labels
+      ansible.builtin.set_fact:
+        xcode_clt_labels: >-
+          {{ xcode_updates.stdout_lines
+             | select('search', '^\s*\*.*Command Line Tools')
+             | map('regex_replace', '^\s*\*\s*(Label:\s*)?', '')
+             | map('trim')
+             | list }}
+
+    # Under --check the sentinel file above is never created, so softwareupdate
+    # legitimately offers nothing and this assert would fire on a host that is
+    # merely being previewed.
+    - name: Xcode | Assert a Command Line Tools update was offered
+      ansible.builtin.assert:
+        that:
+          - xcode_clt_labels | length > 0
+        fail_msg: >-
+          softwareupdate offered no Command Line Tools package for this macOS
+          version. Install them by hand with "xcode-select --install" from a
+          desktop session, or download them from developer.apple.com, then
+          re-run.
+        quiet: true
+      when: not ansible_check_mode
+
+    - name: Xcode | Install the Command Line Tools
+      ansible.builtin.command:
+        argv:
+          - softwareupdate
+          - --install
+          - "{{ xcode_clt_labels | last }}"
+          - --verbose
+      become: true
+      changed_when: true
+  always:
+    # The sentinel has to go even when the install failed: while it exists every
+    # later "softwareupdate --list" on this host keeps advertising the Command
+    # Line Tools, which is confusing at best.
+    - name: Xcode | Remove the softwareupdate sentinel file
+      ansible.builtin.file:
+        path: /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+        state: absent
+      become: true
+
+- name: Xcode | Re-check the active developer directory
+  ansible.builtin.command: xcode-select --print-path
+  register: xcode_select_path_post
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Xcode | Assert the Command Line Tools are installed
+  ansible.builtin.assert:
+    that:
+      - xcode_select_path_post.rc == 0
+    fail_msg: >-
+      The Command Line Tools are still missing after the install attempt.
+      Run "xcode-select --install" from a desktop session on this host, accept
+      the dialog, then re-run. Homebrew and every role that compiles anything
+      depend on them.
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Xcode | Install mas (brew)
+  community.general.homebrew:
+    name: mas
+    state: present
+  become: false
+
+# Same shape as roles/wireguard/tasks/darwin.yml: "mas install" places the app
+# in /Applications itself and refuses to run unprivileged, so it is one of the
+# few tasks here that needs become. It still fails when no Apple ID is signed
+# in, and that must not abort the bootstrap - the Command Line Tools installed
+# above are the part the rest of the run depends on.
+#
+# Xcode.app is well over 10 GB, so the first run of this task downloads for a
+# long time with no output.
+- name: Xcode | Install Xcode from the Mac App Store
+  block:
+    - name: Xcode | Install Xcode (mas)
+      community.general.mas:
+        id: 497799835
+        state: present
+      become: true
+  rescue:
+    - name: Xcode | Report Mac App Store install failure
+      ansible.builtin.debug:
+        msg: >-
+          mas could not install Xcode (Mac App Store id 497799835).
+          Sign in to the App Store GUI with an Apple ID, get Xcode once so it
+          lands in the purchase history, then re-run - or install it manually.
+          The Command Line Tools are installed either way.
+
+# Gated on the app rather than on the mas task, so a host that already had
+# Xcode.app still gets configured when mas itself errored out above.
+- name: Xcode | Check whether Xcode.app is present
+  ansible.builtin.stat:
+    path: /Applications/Xcode.app/Contents/Developer
+  register: xcode_app
+
+- name: Xcode | Configure the installed Xcode
+  when: xcode_app.stat.exists
+  block:
+    - name: Xcode | Point the active developer directory at Xcode.app
+      ansible.builtin.command: xcode-select --switch /Applications/Xcode.app/Contents/Developer
+      become: true
+      when: >-
+        xcode_select_path_post.stdout | trim
+        != '/Applications/Xcode.app/Contents/Developer'
+      changed_when: true
+
+    # "xcodebuild -version" is deliberately NOT the licence probe: it prints the
+    # version and exits 0 even when the licence has never been accepted (Xcode
+    # 26). Using it meant "Accept the Xcode license" always skipped and
+    # "-runFirstLaunch" then died with "You have not agreed to the Xcode license
+    # agreements", rc 77. The accepted licence is recorded system-wide in
+    # /Library/Preferences/com.apple.dt.Xcode.plist and is per Xcode version, so
+    # the plist value against the installed version is the real check - it also
+    # re-accepts by itself after an Xcode upgrade.
+    - name: Xcode | Read the installed Xcode version
+      ansible.builtin.command: xcodebuild -version
+      register: xcode_build_version
+      changed_when: false
+      check_mode: false
+
+    - name: Xcode | Read the version the Xcode license was accepted for
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/defaults
+          - read
+          - /Library/Preferences/com.apple.dt.Xcode
+          - IDEXcodeVersionForAgreedToGMLicense
+      register: xcode_license_version
+      become: true
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Xcode | Accept the Xcode license
+      ansible.builtin.command: xcodebuild -license accept
+      become: true
+      when: >-
+        xcode_license_version.rc != 0
+        or xcode_license_version.stdout | trim != (
+             xcode_build_version.stdout_lines | first | default('')
+             | regex_replace('^Xcode\\s+', '') | trim
+           )
+      changed_when: true
+
+    # Checked with become as well: the first launch state is system-wide and
+    # "-runFirstLaunch" below runs as root, so probing as the login user could
+    # disagree with the context that performs the work.
+    - name: Xcode | Check whether the first launch tasks are pending
+      ansible.builtin.command: xcodebuild -checkFirstLaunchStatus
+      register: xcode_first_launch
+      become: true
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Xcode | Run the Xcode first launch tasks
+      ansible.builtin.command: xcodebuild -runFirstLaunch
+      become: true
+      when: xcode_first_launch.rc != 0
+      changed_when: true
