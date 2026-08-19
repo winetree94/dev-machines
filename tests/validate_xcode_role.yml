@@ -89,17 +89,19 @@
           present afterwards, so a failed install fails here with a clear message
           instead of somewhere inside Homebrew later in the run.
 
-    - name: Assert mas is installed unprivileged through Homebrew
+    - name: Assert mas comes from the shared mas role
       ansible.builtin.assert:
         that:
-          - "'community.general.homebrew' in xcode_main"
-          - "'name: mas' in xcode_main"
+          - "'ansible.builtin.include_role' in xcode_main"
           - >-
-            xcode_main is search("name: mas[\s\S]*become: false")
+            xcode_main is search("include_role:[\s\S]{0,40}name: mas")
+          - "'community.general.homebrew' not in xcode_main"
         fail_msg: >-
-          The role must install the mas formula itself - the wireguard role installs it
-          too, but that runs late in the Common tooling play, long after this bootstrap.
-          Homebrew refuses to run as root, so the task needs an explicit become: false.
+          The role must pull mas in through the shared mas role rather than
+          calling community.general.homebrew itself. wireguard installs mas the
+          same way, and the shared role memoises it per host so the duplicate
+          include costs nothing. This bootstrap play still runs long before
+          wireguard, so mas is present by the time Xcode.app is installed.
 
     - name: Assert Xcode.app is installed from the Mac App Store with root privileges
       ansible.builtin.assert:

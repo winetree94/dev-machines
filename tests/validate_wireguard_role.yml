@@ -67,7 +67,8 @@
         that:
           - "'community.general.homebrew' in wireguard_darwin"
           - "'name: wireguard-tools' in wireguard_darwin"
-          - "'name: mas' in wireguard_darwin"
+          - >-
+            wireguard_darwin is search("include_role:[\s\S]{0,40}name: mas")
           - "'community.general.mas' in wireguard_darwin"
           - "'id: 1451685025' in wireguard_darwin"
         fail_msg: >-

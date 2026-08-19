@@ -29,6 +29,8 @@
         debian: brew.yml
         darwin: brew.yml
         windows: SST.opencode
+        shared: brew.yml
+        shared_contains: anomalyco/tap/opencode
 
     # GUI application roles: Flathub id, Homebrew cask token, winget id.
     gui_roles:
@@ -104,7 +106,150 @@
       - name: xclicker
         debian: xyz.xclicker.xclicker
 
-    app_roles: "{{ ai_roles + gui_roles }}"
+
+    # CLI tool roles. `debian`/`darwin` are the Homebrew formula (or the apt
+    # package where noted); a `shared` key means both OS files only include that
+    # sub-file, and the package marker is asserted against the sub-file instead.
+    cli_roles:
+      # from the old kubernetes bundle
+      - name: kubectl
+        debian: kubernetes-cli
+        darwin: kubernetes-cli
+        windows: Kubernetes.kubectl
+      - name: helm
+        debian: helm
+        darwin: helm
+        windows: Helm.Helm
+      - name: k9s
+        debian: k9s
+        darwin: k9s
+        windows: Derailed.k9s
+      - name: flux
+        debian: brew.yml
+        darwin: brew.yml
+        windows: FluxCD.Flux
+        shared: brew.yml
+        shared_contains: fluxcd/tap/flux
+      - name: talosctl
+        debian: talosctl
+        darwin: talosctl
+        windows: Sidero.talosctl
+      - name: talhelper
+        debian: talhelper
+        darwin: talhelper
+        windows: talhelper.talhelper
+      - name: age
+        debian: age
+        darwin: age
+        windows: FiloSottile.age
+      # sops, kubeseal and kubectl_cnpg have no usable winget package
+      - name: sops
+        debian: sops
+        darwin: sops
+      - name: kubeseal
+        debian: kubeseal
+        darwin: kubeseal
+      - name: kubectl_cnpg
+        debian: kubectl-cnpg
+        darwin: kubectl-cnpg
+      # from the old node bundle - none of these is Node.js, which mise manages
+      - name: bun
+        debian: brew.yml
+        darwin: brew.yml
+        windows: Oven-sh.Bun
+        shared: brew.yml
+        shared_contains: oven-sh/bun/bun
+      - name: pnpm
+        debian: pnpm
+        darwin: pnpm
+        windows: pnpm.pnpm
+      - name: deno
+        debian: deno
+        darwin: deno
+        windows: DenoLand.Deno
+      - name: biome
+        debian: biome
+        darwin: biome
+        windows: BiomeJS.Biome
+      # split out of neovim
+      - name: neovim
+        debian: brew.yml
+        darwin: brew.yml
+        windows: Neovim.Neovim
+        shared: brew.yml
+        shared_contains: tree-sitter-cli
+      - name: lazygit
+        debian: lazygit
+        darwin: lazygit
+        windows: JesseDuffield.lazygit
+      - name: ripgrep
+        debian: ripgrep
+        darwin: ripgrep
+        windows: BurntSushi.ripgrep.MSVC
+      - name: fd
+        debian: fd
+        darwin: fd
+        windows: sharkdp.fd
+      # split out of git. git itself is the one apt exception - see its debian.yml
+      - name: git
+        debian: "name: git"
+        darwin: "name: git"
+        windows: Git.Git
+      - name: gh
+        debian: gh
+        darwin: gh
+        windows: GitHub.cli
+      - name: delta
+        debian: git-delta
+        darwin: git-delta
+        windows: dandavison.delta
+      # split out of zsh. zsh itself is preinstalled on macOS, so darwin.yml
+      # only sets the login shell
+      - name: zsh
+        debian: "name: zsh"
+        darwin: /bin/zsh
+      - name: direnv
+        debian: direnv
+        darwin: direnv
+        windows: direnv.direnv
+      - name: fzf
+        debian: fzf
+        darwin: fzf
+        windows: junegunn.fzf
+      # roles converted off default.yml in the same change
+      - name: bitwarden_cli
+        debian: bitwarden-cli
+        darwin: bitwarden-cli
+        windows: Bitwarden.CLI
+      - name: mise
+        debian: mise
+        darwin: mise
+        windows: jdx.mise
+      - name: rclone
+        debian: rclone
+        darwin: rclone
+        windows: Rclone.Rclone
+      - name: graphite
+        debian: brew.yml
+        darwin: brew.yml
+        shared: brew.yml
+        shared_contains: withgraphite/tap/graphite
+      - name: rust
+        debian: rustup.yml
+        darwin: rustup.yml
+        windows: Rustlang.Rustup
+        shared: rustup.yml
+        shared_contains: https://sh.rustup.rs
+
+    app_roles: "{{ ai_roles + cli_roles + gui_roles }}"
+    # Everything that runs in the Common tooling play rather than the GUI one.
+    common_roles: "{{ ai_roles + cli_roles }}"
+    shared_roles: "{{ app_roles | selectattr('shared', 'defined') | list }}"
+    # GUI applications and the three AI CLIs are Homebrew casks; the rest of
+    # the CLI roles are formulae or include a shared sub-file.
+    cask_roles: >-
+      {{ (ai_roles + gui_roles) | selectattr('darwin', 'defined')
+         | rejectattr('shared', 'defined') | list }}
     darwin_roles: "{{ app_roles | selectattr('darwin', 'defined') | list }}"
     darwin_absent: "{{ app_roles | rejectattr('darwin', 'defined') | list }}"
     windows_roles: "{{ app_roles | selectattr('windows', 'defined') | list }}"
@@ -114,6 +259,13 @@
     - name: Read the setup playbook
       ansible.builtin.set_fact:
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: List every role directory
+      ansible.builtin.find:
+        paths: "{{ roles_dir }}"
+        file_type: directory
+        recurse: false
+      register: role_dirs
 
     # --- the roles the split replaced -----------------------------------
     - name: Check the replaced roles are gone
@@ -128,12 +280,97 @@
       ansible.builtin.assert:
         that:
           - replaced_role_stats.results | selectattr('stat.exists') | list | length == 0
-          - "'- role: ai\n' not in setup_playbook_content"
+          - >-
+            '- role: ai\n' not in (setup_playbook_content ~ '\n')
           - "'- role: gui_apps' not in setup_playbook_content"
         fail_msg: >-
           roles/ai and roles/gui_apps were split into one role per application.
           Both directories and both setup.yml entries must be gone - a bundle
           role hides which OSes an application is actually managed on.
+
+    - name: Check the second round of replaced roles is gone
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item }}"
+      register: bundle_role_stats
+      loop:
+        - kubernetes
+        - node
+
+    - name: Assert the second round of replaced roles is gone
+      ansible.builtin.assert:
+        that:
+          - bundle_role_stats.results | selectattr('stat.exists') | list | length == 0
+          - "'- role: kubernetes' not in setup_playbook_content"
+          - "'- role: node' not in setup_playbook_content"
+        fail_msg: >-
+          roles/kubernetes bundled ten unrelated tools and roles/node bundled
+          four that were not Node.js. Both were split into one role per tool.
+
+    - name: Find any default.yml left in the repository
+      ansible.builtin.find:
+        paths: "{{ roles_dir }}"
+        patterns: default.yml
+        recurse: true
+      register: leftover_defaults
+
+    - name: Assert no role anywhere defines a default.yml
+      ansible.builtin.assert:
+        that:
+          - leftover_defaults.files | length == 0
+        fail_msg: >-
+          {{ leftover_defaults.files | map(attribute='path') | join(', ') }}
+          must not exist. default.yml is the dispatcher's fallback on every OS,
+          Windows included, so a role with one and no windows.yml runs Homebrew
+          tasks on Windows. Give each supported OS its own file, or share one
+          sub-file under another name when two of them are identical.
+
+    - name: Check the shared mas role exists
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/mas/tasks/main.yml"
+      register: mas_role_stat
+
+    - name: Assert mas is installed once, through the shared role
+      ansible.builtin.assert:
+        that:
+          - mas_role_stat.stat.exists
+          - "'mas_installed' in mas_role"
+          - >-
+            xcode_main is search("include_role:[\s\S]{0,40}name: mas")
+          - >-
+            wireguard_darwin is search("include_role:[\s\S]{0,40}name: mas")
+          - "'community.general.homebrew' not in xcode_main"
+        fail_msg: >-
+          roles/mas installs the mas formula and both roles that need it -
+          xcode and wireguard - must include it rather than installing mas
+          themselves. The mas_installed fact memoises it to one brew call per
+          host, the same shape as winget_available in the shared winget role.
+      vars:
+        mas_role: "{{ lookup('ansible.builtin.file', roles_dir ~ '/mas/tasks/main.yml') }}"
+        xcode_main: "{{ lookup('ansible.builtin.file', roles_dir ~ '/xcode/tasks/main.yml') }}"
+        wireguard_darwin: "{{ lookup('ansible.builtin.file', roles_dir ~ '/wireguard/tasks/darwin.yml') }}"
+
+    - name: Assert every role on disk is wired into the setup playbook
+      ansible.builtin.assert:
+        that:
+          # The trailing newline anchors the match so "git" cannot satisfy
+          # "github". lookup('file') strips the file's final newline, hence the
+          # one added back on the right - otherwise the last role in the file
+          # could never match. Parenthesised because the basename filter binds
+          # tighter than ~ and would otherwise eat the whole concatenation.
+          - >-
+            ('- role: ' ~ (item.path | basename) ~ '\n')
+            in (setup_playbook_content ~ '\n')
+        fail_msg: >-
+          roles/{{ item.path | basename }} is in no play in setup.yml, so it
+          never runs. android and rust sat unwired for a long time exactly
+          because nothing checked. The shared helper roles are excluded here
+          because their callers include them instead.
+      loop: >-
+        {{ role_dirs.files
+           | rejectattr('path', 'search', '/(mas|winget)$')
+           | list }}
+      loop_control:
+        label: "{{ item.path | basename }}"
 
     # --- dispatcher ------------------------------------------------------
     - name: Check every application role has a dispatcher
@@ -246,7 +483,7 @@
         fail_msg: >-
           roles/{{ item.name }}/tasks/debian.yml must install through
           {{ item.debian }}.
-      loop: "{{ ai_roles }}"
+      loop: "{{ common_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
@@ -264,26 +501,60 @@
           installer with get_url and run it as a separate task, guarded by a
           stat check so the role stays idempotent. Never pipe a download
           straight into a shell.
-      loop: "{{ ai_roles | rejectattr('name', 'eq', 'opencode') | list }}"
+      loop: "{{ ai_roles | rejectattr('shared', 'defined') | list }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
         debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
 
-    - name: Assert opencode shares one Homebrew task file across Ubuntu and macOS
+    - name: Check every shared Homebrew sub-file exists
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/{{ item.shared }}"
+      register: shared_stats
+      loop: "{{ shared_roles }}"
+      loop_control:
+        label: "{{ item.name }}/{{ item.shared }}"
+
+    - name: Assert every shared Homebrew sub-file exists
       ansible.builtin.assert:
         that:
-          - "'anomalyco/tap' in opencode_brew"
-          - "'anomalyco/tap/opencode' in opencode_brew"
-          - "'trust: true' in opencode_brew"
-          - "'become: false' in opencode_brew"
+          - shared_stats.results | rejectattr('stat.exists') | list | length == 0
         fail_msg: >-
-          roles/opencode/tasks/brew.yml must tap anomalyco/tap with trust: true
-          (Homebrew 6 refuses to load an untrusted third-party tap) and install
-          the fully qualified anomalyco/tap/opencode token, which homebrew-core
-          now shadows with a formula of its own.
+          A role whose debian.yml and darwin.yml install the same thing shares
+          one sub-file included from both, the way roles/neovim and
+          roles/opencode do. It must not be called default.yml, which is also
+          the dispatcher's fallback on Windows.
+
+    - name: Assert each shared sub-file installs the expected package unprivileged
+      ansible.builtin.assert:
+        that:
+          - item.shared_contains in shared_content
+          - "'become: false' in shared_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/{{ item.shared }} must install
+          {{ item.shared_contains }}, and every task in it stays unprivileged:
+          Homebrew refuses to run as root and the vendor installers all write
+          under $HOME.
+      loop: "{{ shared_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
       vars:
-        opencode_brew: "{{ lookup('ansible.builtin.file', roles_dir ~ '/opencode/tasks/brew.yml') }}"
+        shared_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/' ~ item.shared) }}"
+
+    - name: Assert every third-party Homebrew tap is trusted
+      ansible.builtin.assert:
+        that:
+          - "'trust: true' in shared_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/{{ item.shared }} taps a third-party
+          repository, and Homebrew 6 refuses to load anything from an untrusted
+          tap, so the tap task needs trust: true.
+      loop: "{{ shared_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      when: "'homebrew_tap' in shared_content"
+      vars:
+        shared_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/' ~ item.shared) }}"
 
     # --- macOS -----------------------------------------------------------
     - name: Check the expected macOS task files exist
@@ -329,7 +600,20 @@
           roles/{{ item.name }}/tasks/darwin.yml must install the
           {{ item.darwin }} cask. Homebrew refuses to run as root, so the task
           stays unprivileged.
-      loop: "{{ darwin_roles | rejectattr('name', 'eq', 'opencode') | list }}"
+      loop: "{{ cask_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        darwin_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/darwin.yml') }}"
+
+    - name: Assert each CLI role's macOS file names the expected package
+      ansible.builtin.assert:
+        that:
+          - item.darwin in darwin_content
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/darwin.yml must install
+          {{ item.darwin }}.
+      loop: "{{ cli_roles | selectattr('darwin', 'defined') | list }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
