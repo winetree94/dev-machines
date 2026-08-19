@@ -1,9 +1,12 @@
 ---
-# node is not packaged for Windows yet. This file exists so the first_found
-# dispatcher in tasks/main.yml stops here instead of falling back to the
-# Homebrew-based tasks/default.yml, which cannot run on Windows.
-# Replace with chocolatey.chocolatey.win_chocolatey tasks once a Windows
-# package is available.
-- name: Report that node is not managed on Windows
-  ansible.builtin.debug:
-    msg: "node is not managed on Windows yet"
+# Mirrors the Homebrew package set in default.yml - node itself is managed by
+# mise, not installed directly.
+- name: Install Node tooling (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Oven-sh.Bun
+      - pnpm.pnpm
+      - DenoLand.Deno
+      - BiomeJS.Biome

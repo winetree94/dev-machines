@@ -1,16 +1,7 @@
 ---
-# There is no Chocolatey package for the Doppler CLI. Doppler publishes a
-# Scoop bucket (and winget, which has no Ansible module and is unreliable over
-# SSH), so this role is the one deliberate exception to the Chocolatey-only
-# rule for Windows. Scoop itself is bootstrapped by the setup_scoop role in
-# the "Windows bootstrap" play - win_scoop_bucket does not bootstrap it.
-- name: Doppler | Add the Doppler Scoop bucket
-  community.windows.win_scoop_bucket:
-    name: doppler
-    repo: https://github.com/DopplerHQ/scoop-doppler.git
-    state: present
-
-- name: Doppler | Install the Doppler CLI (Scoop)
-  community.windows.win_scoop:
-    name: doppler
-    state: present
+- name: Doppler | Install the Doppler CLI (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Doppler.doppler

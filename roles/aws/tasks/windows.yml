@@ -1,5 +1,7 @@
 ---
-- name: Install AWS cli (Chocolatey)
-  chocolatey.chocolatey.win_chocolatey:
-    name: awscli
-    state: present
+- name: Install AWS cli (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Amazon.AWSCLI

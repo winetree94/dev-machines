@@ -1,20 +1,9 @@
 ---
-# Chocolatey only knows about installs it made itself, and the python3 package
-# hands off to an installer that exits 1603 when the same version is already
-# on the machine - reboot pending or not. Choco lays Python down in
-# C:\Python3<minor>, so treat an existing one of those as "already managed"
-# and leave it alone. Matching on the glob rather than a pinned path keeps
-# this working when the choco package moves to the next minor version.
-- name: Check whether Python 3 is already installed
-  ansible.windows.win_find:
-    paths: C:\
-    patterns: Python3*
-    file_type: directory
-    recurse: false
-  register: python_install_dirs
-
-- name: Install Python3 (Chocolatey)
-  when: python_install_dirs.files | length == 0
-  chocolatey.chocolatey.win_chocolatey:
-    name: python3
-    state: present
+# winget has no floating Python ID - only per-minor ones - so this is pinned
+# and has to be bumped by hand on each new minor release.
+- name: Install Python 3 (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Python.Python.3.14

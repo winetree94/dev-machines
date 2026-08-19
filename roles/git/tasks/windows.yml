@@ -1,9 +1,9 @@
 ---
-- name: Install Git tooling (Chocolatey)
-  chocolatey.chocolatey.win_chocolatey:
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - git
-    - gh
-    - delta
+- name: Install Git tooling (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Git.Git
+      - GitHub.cli
+      - dandavison.delta

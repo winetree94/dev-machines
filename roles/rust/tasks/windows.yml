@@ -1,5 +1,7 @@
 ---
-- name: Install rustup (Chocolatey)
-  chocolatey.chocolatey.win_chocolatey:
-    name: rustup.install
-    state: present
+- name: Install rustup (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Rustlang.Rustup

@@ -1,5 +1,7 @@
 ---
-- name: Wireguard | Install WireGuard (Chocolatey)
-  chocolatey.chocolatey.win_chocolatey:
-    name: wireguard
-    state: present
+- name: Wireguard | Install WireGuard (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - WireGuard.WireGuard
