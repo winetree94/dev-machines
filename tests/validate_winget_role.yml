@@ -5,6 +5,7 @@
   vars:
     repo_root: "{{ playbook_dir }}/.."
     winget_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/main.yml"
+    winget_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot.yml"
     winget_defaults_path: "{{ playbook_dir }}/../roles/winget/defaults/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     requirements_path: "{{ playbook_dir }}/../requirements.yml"
@@ -19,6 +20,7 @@
       register: winget_task_stats
       loop:
         - "{{ winget_tasks_path }}"
+        - "{{ winget_snapshot_path }}"
         - "{{ winget_defaults_path }}"
 
     - name: Assert the winget role files exist
@@ -49,6 +51,44 @@
           only the ones whose probe returned non-zero. "winget list" exits 0 when the
           package is installed and -1978335212 (0x8A150014) when it is not, and that
           exit code is the whole idempotency check.
+
+    - name: Read the winget snapshot tasks
+      ansible.builtin.slurp:
+        src: "{{ winget_snapshot_path }}"
+      register: winget_snapshot_raw
+
+    - name: Decode the winget snapshot tasks
+      ansible.builtin.set_fact:
+        winget_snapshot: "{{ winget_snapshot_raw.content | b64decode }}"
+
+    - name: Assert installed state comes from one snapshot per host
+      ansible.builtin.assert:
+        that:
+          - "'winget export' in winget_snapshot"
+          - "'winget_installed_ids' in winget_snapshot"
+          - "'winget_installed_ids is not defined' in winget_tasks"
+          - "'snapshot.yml' in winget_tasks"
+          - >-
+            winget_tasks is search("reject\\('in', winget_installed_ids\\)")
+        fail_msg: >-
+          Installed state must be answered from a single per-host "winget export"
+          cached in winget_installed_ids, not one "winget list" per package. The round
+          trip is the cost: an empty command on the Windows host takes 1.82s and a
+          winget list takes 2.40s, so 49 roles asking individually spend ~118s. The
+          snapshot must be guarded by "winget_installed_ids is not defined" so it runs
+          once per host rather than once per including role.
+
+    - name: Assert the per-package probe survives as the fallback
+      ansible.builtin.assert:
+        that:
+          - "'winget list --id' in winget_tasks"
+          - "'winget_present.results | default([])' in winget_tasks"
+        fail_msg: >-
+          The per-package "winget list" must remain for the packages the export did not
+          account for - an export only lists packages the source still carries a
+          manifest for, so anything missing has to fall through to the old probe rather
+          than be assumed absent. The install loop needs default([]) because the probe
+          task is skipped outright when the snapshot covered every package.
 
     - name: Assert the winget role pins the community source
       ansible.builtin.assert:
