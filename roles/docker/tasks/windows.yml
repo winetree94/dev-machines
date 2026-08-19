@@ -1,5 +1,16 @@
 ---
+# Chocolatey only knows about installs it made itself. Docker Desktop
+# installed any other way makes choco try to lay its own MSI over the existing
+# install, which fails with a generic 1603 even when the package is newer and
+# even with no reboot pending, so check for the app first and leave an
+# existing install alone. Docker Desktop updates itself anyway.
+- name: Check whether Docker Desktop is already installed
+  ansible.windows.win_stat:
+    path: C:\Program Files\Docker\Docker\Docker Desktop.exe
+  register: docker_desktop
+
 - name: Install Docker Desktop
+  when: not docker_desktop.stat.exists
   chocolatey.chocolatey.win_chocolatey:
     name: docker-desktop
     state: present
