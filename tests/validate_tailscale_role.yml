@@ -145,25 +145,16 @@
           homebrew_cask through its sudo_password option, which writes the throwaway
           SUDO_ASKPASS helper Homebrew needs. Never hand-roll that helper.
 
-    - name: Assert Tailscale role installs the Windows client with Chocolatey
+    - name: Assert Tailscale role installs the Windows client with winget
       ansible.builtin.assert:
         that:
-          - "'chocolatey.chocolatey.win_chocolatey' in tailscale_windows"
-          - "'name: tailscale' in tailscale_windows"
-        fail_msg: Tailscale role must install the Tailscale Windows client with win_chocolatey.
-
-    - name: Assert the Windows install never lays an older MSI over a newer client
-      ansible.builtin.assert:
-        that:
-          - "'ansible.windows.win_stat' in tailscale_windows"
-          - >-
-            'path: C:\\Program Files\\Tailscale\\tailscale.exe' in tailscale_windows
-          - "'when: not tailscale_client.stat.exists' in tailscale_windows"
+          - "'name: winget' in tailscale_windows"
+          - "'- Tailscale.Tailscale' in tailscale_windows"
+          - "'win_chocolatey' not in tailscale_windows"
         fail_msg: >-
-          Chocolatey only tracks installs it made itself and its tailscale package lags
-          behind upstream, so an out-of-band install makes choco try to downgrade and
-          fail with MSI 1603. The role must skip the install when the client is already
-          on the machine.
+          Tailscale role must install the Windows client through the shared winget role.
+          Chocolatey must not be used: its tailscale package lags behind upstream, so on
+          a host with a newer client it tries to downgrade and dies with MSI 1603.
 
     - name: Assert Tailscale role never authenticates or shells out to installers
       ansible.builtin.assert:

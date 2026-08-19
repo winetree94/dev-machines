@@ -1,0 +1,123 @@
+---
+- name: Validate winget role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    repo_root: "{{ playbook_dir }}/.."
+    winget_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/main.yml"
+    setup_winget_tasks_path: "{{ playbook_dir }}/../roles/setup_winget/tasks/main.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    requirements_path: "{{ playbook_dir }}/../requirements.yml"
+    retired_bootstrap_roles:
+      - setup_chocolatey
+      - setup_scoop
+
+  tasks:
+    - name: Check the winget role task files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: winget_task_stats
+      loop:
+        - "{{ winget_tasks_path }}"
+        - "{{ setup_winget_tasks_path }}"
+
+    - name: Assert the winget role task files exist
+      ansible.builtin.assert:
+        that:
+          - winget_task_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          roles/winget/tasks/main.yml and roles/setup_winget/tasks/main.yml must exist.
+
+    - name: Read the winget role task files
+      ansible.builtin.set_fact:
+        winget_tasks: "{{ lookup('ansible.builtin.file', winget_tasks_path) }}"
+        setup_winget_tasks: "{{ lookup('ansible.builtin.file', setup_winget_tasks_path) }}"
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+        requirements_content: "{{ lookup('ansible.builtin.file', requirements_path) }}"
+
+    - name: Assert the winget role installs only what is missing
+      ansible.builtin.assert:
+        that:
+          - "'winget list --id' in winget_tasks"
+          - "'winget install --id' in winget_tasks"
+          - "'--exact' in winget_tasks"
+          - "'winget_packages' in winget_tasks"
+          - "'when: item.rc != 0' in winget_tasks"
+          - "'failed_when: false' in winget_tasks"
+        fail_msg: >-
+          The winget role must probe each package with "winget list --exact" and install
+          only the ones whose probe returned non-zero. "winget list" exits 0 when the
+          package is installed and -1978335212 (0x8A150014) when it is not, and that
+          exit code is the whole idempotency check.
+
+    - name: Assert the winget role pins the community source
+      ansible.builtin.assert:
+        that:
+          - winget_tasks | regex_findall('--source winget') | length >= 2
+          - "'--disable-interactivity' in winget_tasks"
+          - "'--accept-source-agreements' in winget_tasks"
+          - "'--accept-package-agreements' in winget_tasks"
+        fail_msg: >-
+          Every winget call must pin --source winget and run non-interactively. The
+          msstore source needs separate agreement handling and returns IDs that cannot
+          be automated.
+
+    - name: Assert winget presence is asserted in the Windows bootstrap play
+      ansible.builtin.assert:
+        that:
+          - "'winget --version' in setup_winget_tasks"
+          - "'ansible.builtin.assert' in setup_winget_tasks"
+          - "'- role: setup_winget' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search("Windows bootstrap[\s\S]*- role: setup_winget[\s\S]*Common tooling")
+        fail_msg: >-
+          setup_winget must assert winget is present in the "Windows bootstrap" play, so
+          a host without it fails once with a clear message instead of failing in every
+          package role in turn.
+
+    - name: Find every Windows task file
+      ansible.builtin.find:
+        paths: "{{ repo_root }}/roles"
+        patterns: windows.yml
+        recurse: true
+      register: windows_task_files
+
+    - name: Assert no Windows task file reaches for another package manager
+      ansible.builtin.assert:
+        that:
+          - "'win_chocolatey' not in windows_task_content"
+          - "'win_scoop' not in windows_task_content"
+        fail_msg: >-
+          {{ item.path | relpath(repo_root) }} must install through the shared winget
+          role. Chocolatey and Scoop are both retired here: choco only tracks its own
+          installs and fails with MSI 1603 over anything else, and Scoop does not
+          register in Add/Remove Programs so winget cannot see what it installed.
+      loop: "{{ windows_task_files.files }}"
+      loop_control:
+        label: "{{ item.path | relpath(repo_root) }}"
+      vars:
+        windows_task_content: "{{ lookup('ansible.builtin.file', item.path) }}"
+
+    - name: Check the retired bootstrap roles are gone
+      ansible.builtin.stat:
+        path: "{{ repo_root }}/roles/{{ item }}"
+      register: retired_role_stats
+      loop: "{{ retired_bootstrap_roles }}"
+
+    - name: Assert the retired bootstrap roles are gone
+      ansible.builtin.assert:
+        that:
+          - retired_role_stats.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          {{ retired_bootstrap_roles | join(' and ') }} must be deleted - nothing
+          installs through Chocolatey or Scoop any more.
+
+    - name: Assert the retired collections are no longer required
+      ansible.builtin.assert:
+        that:
+          - "'chocolatey.chocolatey' not in requirements_content"
+          - "'community.windows' not in requirements_content"
+          - "'ansible.windows' in requirements_content"
+        fail_msg: >-
+          requirements.yml must not pull chocolatey.chocolatey or community.windows any
+          more; the winget role only needs ansible.windows.

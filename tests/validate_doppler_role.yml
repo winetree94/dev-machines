@@ -4,7 +4,6 @@
   gather_facts: false
   vars:
     doppler_tasks_dir: "{{ playbook_dir }}/../roles/doppler/tasks"
-    scoop_tasks_path: "{{ playbook_dir }}/../roles/setup_scoop/tasks/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     doppler_task_files:
       - main.yml
@@ -46,7 +45,6 @@
         doppler_debian: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/debian.yml') }}"
         doppler_darwin: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/darwin.yml') }}"
         doppler_windows: "{{ lookup('ansible.builtin.file', doppler_tasks_dir ~ '/windows.yml') }}"
-        doppler_scoop: "{{ lookup('ansible.builtin.file', scoop_tasks_path) }}"
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
 
     - name: Assert Doppler role dispatches on OS family and holds no install logic
@@ -116,29 +114,17 @@
           not from Homebrew. The signing key is ASCII-armored, so it is stored as .asc
           and referenced directly - there must be no gpg --dearmor shell-out.
 
-    - name: Assert Doppler role installs from the Scoop bucket on Windows
+    - name: Assert Doppler role installs with winget on Windows
       ansible.builtin.assert:
         that:
-          - "'community.windows.win_scoop_bucket' in doppler_windows"
-          - "'https://github.com/DopplerHQ/scoop-doppler.git' in doppler_windows"
-          - "'community.windows.win_scoop' in doppler_windows"
+          - "'name: winget' in doppler_windows"
+          - "'- Doppler.doppler' in doppler_windows"
           - "'win_chocolatey' not in doppler_windows"
+          - "'win_scoop' not in doppler_windows"
         fail_msg: >-
-          There is no Chocolatey package for the Doppler CLI, so the Windows path is the
-          official Scoop bucket. This role is the deliberate exception to the
-          Chocolatey-only convention for Windows.
-
-    - name: Assert Scoop is bootstrapped by its own role before the common tooling play
-      ansible.builtin.assert:
-        that:
-          - "'community.windows.win_scoop' in doppler_scoop"
-          - "'- role: setup_scoop' in setup_playbook_content"
-          - >-
-            setup_playbook_content is search("Windows bootstrap[\s\S]*- role: setup_scoop[\s\S]*Common tooling")
-        fail_msg: >-
-          win_scoop_bucket does not bootstrap Scoop - it fails when scoop.ps1 is missing
-          from PATH. setup_scoop must therefore install Scoop in the "Windows bootstrap"
-          play, before the common tooling play runs the doppler role.
+          Doppler role must install the Windows CLI through the shared winget role.
+          There is no Chocolatey package for it at all, and the Scoop bucket it used to
+          come from does not register in Add/Remove Programs, so winget cannot see it.
 
     - name: Assert Doppler role never shells out to an installer script
       ansible.builtin.assert:

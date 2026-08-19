@@ -95,12 +95,14 @@
           signed in or the app is not in the purchase history, and that must not abort
           the play.
 
-    - name: Assert WireGuard role installs the Windows client with Chocolatey
+    - name: Assert WireGuard role installs the Windows client with winget
       ansible.builtin.assert:
         that:
-          - "'chocolatey.chocolatey.win_chocolatey' in wireguard_windows"
-          - "'name: wireguard' in wireguard_windows"
-        fail_msg: WireGuard role must install the WireGuard Windows client with win_chocolatey.
+          - "'name: winget' in wireguard_windows"
+          - "'- WireGuard.WireGuard' in wireguard_windows"
+          - "'win_chocolatey' not in wireguard_windows"
+        fail_msg: >-
+          WireGuard role must install the Windows client through the shared winget role.
 
     - name: Assert WireGuard role installs only and never deploys tunnel config or keys
       ansible.builtin.assert:
