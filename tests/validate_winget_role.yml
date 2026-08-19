@@ -5,7 +5,7 @@
   vars:
     repo_root: "{{ playbook_dir }}/.."
     winget_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/main.yml"
-    setup_winget_tasks_path: "{{ playbook_dir }}/../roles/setup_winget/tasks/main.yml"
+    winget_defaults_path: "{{ playbook_dir }}/../roles/winget/defaults/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     requirements_path: "{{ playbook_dir }}/../requirements.yml"
     retired_bootstrap_roles:
@@ -13,25 +13,25 @@
       - setup_scoop
 
   tasks:
-    - name: Check the winget role task files exist
+    - name: Check the winget role files exist
       ansible.builtin.stat:
         path: "{{ item }}"
       register: winget_task_stats
       loop:
         - "{{ winget_tasks_path }}"
-        - "{{ setup_winget_tasks_path }}"
+        - "{{ winget_defaults_path }}"
 
-    - name: Assert the winget role task files exist
+    - name: Assert the winget role files exist
       ansible.builtin.assert:
         that:
           - winget_task_stats.results | rejectattr('stat.exists') | list | length == 0
         fail_msg: >-
-          roles/winget/tasks/main.yml and roles/setup_winget/tasks/main.yml must exist.
+          roles/winget/tasks/main.yml and roles/winget/defaults/main.yml must exist.
 
-    - name: Read the winget role task files
+    - name: Read the winget role files
       ansible.builtin.set_fact:
         winget_tasks: "{{ lookup('ansible.builtin.file', winget_tasks_path) }}"
-        setup_winget_tasks: "{{ lookup('ansible.builtin.file', setup_winget_tasks_path) }}"
+        winget_defaults: "{{ lookup('ansible.builtin.file', winget_defaults_path) }}"
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
         requirements_content: "{{ lookup('ansible.builtin.file', requirements_path) }}"
 
@@ -65,15 +65,30 @@
     - name: Assert winget presence is asserted in the Windows bootstrap play
       ansible.builtin.assert:
         that:
-          - "'winget --version' in setup_winget_tasks"
-          - "'ansible.builtin.assert' in setup_winget_tasks"
-          - "'- role: setup_winget' in setup_playbook_content"
+          - "'winget --version' in winget_tasks"
+          - "'ansible.builtin.assert' in winget_tasks"
+          - "'winget_packages: []' in winget_defaults"
+          - "'- role: winget' in setup_playbook_content"
           - >-
-            setup_playbook_content is search("Windows bootstrap[\s\S]*- role: setup_winget[\s\S]*Common tooling")
+            setup_playbook_content is search("Windows bootstrap[\s\S]*- role: winget[\s\S]*Common tooling")
         fail_msg: >-
-          setup_winget must assert winget is present in the "Windows bootstrap" play, so
-          a host without it fails once with a clear message instead of failing in every
-          package role in turn.
+          The winget role must assert winget is present, and the "Windows bootstrap"
+          play must include it with no packages so a host without winget fails once with
+          a clear message instead of failing in every package role in turn. That needs
+          winget_packages to default to an empty list.
+
+    - name: Assert the winget availability check runs once per host
+      ansible.builtin.assert:
+        that:
+          - "'winget_available' in winget_tasks"
+          - >-
+            winget_tasks is search("winget --version[\s\S]*when: not \\(winget_available \\| default\\(false\\)\\)")
+          - >-
+            winget_tasks is search("set_fact:[\s\S]*winget_available: true")
+        fail_msg: >-
+          Every role's windows.yml includes the winget role, so the availability check
+          must be gated on a winget_available fact - otherwise it costs one extra WinRM
+          round trip per including role instead of one per host.
 
     - name: Find every Windows task file
       ansible.builtin.find:
@@ -111,6 +126,20 @@
         fail_msg: >-
           {{ retired_bootstrap_roles | join(' and ') }} must be deleted - nothing
           installs through Chocolatey or Scoop any more.
+
+    - name: Check the standalone winget bootstrap role is gone
+      ansible.builtin.stat:
+        path: "{{ repo_root }}/roles/setup_winget"
+      register: setup_winget_stat
+
+    - name: Assert the standalone winget bootstrap role is gone
+      ansible.builtin.assert:
+        that:
+          - not setup_winget_stat.stat.exists
+        fail_msg: >-
+          roles/setup_winget was merged into the shared winget role - its availability
+          assert now lives in roles/winget/tasks/main.yml, so there is only one winget
+          role to include.
 
     - name: Assert the retired collections are no longer required
       ansible.builtin.assert:

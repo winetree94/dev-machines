@@ -90,7 +90,9 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `gui_apps` 롤과 Linux 의 tailscale systray 자동 시작을 함께 제어한다.
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 20개)와 Linux 의 tailscale systray
+자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
+그룹을 대상으로 돈다.
 
 # 사람이 수동으로 해야 하는 작업
 
@@ -105,10 +107,13 @@ ansible 로 최대한 자동화했지만 머신별 초기 설정은 사람이 �
 **macOS**
 - 시스템 설정 → 일반 → 공유 → 원격 로그인 켜기
 - 계정 비밀번호를 vault 의 `vault_<host>_become_password` 에 저장
-- App Store 에 Apple ID 로 로그인하고, WireGuard 를 한 번 받아 구매 이력에
-  넣어 둔다. `wireguard` 롤이 `mas` 로 WireGuard GUI 앱을 설치하는데,
-  로그인이 안 되어 있거나 구매 이력에 앱이 없으면 설치가 실패한다.
-  이 경우 플레이는 죽지 않고 안내 메시지만 남기고 넘어간다.
+- App Store 에 Apple ID 로 로그인하고, WireGuard 와 Xcode 를 한 번씩 받아
+  구매 이력에 넣어 둔다. `wireguard` 롤이 `mas` 로 WireGuard GUI 앱을,
+  `xcode` 롤이 같은 방식으로 Xcode.app 을 설치하는데, 로그인이 안 되어
+  있거나 구매 이력에 앱이 없으면 설치가 실패한다. 두 경우 모두 플레이는 죽지
+  않고 안내 메시지만 남기고 넘어간다.
+- Homebrew 는 미리 설치되어 있어야 한다. Command Line Tools 는 `xcode`
+  롤이 알아서 설치하므로 수동 작업이 아니다.
 
 **Windows** (관리자 PowerShell)
 
@@ -134,7 +139,7 @@ icacls $k /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
 # Supported Targets
 
 - Ubuntu 24.04+
-- macOS (Homebrew must be installed beforehand)
+- macOS (Homebrew must be installed beforehand; the Xcode Command Line Tools are handled by `xcode`)
 - Windows 10/11 (via winget, over OpenSSH)
 
 # Role structure
@@ -148,13 +153,69 @@ Each role's `tasks/main.yml` is a dispatcher that includes the first matching fi
 
 If no file matches, the role is a no-op for that OS.
 
-**알려진 제약:** `ai`, `graphite` 는 아직 winget 커뮤니티 저장소에 패키지가
-없어서 `windows.yml` 이 no-op 이다. 이 파일들이 존재하는 이유는 dispatcher 가
+**알려진 제약:** `graphite` 는 아직 winget 커뮤니티 저장소에 패키지가
+없어서 `windows.yml` 이 no-op 이다. 이 파일이 존재하는 이유는 dispatcher 가
 Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다. 패키지가 올라오면
 공용 `winget` 롤을 include 하도록 채워 넣는다.
 
-OS-exclusive roles (`apt_update`, `setup_snap`, `setup_flatpak`, `setup_homebrew`,
-`setup_winget`) are instead gated by OS-targeted plays in `playbooks/setup.yml`.
+앱 하나당 롤 하나가 원칙이다. `default.yml` 은 **Windows 를 포함한 모든 OS 의 폴백**
+이라, `windows.yml` 이 없는 롤에서는 Homebrew 태스크가 Windows 에서 돌아버린다.
+그래서 새로 추가하는 롤은 `default.yml` 을 두지 않고 지원하는 OS 마다 파일을 하나씩
+둔다 - 파일이 없는 OS 가 no-op 이라는 사실 자체가 OS별 큐레이션이다.
+`tests/validate_app_roles.yml` 이 파일의 존재와 부재를 양쪽 다 검사한다.
+
+OS-exclusive roles (`apt_update`, `snap`, `flatpak`, `homebrew`, `xcode`,
+`winget`) are instead gated by OS-targeted plays in
+`playbooks/setup.yml`.
+
+## xcode (macOS 부트스트랩)
+
+`xcode` 는 `MacOS bootstrap` 플레이에서 `Common tooling` 보다 **먼저** 돈다.
+Command Line Tools 는 Homebrew 와, 무언가를 컴파일하는 모든 롤의 전제 조건이기
+때문이다. dispatcher 가 없는 평평한 롤이고 macOS 전용이며, OS 판별은 롤 안이 아니라
+플레이 타게팅으로 한다.
+
+**Command Line Tools**
+
+- `xcode-select --install` 은 **쓰지 않는다.** GUI 다이얼로그를 띄우고 즉시
+  리턴하므로 SSH 세션에서는 클릭할 사람이 없고, 도구 없이 실행이 그냥 이어진다.
+- 대신 GUI 인스톨러가 만드는 센티넬 파일
+  `/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress` 를 직접 만든다.
+  이 파일이 있는 동안에만 `softwareupdate --list` 가 Command Line Tools 를 노출한다.
+- 목록에서 라벨을 뽑아 `softwareupdate --install` 로 헤드리스 설치한다. 라벨은
+  **불릿 줄에서만** 뽑는다(`^\s*\*.*Command Line Tools`) — 바로 아래의 들여쓴
+  `Title: ... Size: ...` 줄이 같은 이름을 반복하므로 걸러야 한다. 정규식 하나로
+  불릿과 선택적 `Label:` 을 떼어내 macOS 10.15+ 형식
+  (`* Label: Command Line Tools for Xcode-16.2`) 과 그 이전 형식
+  (`* Command Line Tools (macOS ...) for Xcode-10.1`) 을 모두 처리한다.
+- 센티넬은 설치 실패 여부와 무관하게 `always:` 블록에서 지운다. 남겨두면 이후
+  이 호스트의 모든 `softwareupdate --list` 가 계속 이 패키지를 광고한다.
+- 설치 후 `xcode-select --print-path` 로 다시 확인하고 실패하면 여기서
+  명확한 메시지와 함께 죽는다. 뒤늦게 Homebrew 안에서 터지는 것보다 낫다.
+
+**Xcode.app**
+
+- Mac App Store id `497799835` 를 `community.general.mas` 로 설치한다. `mas` formula
+  는 이 롤이 직접 깐다 — `wireguard` 롤도 `mas` 를 설치하지만 `Common tooling`
+  후반부라 부트스트랩 시점에는 아직 없다.
+- `mas install` 은 root 권한을 요구하므로 이 작업만 `become: true`, Homebrew 작업은
+  `become: false` 다.
+- WireGuard 와 같은 `block`/`rescue` 형태다. Apple ID 로그인이 안 되어 있으면 안내
+  메시지만 남기고 넘어가며, Command Line Tools 는 어느 쪽이든 설치되어 있다.
+- Xcode.app 은 10GB 가 넘어서 첫 실행에서는 다운로드에 아주 오래 걸린다.
+
+**설치 후 설정** — `mas` 작업이 아니라 `/Applications/Xcode.app/Contents/Developer`
+의 `stat` 결과로 게이팅한다. 이미 Xcode 가 깔려 있던 호스트는 `mas` 가 실패해도
+설정이 돌아야 하기 때문이다.
+
+- `xcode-select --switch` — 활성 경로가 이미 Xcode.app 이면 건너뛴다.
+- `xcodebuild -license accept` — 라이선스 미동의 상태에서는 `xcodebuild -version`
+  이 non-zero 로 죽는다. 그 종료 코드가 곧 멱등성 판정이다.
+- `xcodebuild -runFirstLaunch` — `xcodebuild -checkFirstLaunchStatus` 가 non-zero 일
+  때만 돈다.
+
+App Store 로그인은 계속 수동이며, Apple ID 자격증명은 리포에도 vault 에도 들어가지
+않는다.
 
 ## tailscale
 
@@ -261,9 +322,12 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 
 - `--source winget` 을 항상 고정한다. msstore 소스는 별도 약관 동의가 필요하고
   자동화에 쓸 수 없는 ID 를 돌려준다.
-- winget 은 Windows 10 1809+ / 11 에 기본 탑재라 설치할 게 없다. `setup_winget`
-  롤은 존재 여부만 assert 해서, 없는 호스트가 패키지 롤마다 하나씩 깨지는 대신
-  맨 앞에서 한 번 명확하게 실패하게 한다.
+- winget 은 Windows 10 1809+ / 11 에 기본 탑재라 설치할 게 없다. 존재 여부
+  assert 는 `winget` 롤 자체에 들어 있고, `Windows bootstrap` 플레이는 패키지
+  없이 (`winget_packages` 기본값이 `[]`) 이 롤을 포함해 assert 만 돌린다. 없는
+  호스트가 패키지 롤마다 하나씩 깨지는 대신 맨 앞에서 한 번 명확하게 실패한다.
+  체크는 `winget_available` 팩트로 게이팅해서, 롤을 포함할 때마다가 아니라
+  호스트당 한 번만 WinRM 왕복이 발생한다.
 - **winget 전용 모듈은 만들지 않았다.** 공식/커뮤니티 모듈이 없고, 캡슐화할 로직이
   종료 코드 검사 한 줄뿐이며, Windows 모듈은 PowerShell 이라 yamllint /
   ansible-lint / `tests/validate_*.yml` 안전망 밖에 놓이기 때문이다.
@@ -272,6 +336,68 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 `roles/python/tasks/windows.yml` 이 `Python.Python.3.14` 로 고정돼 있다. 마이너
 릴리스마다 손으로 올려야 한다. Chocolatey 의 `python3` 메타패키지는 자동
 추종했으므로 이 한 가지는 후퇴다.
+
+## AI CLI 도구
+
+`claude_code` / `codex` / `copilot_cli` / `opencode` 네 롤로 나뉘어 있다. 예전에는 `ai`
+롤 하나였는데, Windows 에서는 아무것도 설치되지 않는 스텁이었고 `codex` / `copilot-cli`
+를 formula 모듈로 설치하려 했지만 둘 다 실제로는 cask 다.
+
+| 롤 | Ubuntu | macOS | Windows |
+| --- | --- | --- | --- |
+| `claude_code` | 공식 `claude.ai/install.sh` | cask `claude-code` | `Anthropic.ClaudeCode` |
+| `codex` | 공식 `chatgpt.com/codex/install.sh` | cask `codex` | `OpenAI.Codex` |
+| `copilot_cli` | 공식 `gh.io/copilot-install` | cask `copilot-cli` | `GitHub.Copilot` |
+| `opencode` | brew `anomalyco/tap/opencode` | 같음 | `SST.opencode` |
+
+- 앞의 셋은 Homebrew 패키지가 **cask** 이고 cask 는 macOS 전용이라 Ubuntu 에서 쓸 수 없다.
+  그래서 벤더 공식 설치 스크립트를 쓴다. `curl … | bash` 로 파이프하지 않고 `get_url` 로
+  받아서 별도 태스크로 실행하며, `~/.local/bin/<tool>` 을 `stat` 으로 검사해 멱등성을 지킨다.
+  Claude Code 는 공식 APT 저장소도 있지만 서드파티 apt 저장소를 늘리지 않는 방침이라 쓰지 않는다.
+- `opencode` 만 Linux 에서도 도는 formula 라서 `brew.yml` 하나를 `debian.yml` 과
+  `darwin.yml` 이 함께 include 한다. tap 은 `trust: true` 로 등록해야 한다(Homebrew 6 은
+  신뢰하지 않은 서드파티 tap 을 로드하지 않는다). homebrew-core 에도 같은 이름의 formula 가
+  생겨 brew 가 shadow 경고를 내므로 토큰은 `anomalyco/tap/opencode` 로 정규화해서 쓴다.
+  `sst/tap` 은 `anomalyco/tap` 으로 이름이 바뀌었고, winget 퍼블리셔만 예전 `SST` 로 남아 있다.
+- winget ID 는 `GitHub.Copilot` 이다. **`GitHub.CopilotCLI` 는 존재하지 않고**,
+  `GitHub.CopilotApp` 은 별개의 데스크톱 앱이다.
+
+**자동 업데이트 주의.** Copilot CLI 는 백그라운드 자동 업데이트가 있어 패키지 매니저와
+어긋난다(`--no-auto-update` 또는 `CI=1` 로 끈다). Claude Code 는 스크립트/npm 설치본만
+자동 업데이트한다(`DISABLE_AUTOUPDATER=1`). 이 롤들은 해당 환경변수를 강제하지 않는다.
+
+## GUI 앱
+
+데스크톱 앱 20개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
+
+Ubuntu 는 전부 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을 쓴다.
+24개 이름을 전부 조회해 본 결과 **Linux 에서 도는 Homebrew formula 가 있는 것은
+`opencode` 뿐**이라, GUI 앱은 Flathub 가 유일한 선택지다.
+
+`bottles`, `flatseal`, `xclicker`, `remmina` 네 개는 macOS/Windows 패키지가 아예 없는
+Linux 전용 프로젝트다. `debian.yml` 만 두고 나머지는 만들지 않는다 - 비슷한 다른 앱으로
+대체하지 않는다.
+
+`parsec` 만 pkg 기반 cask 라 `sudo_password` 를 넘긴다. 나머지 15개는 `.app` 드래그 설치라
+sudo 가 필요 없다.
+
+**Microsoft Edge 는 Windows 에서 설치하지 않는다.** winget 매니페스트는 Edge Enterprise
+MSI(`InstallerType: wix`, machine scope)인데 Windows 11 기본 탑재 Edge 는 설치 기술이 다른
+소비자 빌드다. 버전이 어긋나면 `the install technology is different from the current
+version installed` 로 실패하고([winget-cli#4159](https://github.com/microsoft/winget-cli/issues/4159)),
+Edge 는 자체 업데이터로 갱신되므로 winget 이 기록한 버전이 계속 어긋난다.
+
+패키지 ID 중 직관에 어긋나서 매니페스트로 확인한 것들:
+
+- `Pinta.Pinta` — `PintaProject.Pinta` 가 아니다(Flathub ID 는 반대로
+  `com.github.PintaProject.Pinta` 다).
+- `RedisInsight.RedisInsight` — `Redis.RedisInsight` 는 없고 `Redis.Redis` 는 무관한
+  2015년경 Redis 서버다. macOS cask 토큰은 하이픈이 들어간 `redis-insight` 다.
+- `Headlamp.Headlamp` — `Kinvolk.*` 퍼블리셔는 없다. Flathub 만 예전 `io.kinvolk.Headlamp`
+  네임스페이스를 유지하고 있다.
+- macOS 의 Telegram 은 cask `telegram`(네이티브 빌드)이다. `telegram-desktop` 은 Qt
+  크로스플랫폼판이라 Flathub `org.telegram.desktop` 과 짝이지만 macOS 에서는 권장되지 않는다.
 
 # Validation
 

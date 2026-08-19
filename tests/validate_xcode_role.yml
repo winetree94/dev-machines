@@ -1,0 +1,192 @@
+---
+- name: Validate xcode role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    xcode_tasks_dir: "{{ playbook_dir }}/../roles/xcode/tasks"
+    xcode_main_path: "{{ playbook_dir }}/../roles/xcode/tasks/main.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    forbidden_dispatcher_files:
+      - debian.yml
+      - darwin.yml
+      - windows.yml
+      - default.yml
+
+  tasks:
+    - name: Check the xcode task file exists
+      ansible.builtin.stat:
+        path: "{{ xcode_main_path }}"
+      register: xcode_main_stat
+
+    - name: Assert the xcode task file exists
+      ansible.builtin.assert:
+        that:
+          - xcode_main_stat.stat.exists
+        fail_msg: >-
+          roles/xcode/tasks/main.yml must exist.
+
+    - name: Check no OS dispatcher files exist
+      ansible.builtin.stat:
+        path: "{{ xcode_tasks_dir }}/{{ item }}"
+      register: xcode_dispatcher_stats
+      loop: "{{ forbidden_dispatcher_files }}"
+
+    - name: Assert xcode is a flat macOS-exclusive role
+      ansible.builtin.assert:
+        that:
+          - xcode_dispatcher_stats.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          xcode is an OS-exclusive bootstrap role like snap and flatpak, gated by
+          play targeting in setup.yml. It must not grow the first_found dispatcher
+          layout ({{ forbidden_dispatcher_files | join(', ') }}).
+
+    - name: Read the xcode task file and the setup playbook
+      ansible.builtin.set_fact:
+        xcode_main: "{{ lookup('ansible.builtin.file', xcode_main_path) }}"
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert the role carries no inline OS conditions
+      ansible.builtin.assert:
+        that:
+          - "'with_first_found' not in xcode_main"
+          - "'os_family' not in xcode_main"
+        fail_msg: >-
+          xcode must not test os_family itself. OS-exclusive roles are gated by
+          the OS-targeted play in playbooks/setup.yml instead.
+
+    - name: Assert the Command Line Tools are never installed through the GUI dialog
+      ansible.builtin.assert:
+        that:
+          # Matches an invocation only - the role mentions the command in prose,
+          # as the manual recovery step in its assert messages.
+          - 'xcode_main is not search("command:\s*xcode-select --install")'
+        fail_msg: >-
+          "xcode-select --install" opens a GUI dialog and returns immediately. Over SSH
+          there is nobody to click it, so the run would continue without the tools.
+          Install them through softwareupdate instead.
+
+    - name: Assert the Command Line Tools install is headless and cleans up after itself
+      ansible.builtin.assert:
+        that:
+          - "'softwareupdate' in xcode_main"
+          - "'/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress' in xcode_main"
+          - "'always:' in xcode_main"
+          - >-
+            xcode_main is search("always:[\s\S]*installondemand.in-progress[\s\S]*state: absent")
+        fail_msg: >-
+          softwareupdate only lists the Command Line Tools while
+          /tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress exists, so the
+          role has to create it and then remove it in an always: block - otherwise every
+          later "softwareupdate --list" on the host keeps advertising the package.
+
+    - name: Assert the Command Line Tools install is verified
+      ansible.builtin.assert:
+        that:
+          - "'xcode-select --print-path' in xcode_main"
+          - "'ansible.builtin.assert' in xcode_main"
+        fail_msg: >-
+          The role must probe "xcode-select --print-path" and assert the tools are
+          present afterwards, so a failed install fails here with a clear message
+          instead of somewhere inside Homebrew later in the run.
+
+    - name: Assert mas is installed unprivileged through Homebrew
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew' in xcode_main"
+          - "'name: mas' in xcode_main"
+          - >-
+            xcode_main is search("name: mas[\s\S]*become: false")
+        fail_msg: >-
+          The role must install the mas formula itself - the wireguard role installs it
+          too, but that runs late in the Common tooling play, long after this bootstrap.
+          Homebrew refuses to run as root, so the task needs an explicit become: false.
+
+    - name: Assert Xcode.app is installed from the Mac App Store with root privileges
+      ansible.builtin.assert:
+        that:
+          - "'community.general.mas' in xcode_main"
+          - "'id: 497799835' in xcode_main"
+          - >-
+            xcode_main is search("community.general.mas[\s\S]*become: true")
+        fail_msg: >-
+          The role must install Xcode (Mac App Store id 497799835) through mas, with
+          become - "mas install" refuses to run unprivileged and otherwise shells out to
+          sudo, which has no terminal to prompt at during an Ansible run.
+
+    - name: Assert the Mac App Store install never fails the whole run
+      ansible.builtin.assert:
+        that:
+          - "'rescue:' in xcode_main"
+          - >-
+            xcode_main is search("community.general.mas[\s\S]*rescue:")
+        fail_msg: >-
+          The mas install must sit in a block/rescue - it fails when no Apple ID is
+          signed in, and that must not abort the bootstrap play. The Command Line Tools
+          are the part the rest of the run depends on.
+
+    - name: Assert the installed Xcode is selected, licensed and first-launched
+      ansible.builtin.assert:
+        that:
+          - "'xcode-select --switch /Applications/Xcode.app/Contents/Developer' in xcode_main"
+          - "'xcodebuild -license accept' in xcode_main"
+          - "'xcodebuild -runFirstLaunch' in xcode_main"
+          - "'xcodebuild -checkFirstLaunchStatus' in xcode_main"
+        fail_msg: >-
+          Installing Xcode.app is not enough - the role must switch the active developer
+          directory to it, accept the licence and run the first launch tasks. Otherwise
+          every xcodebuild invocation on the host exits non-zero.
+
+    - name: Assert the licence gate reads the accepted-version plist
+      ansible.builtin.assert:
+        that:
+          - "'IDEXcodeVersionForAgreedToGMLicense' in xcode_main"
+          - >-
+            xcode_main is search("IDEXcodeVersionForAgreedToGMLicense[\s\S]*xcodebuild -license accept")
+        fail_msg: >-
+          "xcodebuild -version" exits 0 even when the licence has never been accepted, so
+          it must not gate "xcodebuild -license accept". Read
+          IDEXcodeVersionForAgreedToGMLicense from
+          /Library/Preferences/com.apple.dt.Xcode instead and compare it with the
+          installed version, otherwise "-runFirstLaunch" fails with rc 77.
+
+    - name: Assert the Xcode configuration is gated on the app being present
+      ansible.builtin.assert:
+        that:
+          - "'/Applications/Xcode.app/Contents/Developer' in xcode_main"
+          - >-
+            xcode_main is search("ansible.builtin.stat[\s\S]*xcode-select --switch")
+        fail_msg: >-
+          The configuration tasks must be gated on a stat of Xcode.app rather than on the
+          mas task, so a host that already had Xcode installed still gets configured when
+          mas itself errored out.
+
+    - name: Assert every probe is read-only and runs in check mode
+      ansible.builtin.assert:
+        that:
+          - "xcode_main | regex_findall('changed_when: false') | length >= 4"
+          - "xcode_main | regex_findall('check_mode: false') | length >= 4"
+          - "'failed_when: false' in xcode_main"
+        fail_msg: >-
+          Every probe task must carry changed_when: false and check_mode: false, so
+          "make check" still predicts what a real run would do, and failed_when: false
+          where a non-zero exit is the legitimate "not installed" answer.
+
+    - name: Assert the role never touches Apple ID credentials
+      ansible.builtin.assert:
+        that:
+          - "'vault_' not in xcode_main"
+          - "'ansible_become_password' not in xcode_main"
+        fail_msg: >-
+          Signing in to the App Store stays a manual step. No Apple ID credential may
+          reach the repository or the vault.
+
+    - name: Assert xcode runs in the macOS bootstrap play before the common tooling
+      ansible.builtin.assert:
+        that:
+          - "'- role: xcode' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search("MacOS bootstrap[\s\S]*hosts: macos[\s\S]*- role: xcode[\s\S]*Common tooling")
+        fail_msg: >-
+          setup.yml must run xcode in a macOS-targeted "MacOS bootstrap" play that
+          sits before "Common tooling" - the Command Line Tools are the prerequisite for
+          Homebrew and for every role that compiles anything.

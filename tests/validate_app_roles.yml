@@ -1,0 +1,446 @@
+---
+# One test for every per-application role, driven by the table below instead of
+# 24 near-identical playbooks. A missing OS key means the role must NOT carry a
+# task file for that OS - that absence is the curation, so it is asserted just
+# as strictly as the presence of the others.
+- name: Validate per-application roles
+  hosts: localhost
+  gather_facts: false
+  vars:
+    roles_dir: "{{ playbook_dir }}/../roles"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+    # AI CLI roles. The three cask-only tools have no Linux Homebrew package,
+    # so debian.yml runs the vendor installer and the marker is its URL.
+    ai_roles:
+      - name: claude_code
+        debian: https://claude.ai/install.sh
+        darwin: claude-code
+        windows: Anthropic.ClaudeCode
+      - name: codex
+        debian: https://chatgpt.com/codex/install.sh
+        darwin: codex
+        windows: OpenAI.Codex
+      - name: copilot_cli
+        debian: https://gh.io/copilot-install
+        darwin: copilot-cli
+        windows: GitHub.Copilot
+      - name: opencode
+        debian: brew.yml
+        darwin: brew.yml
+        windows: SST.opencode
+
+    # GUI application roles: Flathub id, Homebrew cask token, winget id.
+    gui_roles:
+      - name: bitwarden_desktop
+        debian: com.bitwarden.desktop
+        darwin: bitwarden
+        windows: Bitwarden.Bitwarden
+      - name: bottles
+        debian: com.usebottles.bottles
+      - name: discord
+        debian: com.discordapp.Discord
+        darwin: discord
+        windows: Discord.Discord
+      - name: flatseal
+        debian: com.github.tchx84.Flatseal
+      - name: gimp
+        debian: org.gimp.GIMP
+        darwin: gimp
+        windows: GIMP.GIMP
+      - name: headlamp
+        debian: io.kinvolk.Headlamp
+        darwin: headlamp
+        windows: Headlamp.Headlamp
+      - name: libreoffice
+        debian: org.libreoffice.LibreOffice
+        darwin: libreoffice
+        windows: TheDocumentFoundation.LibreOffice
+      - name: microsoft_edge
+        debian: com.microsoft.Edge
+        darwin: microsoft-edge
+      - name: obsidian
+        debian: md.obsidian.Obsidian
+        darwin: obsidian
+        windows: Obsidian.Obsidian
+      - name: onlyoffice
+        debian: org.onlyoffice.desktopeditors
+        darwin: onlyoffice
+        windows: ONLYOFFICE.DesktopEditors
+      - name: parsec
+        debian: com.parsecgaming.parsec
+        darwin: parsec
+        windows: Parsec.Parsec
+      - name: pinta
+        debian: com.github.PintaProject.Pinta
+        darwin: pinta
+        windows: Pinta.Pinta
+      - name: redisinsight
+        debian: com.redis.RedisInsight
+        darwin: redis-insight
+        windows: RedisInsight.RedisInsight
+      - name: remmina
+        debian: org.remmina.Remmina
+      - name: slack
+        debian: com.slack.Slack
+        darwin: slack
+        windows: SlackTechnologies.Slack
+      - name: steam
+        debian: com.valvesoftware.Steam
+        darwin: steam
+        windows: Valve.Steam
+      - name: telegram
+        debian: org.telegram.desktop
+        darwin: telegram
+        windows: Telegram.TelegramDesktop
+      - name: thunderbird
+        debian: org.mozilla.Thunderbird
+        darwin: thunderbird
+        windows: Mozilla.Thunderbird
+      - name: vlc
+        debian: org.videolan.VLC
+        darwin: vlc
+        windows: VideoLAN.VLC
+      - name: xclicker
+        debian: xyz.xclicker.xclicker
+
+    app_roles: "{{ ai_roles + gui_roles }}"
+    darwin_roles: "{{ app_roles | selectattr('darwin', 'defined') | list }}"
+    darwin_absent: "{{ app_roles | rejectattr('darwin', 'defined') | list }}"
+    windows_roles: "{{ app_roles | selectattr('windows', 'defined') | list }}"
+    windows_absent: "{{ app_roles | rejectattr('windows', 'defined') | list }}"
+
+  tasks:
+    - name: Read the setup playbook
+      ansible.builtin.set_fact:
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    # --- the roles the split replaced -----------------------------------
+    - name: Check the replaced roles are gone
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item }}"
+      register: replaced_role_stats
+      loop:
+        - ai
+        - gui_apps
+
+    - name: Assert the replaced roles are gone
+      ansible.builtin.assert:
+        that:
+          - replaced_role_stats.results | selectattr('stat.exists') | list | length == 0
+          - "'- role: ai\n' not in setup_playbook_content"
+          - "'- role: gui_apps' not in setup_playbook_content"
+        fail_msg: >-
+          roles/ai and roles/gui_apps were split into one role per application.
+          Both directories and both setup.yml entries must be gone - a bundle
+          role hides which OSes an application is actually managed on.
+
+    # --- dispatcher ------------------------------------------------------
+    - name: Check every application role has a dispatcher
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/main.yml"
+      register: main_stats
+      loop: "{{ app_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert every application role has a dispatcher
+      ansible.builtin.assert:
+        that:
+          - main_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Every application role needs tasks/main.yml, the shared first_found
+          OS dispatcher.
+
+    - name: Assert each dispatcher holds no install logic
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in main_content"
+          - "'with_first_found' in main_content"
+          - "main_content is search(\"ansible_facts\\['os_family'\\] \\| lower\")"
+          - "'ansible.builtin.apt' not in main_content"
+          - "'community.general' not in main_content"
+          - "'win_chocolatey' not in main_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/main.yml must be the first_found OS
+          dispatcher only, with the install logic in debian.yml / darwin.yml /
+          windows.yml.
+      loop: "{{ app_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        main_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/main.yml') }}"
+
+    - name: Check no application role has a default.yml
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/default.yml"
+      register: default_stats
+      loop: "{{ app_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert no application role has a default.yml
+      ansible.builtin.assert:
+        that:
+          - default_stats.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Application roles must not define tasks/default.yml. default.yml is
+          also the dispatcher's fallback on Windows, so a Homebrew fallback
+          would run there on any role without a windows.yml - the same reason
+          roles/doppler has none.
+
+    # --- Ubuntu ----------------------------------------------------------
+    - name: Check every application role has a Debian task file
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/debian.yml"
+      register: debian_stats
+      loop: "{{ app_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert every application role has a Debian task file
+      ansible.builtin.assert:
+        that:
+          - debian_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Every application in this set is available on Ubuntu, so each role
+          needs tasks/debian.yml.
+
+    - name: Assert no Debian task file adds a third-party APT repository
+      ansible.builtin.assert:
+        that:
+          - "'deb822_repository' not in debian_content"
+          - "'apt_repository' not in debian_content"
+          - "'apt-key' not in debian_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must not add an APT
+          repository. Ubuntu installs go Homebrew formula > Flathub > snap >
+          apt; every application here is on Flathub or ships an installer that
+          needs no repository at all.
+      loop: "{{ app_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert each GUI role installs its Flathub application
+      ansible.builtin.assert:
+        that:
+          - "'community.general.flatpak' in debian_content"
+          - "'become: true' in debian_content"
+          - item.debian in debian_content
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must install {{ item.debian }}
+          with community.general.flatpak. None of these applications has a
+          Homebrew formula that works on Linux, so Flathub is the only route.
+      loop: "{{ gui_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert each AI role uses its documented Linux install path
+      ansible.builtin.assert:
+        that:
+          - item.debian in debian_content
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must install through
+          {{ item.debian }}.
+      loop: "{{ ai_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert the vendor installers are fetched, not piped into a shell
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in debian_content"
+          - "'| bash' not in debian_content"
+          - "'| sh' not in debian_content"
+          - "'.stat.exists' in debian_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must download the official
+          installer with get_url and run it as a separate task, guarded by a
+          stat check so the role stays idempotent. Never pipe a download
+          straight into a shell.
+      loop: "{{ ai_roles | rejectattr('name', 'eq', 'opencode') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert opencode shares one Homebrew task file across Ubuntu and macOS
+      ansible.builtin.assert:
+        that:
+          - "'anomalyco/tap' in opencode_brew"
+          - "'anomalyco/tap/opencode' in opencode_brew"
+          - "'trust: true' in opencode_brew"
+          - "'become: false' in opencode_brew"
+        fail_msg: >-
+          roles/opencode/tasks/brew.yml must tap anomalyco/tap with trust: true
+          (Homebrew 6 refuses to load an untrusted third-party tap) and install
+          the fully qualified anomalyco/tap/opencode token, which homebrew-core
+          now shadows with a formula of its own.
+      vars:
+        opencode_brew: "{{ lookup('ansible.builtin.file', roles_dir ~ '/opencode/tasks/brew.yml') }}"
+
+    # --- macOS -----------------------------------------------------------
+    - name: Check the expected macOS task files exist
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/darwin.yml"
+      register: darwin_stats
+      loop: "{{ darwin_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert the expected macOS task files exist
+      ansible.builtin.assert:
+        that:
+          - darwin_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Every role with a Homebrew cask needs tasks/darwin.yml.
+
+    - name: Check the Linux-only roles have no macOS task file
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/darwin.yml"
+      register: darwin_absent_stats
+      loop: "{{ darwin_absent }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert the Linux-only roles have no macOS task file
+      ansible.builtin.assert:
+        that:
+          - darwin_absent_stats.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Bottles, Flatseal, XClicker and Remmina have no Homebrew cask or
+          formula - they are Linux-only projects. Leaving darwin.yml out is
+          what makes the dispatcher a no-op on macOS; do not substitute a
+          different application.
+
+    - name: Assert each macOS task file installs the expected cask
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' in darwin_content"
+          - "'name: ' ~ item.darwin in darwin_content"
+          - "'become: false' in darwin_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/darwin.yml must install the
+          {{ item.darwin }} cask. Homebrew refuses to run as root, so the task
+          stays unprivileged.
+      loop: "{{ darwin_roles | rejectattr('name', 'eq', 'opencode') | list }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        darwin_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/darwin.yml') }}"
+
+    - name: Assert only the pkg-based cask passes a sudo password
+      ansible.builtin.assert:
+        that:
+          - ('sudo_password' in darwin_content) == (item.name == 'parsec')
+        fail_msg: >-
+          parsec is the only pkg-based cask in this set, so it is the only one
+          that needs sudo_password - Homebrew shells out to "sudo installer"
+          and an Ansible run has no terminal to prompt at. Plain .app casks
+          must not ask for the become password.
+      loop: "{{ darwin_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        darwin_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/darwin.yml') }}"
+
+    # --- Windows ---------------------------------------------------------
+    - name: Check the expected Windows task files exist
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/windows.yml"
+      register: windows_stats
+      loop: "{{ windows_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert the expected Windows task files exist
+      ansible.builtin.assert:
+        that:
+          - windows_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Every role with a winget package needs tasks/windows.yml.
+
+    - name: Check the curated-out roles have no Windows task file
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/windows.yml"
+      register: windows_absent_stats
+      loop: "{{ windows_absent }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert the curated-out roles have no Windows task file
+      ansible.builtin.assert:
+        that:
+          - windows_absent_stats.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Bottles, Flatseal, XClicker and Remmina have no winget package, and
+          Microsoft Edge is deliberately left alone on Windows: the winget
+          manifest ships the Enterprise MSI while Windows 11 preinstalls the
+          consumer build, so installing it fails with "the install technology
+          is different from the current version installed". No windows.yml
+          means the dispatcher is a no-op there, which is the intent.
+
+    - name: Assert each Windows task file installs through the shared winget role
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in windows_content"
+          - "'winget_packages' in windows_content"
+          - "'- ' ~ item.windows in windows_content"
+          - "'win_chocolatey' not in windows_content"
+          - "'win_scoop' not in windows_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/windows.yml must include the shared
+          winget role with {{ item.windows }}. Never call a package manager
+          module directly from a windows.yml.
+      loop: "{{ windows_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        windows_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/windows.yml') }}"
+
+    # --- playbook wiring -------------------------------------------------
+    - name: Assert the GUI grouping play sits between the bootstraps and the roles
+      ansible.builtin.assert:
+        that:
+          - "'gui_enabled' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search("Ubuntu bootstrap[\s\S]*Group
+            GUI-enabled hosts[\s\S]*Common tooling[\s\S]*GUI applications")
+        fail_msg: >-
+          The "Group GUI-enabled hosts" play must run after the Ubuntu
+          bootstrap play, which is where `gui` is auto-detected, and before the
+          "GUI applications" play that targets the group it creates.
+
+    - name: Assert every AI role runs in the Common tooling play
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("Common tooling[\s\S]*- role: "
+            ~ item.name ~ "[\s\S]*GUI applications")
+        fail_msg: >-
+          Role {{ item.name }} is a CLI tool and belongs in the "Common
+          tooling"
+          play, which runs on every host.
+      loop: "{{ ai_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert every GUI role runs in the GUI applications play
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("GUI applications[\s\S]*- role: "
+            ~ item.name)
+        fail_msg: >-
+          Role {{ item.name }} must sit in the "GUI applications" play, which
+          targets the gui_enabled group. Gating by play targeting is what keeps
+          a `when: gui | bool` off all twenty roles.
+      loop: "{{ gui_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
