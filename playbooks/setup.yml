@@ -2,6 +2,22 @@
 - name: Group hosts by OS
   hosts: all
   tasks:
+    # Fail before any role runs: the group_by below funnels every non-Windows,
+    # non-macOS host into `ubuntu`, so an unsupported Linux would otherwise get
+    # apt/snap tasks aimed at it and break halfway through the run.
+    - name: Assert the host runs a supported OS
+      ansible.builtin.assert:
+        that:
+          - >-
+            ansible_facts['os_family'] in ['Windows', 'Darwin']
+            or ansible_facts['distribution'] == 'Ubuntu'
+        fail_msg: >-
+          Unsupported OS: {{ ansible_facts['distribution'] }}
+          {{ ansible_facts['distribution_version'] }}
+          ({{ ansible_facts['os_family'] }} family).
+          Supported targets are Ubuntu, macOS and Windows.
+        quiet: true
+
     - name: Add hosts to OS groups
       ansible.builtin.group_by:
         key: >-
@@ -34,16 +50,20 @@
     - role: setup_snap
     - role: setup_flatpak
     - role: setup_homebrew
-    - role: tailscale
 
 - name: Windows bootstrap
   hosts: windows
   roles:
     - role: setup_chocolatey
+    # Scoop is only here because the Doppler CLI has no Chocolatey package.
+    # It has to be bootstrapped before the common tooling play, since
+    # win_scoop_bucket fails when scoop.ps1 is not already on PATH.
+    - role: setup_scoop
 
 - name: Common tooling
   hosts: all
   roles:
+    - role: tailscale
     - role: docker
     - role: python
     - role: ai
@@ -59,5 +79,6 @@
     - role: doppler
     - role: git
     - role: graphite
+    - role: wireguard
     - role: gui_apps
       when: gui | bool
