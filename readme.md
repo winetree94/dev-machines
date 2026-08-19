@@ -125,7 +125,7 @@ icacls $k /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
 
 - `become_method: runas` 는 계정의 **대화형 비밀번호**를 요구한다.
   Microsoft 계정이면 MSA 비밀번호이며, **Windows Hello PIN 은 동작하지 않는다.**
-- 접속 기본값(SSH + PowerShell + Chocolatey)은 `inventories/group_vars/windows.yml` 에 있고,
+- 접속 기본값(SSH + PowerShell)은 `inventories/group_vars/windows.yml` 에 있고,
   WinRM 대안이 주석으로 함께 들어있다.
 - SSH 키를 설치할 수 없는 상황의 탈출구로 `ansible_password` (SSH 비밀번호 인증)를 쓸 수도
   있지만 기본적으로 **비활성**이다. 컨트롤러에 `sshpass` 가 필요하고 macOS 에는 기본 설치되어
@@ -135,7 +135,7 @@ icacls $k /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
 
 - Ubuntu 24.04+
 - macOS (Homebrew must be installed beforehand)
-- Windows 10/11 (via Chocolatey, over OpenSSH)
+- Windows 10/11 (via winget, over OpenSSH)
 
 # Role structure
 
@@ -143,19 +143,18 @@ Each role's `tasks/main.yml` is a dispatcher that includes the first matching fi
 
 - `debian.yml` — Ubuntu (apt/snap/flatpak/homebrew)
 - `darwin.yml` — macOS (homebrew)
-- `windows.yml` — Windows (chocolatey, 예외적으로 doppler 만 scoop)
+- `windows.yml` — Windows (winget)
 - `default.yml` — fallback shared by Ubuntu/macOS (homebrew-only roles)
 
 If no file matches, the role is a no-op for that OS.
 
-**알려진 제약:** `ai`, `bw`, `graphite`, `mise`, `node`, `rclone` 은 아직
-Windows 패키지가 없어서 `windows.yml` 이 no-op 이다. 이 파일들이 존재하는 이유는
-dispatcher 가 Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다.
-실제 설치는 후속 작업으로 `chocolatey.chocolatey.win_chocolatey` 를 채워 넣는다.
+**알려진 제약:** `ai`, `graphite` 는 아직 winget 커뮤니티 저장소에 패키지가
+없어서 `windows.yml` 이 no-op 이다. 이 파일들이 존재하는 이유는 dispatcher 가
+Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다. 패키지가 올라오면
+공용 `winget` 롤을 include 하도록 채워 넣는다.
 
 OS-exclusive roles (`apt_update`, `setup_snap`, `setup_flatpak`, `setup_homebrew`,
-`setup_chocolatey`, `setup_scoop`) are instead gated by OS-targeted plays in
-`playbooks/setup.yml`.
+`setup_winget`) are instead gated by OS-targeted plays in `playbooks/setup.yml`.
 
 ## tailscale
 
@@ -175,7 +174,7 @@ OS-exclusive roles (`apt_update`, `setup_snap`, `setup_flatpak`, `setup_homebrew
   또한 `tailscale-app` 은 pkg 기반 cask 라 Homebrew 가 내부적으로 `sudo` 를
   호출한다. ansible 실행에는 터미널이 없으므로 vault 의 become 비밀번호를
   일회용 `SUDO_ASKPASS` 헬퍼로 넘겨준다(작업 후 즉시 삭제).
-- `windows.yml` — Chocolatey `tailscale` 패키지. 트레이 GUI 가 포함되어 있다.
+- `windows.yml` — winget `Tailscale.Tailscale`. 트레이 GUI 가 포함되어 있다.
 
 롤은 절대 `tailscale up` 을 실행하지 않는다. 각 머신의 최초 인증은 수동이다.
 macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한다.
@@ -193,7 +192,7 @@ macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한�
   `mas` 로 Mac App Store GUI 클라이언트(id `1451685025`)를 설치한다.
   WireGuard 는 macOS 용 Homebrew cask 가 없어서 App Store 가 유일한 경로다.
   `mas install` 은 root 권한을 요구하므로 이 작업만 `become: true` 로 돈다.
-- `windows.yml` — Chocolatey `wireguard` 패키지. 공식 GUI 클라이언트가 포함된다.
+- `windows.yml` — winget `WireGuard.WireGuard`. 공식 GUI 클라이언트가 포함된다.
 
 ### 터널 설정 (수동)
 
@@ -233,10 +232,46 @@ macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한�
     `community.general.homebrew_cask` 는 설치 여부를 `brew list --cask <name>`
     으로 판단하는데 정규화된 토큰에서 실패하므로, `brew info --json=v2` 로
     가드한 `brew install --cask` 를 쓴다.
-- `windows.yml` — Doppler 공식 Scoop 버킷. Chocolatey 패키지는 존재하지 않고,
-  winget 은 ansible 모듈이 없다. Scoop 자체는 `setup_scoop` 롤이 "Windows
-  bootstrap" 플레이에서 먼저 설치한다 — `win_scoop_bucket` 은 scoop 을
-  부트스트랩하지 않고 `scoop.ps1` 이 없으면 그냥 실패한다.
+- `windows.yml` — winget `Doppler.doppler`. Chocolatey 에는 Doppler 패키지가
+  아예 없다.
+
+## winget (Windows 패키지 관리)
+
+Windows 의 모든 패키지 설치는 공용 `winget` 롤 하나를 거친다. 각 롤의
+`windows.yml` 은 winget ID 목록만 넘긴다.
+
+```yaml
+- name: Install Docker Desktop (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Docker.DockerDesktop
+```
+
+**왜 Chocolatey 를 버렸나.** choco 는 자기가 설치한 것만 추적해서, 다른 경로로
+설치된 앱 위에 벤더 MSI 를 얹으려다 `1603` 으로 죽는다. `desktop` 에서 tailscale
+(choco 패키지가 구버전이라 다운그레이드 시도), docker-desktop, python3(동일 버전
+이미 설치됨) 세 건이 모두 이 이유로 실패했고, 재부팅해도 그대로였다. Scoop 은
+Add/Remove Programs 에 등록하지 않아 winget 이 인식하지 못한다.
+
+winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하므로 누가
+설치했든 알아본다. 멱등성은 종료 코드 하나로 끝난다 — `winget list --id <id>
+--exact` 가 설치돼 있으면 `0`, 없으면 `-1978335212`(`0x8A150014`).
+
+- `--source winget` 을 항상 고정한다. msstore 소스는 별도 약관 동의가 필요하고
+  자동화에 쓸 수 없는 ID 를 돌려준다.
+- winget 은 Windows 10 1809+ / 11 에 기본 탑재라 설치할 게 없다. `setup_winget`
+  롤은 존재 여부만 assert 해서, 없는 호스트가 패키지 롤마다 하나씩 깨지는 대신
+  맨 앞에서 한 번 명확하게 실패하게 한다.
+- **winget 전용 모듈은 만들지 않았다.** 공식/커뮤니티 모듈이 없고, 캡슐화할 로직이
+  종료 코드 검사 한 줄뿐이며, Windows 모듈은 PowerShell 이라 yamllint /
+  ansible-lint / `tests/validate_*.yml` 안전망 밖에 놓이기 때문이다.
+
+**알려진 후퇴:** winget 에는 부동 Python ID 가 없어서(마이너별로만 존재)
+`roles/python/tasks/windows.yml` 이 `Python.Python.3.14` 로 고정돼 있다. 마이너
+릴리스마다 손으로 올려야 한다. Chocolatey 의 `python3` 메타패키지는 자동
+추종했으므로 이 한 가지는 후퇴다.
 
 # Validation
 
