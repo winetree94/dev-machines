@@ -183,3 +183,17 @@
         fail_msg: >-
           setup.yml must include the tailscale role in the cross-OS "Common tooling"
           play, not in the Ubuntu-targeted bootstrap play.
+
+    - name: Assert the Tailscale role is gated on the vpn flag, which WSL turns off
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("- role: tailscale[\s\S]{0,80}when: vpn \| bool")
+          - >-
+            setup_playbook_content is search("vpn: false[\s\S]{0,40}when: wsl \| bool")
+        fail_msg: >-
+          setup.yml must gate the tailscale role on "when: vpn | bool" and keep the
+          WSL override that sets vpn false. A WSL guest is NATed behind its Windows
+          host, which is the machine that actually holds the VPN, and tailscaled in
+          the guest needs systemd plus /dev/net/tun before it can fight the host
+          over the same routes.

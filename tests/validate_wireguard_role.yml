@@ -137,3 +137,13 @@
             setup_playbook_content is search("Common tooling[\s\S]*- role: wireguard")
         fail_msg: >-
           setup.yml must include the wireguard role in the cross-OS "Common tooling" play.
+
+    - name: Assert the WireGuard role is gated on the vpn flag, which WSL turns off
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("- role: wireguard[\s\S]{0,80}when: vpn \| bool")
+        fail_msg: >-
+          setup.yml must gate the wireguard role on "when: vpn | bool", the same flag
+          the "Group hosts by OS" play turns off for WSL guests: their network stack
+          belongs to the Windows host, which is provisioned as a separate host here.
