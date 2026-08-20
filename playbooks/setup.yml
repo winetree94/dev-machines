@@ -77,6 +77,10 @@
   roles:
     - role: apt_update
       tags: [apt_update]
+    # Straight after the cache refresh and before anything that builds or links
+    # against them - see roles/desktop_libs/defaults/main.yml for the list.
+    - role: desktop_libs
+      tags: [desktop_libs]
     - role: snap
       tags: [snap]
     - role: flatpak

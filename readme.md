@@ -179,9 +179,27 @@ Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다. 패�
 둔다 - 파일이 없는 OS 가 no-op 이라는 사실 자체가 OS별 큐레이션이다.
 `tests/validate_app_roles.yml` 이 파일의 존재와 부재를 양쪽 다 검사한다.
 
-OS-exclusive roles (`apt_update`, `snap`, `flatpak`, `homebrew`, `xcode`,
-`winget`) are instead gated by OS-targeted plays in
+OS-exclusive roles (`apt_update`, `desktop_libs`, `snap`, `flatpak`, `homebrew`,
+`xcode`, `winget`) are instead gated by OS-targeted plays in
 `playbooks/setup.yml`.
+
+## desktop_libs (우분투 부트스트랩)
+
+앱이 아니라 **공유 라이브러리**라서 롤을 하나씩 쪼개지 않은 유일한 예외다.
+`Ubuntu bootstrap` 플레이에서 `apt_update` 바로 다음에 돌며, 패키지 목록은
+`roles/desktop_libs/defaults/main.yml` 의 `desktop_libs_packages` 하나에 있다.
+
+| 패키지 | 이유 |
+|---|---|
+| `libayatana-appindicator3-1` | 트레이(StatusNotifierItem) 런타임 |
+| `gir1.2-ayatanaappindicator3-0.1` | 위 라이브러리의 GObject introspection typelib |
+| `libayatana-appindicator3-dev` | 트레이 빌드용 헤더 |
+| `libsecret-1-dev` | 키링 바인딩 빌드용 헤더 |
+| `mesa-utils` | `glxinfo` / `glxgears` — GL 스택이 실제로 도는지 확인하는 수단 |
+
+`gui` 로 게이트하지 않는다. 데스크톱 앱을 설치할지와 무관하게, 호스트에서 무언가를
+빌드하거나 실행할 때 링크되는 의존성이기 때문이다. WSL 게스트도 마찬가지로 설치한다.
+호스트별로 더 필요하면 `inventories/host_vars/<host>.yml` 에서 목록을 덮어쓴다.
 
 ## xcode (macOS 부트스트랩)
 
