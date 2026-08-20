@@ -30,6 +30,23 @@
              else 'ubuntu') }}
       changed_when: false
 
+    # Every WSL kernel carries the vendor tag - "microsoft-standard-WSL2" on
+    # WSL2, "-Microsoft" on WSL1 - so one lowercase substring test covers both.
+    # Read by the GUI detection below and by the VPN gate right after it.
+    - name: Detect WSL
+      ansible.builtin.set_fact:
+        wsl: "{{ 'microsoft' in ansible_facts['kernel'] | lower }}"
+
+    # A WSL guest has no network stack of its own: it is NATed behind the
+    # Windows host, which is the machine that actually holds the VPN (managed
+    # here as the remote `desktop` host). tailscaled inside the guest needs
+    # systemd plus /dev/net/tun and then fights the host over the same routes,
+    # so the VPN roles are off by default there. Override with `-e vpn=true`.
+    - name: Disable the VPN roles on WSL
+      ansible.builtin.set_fact:
+        vpn: false
+      when: wsl | bool
+
 - name: Ubuntu bootstrap
   hosts: ubuntu
   pre_tasks:
@@ -50,7 +67,10 @@
         gui: true
       when:
         - not gui
-        - not ('microsoft' in ansible_facts['kernel'] | lower)
+        # WSLg publishes no session desktop files, but keep the guard explicit:
+        # a GUI installed in the guest would run against the Windows host's
+        # desktop, which is provisioned as `desktop` instead.
+        - not wsl | bool
         - gui_sessions.results | selectattr('stat.exists') | list | length > 0
       tags: always
 
@@ -117,8 +137,10 @@
     # networking / containers
     - role: tailscale
       tags: [tailscale]
+      when: vpn | bool
     - role: wireguard
       tags: [wireguard]
+      when: vpn | bool
     - role: docker
       tags: [docker]
     # secrets
