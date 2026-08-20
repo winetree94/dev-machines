@@ -1,0 +1,49 @@
+---
+- name: Java | Install Temurin JDK 21 (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - EclipseAdoptium.Temurin.21.JDK
+
+- name: Java | Locate the Temurin JDK 21 installation
+  ansible.windows.win_shell: >-
+    Get-ChildItem -LiteralPath 'C:\Program Files\Eclipse Adoptium'
+    -Directory -Filter 'jdk-21*' |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 -ExpandProperty FullName
+  register: java_home_result
+  changed_when: false
+  failed_when: false
+
+- name: Java | Assert the JDK installation was found
+  ansible.builtin.assert:
+    that:
+      - ansible_check_mode or java_home_result.stdout | trim | length > 0
+    fail_msg: >-
+      winget installed EclipseAdoptium.Temurin.21.JDK, but its installation
+      directory was not found under C:\Program Files\Eclipse Adoptium.
+    quiet: true
+
+- name: Java | Remember JAVA_HOME
+  ansible.builtin.set_fact:
+    java_home: >-
+      {{ java_home_result.stdout | trim
+         if java_home_result.stdout | trim | length > 0
+         else 'C:\Program Files\Eclipse Adoptium\jdk-21' }}
+
+- name: Java | Register JAVA_HOME for the machine
+  ansible.windows.win_environment:
+    name: JAVA_HOME
+    value: "{{ java_home }}"
+    level: machine
+    state: present
+  become: true
+
+- name: Java | Add the JDK commands to the machine PATH
+  ansible.windows.win_path:
+    elements:
+      - "{{ java_home }}\\bin"
+    scope: machine
+    state: present
+  become: true

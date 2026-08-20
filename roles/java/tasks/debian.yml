@@ -1,0 +1,35 @@
+---
+- name: Java | Install OpenJDK 21 (apt)
+  ansible.builtin.apt:
+    name: openjdk-21-jdk
+    state: present
+  become: true
+
+- name: Java | Resolve JAVA_HOME
+  ansible.builtin.command:
+    argv:
+      - readlink
+      - -f
+      - /usr/bin/javac
+  register: java_javac_path
+  changed_when: false
+  failed_when: false
+
+- name: Java | Remember JAVA_HOME
+  ansible.builtin.set_fact:
+    java_home: >-
+      {{ (java_javac_path.stdout | dirname | dirname)
+         if java_javac_path.rc == 0
+         else '/usr/lib/jvm/java-21-openjdk-'
+              ~ (ansible_facts['architecture']
+                 | replace('x86_64', 'amd64')
+                 | replace('aarch64', 'arm64')) }}
+
+- name: Java | Register JAVA_HOME for new login sessions
+  ansible.builtin.lineinfile:
+    path: /etc/environment
+    regexp: '^JAVA_HOME='
+    line: 'JAVA_HOME="{{ java_home }}"'
+    create: true
+    mode: "0644"
+  become: true

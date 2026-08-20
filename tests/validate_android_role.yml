@@ -1,0 +1,155 @@
+---
+- name: Validate the Android CLI development environment
+  hosts: localhost
+  gather_facts: false
+  vars:
+    project_dir: "{{ playbook_dir }}/.."
+    android_dir: "{{ project_dir }}/roles/android"
+    java_dir: "{{ project_dir }}/roles/java"
+    setup_content: "{{ lookup('ansible.builtin.file', project_dir ~ '/playbooks/setup.yml') }}"
+    android_defaults: "{{ lookup('ansible.builtin.file', android_dir ~ '/defaults/main.yml') }}"
+    android_debian: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/debian.yml') }}"
+    android_darwin: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/darwin.yml') }}"
+    android_windows: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/windows.yml') }}"
+    android_unix: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/unix.yml') }}"
+    android_packages: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/resolve_packages.yml') }}"
+    java_debian: "{{ lookup('ansible.builtin.file', java_dir ~ '/tasks/debian.yml') }}"
+    java_darwin: "{{ lookup('ansible.builtin.file', java_dir ~ '/tasks/darwin.yml') }}"
+    java_windows: "{{ lookup('ansible.builtin.file', java_dir ~ '/tasks/windows.yml') }}"
+
+  tasks:
+    - name: Assert Java runs before Android and the Android tag includes it
+      ansible.builtin.assert:
+        that:
+          - "'- role: java' in setup_content"
+          - "'tags: [java, android]' in setup_content"
+          - >-
+            setup_content.find('- role: java')
+            < setup_content.find('- role: android')
+        fail_msg: >-
+          The java role must run before android and carry both tags so a
+          --tags android invocation is self-contained.
+
+    - name: Assert JDK 21 uses the native package channel on every OS
+      ansible.builtin.assert:
+        that:
+          - "'openjdk-21-jdk' in java_debian"
+          - "'openjdk@21' in java_darwin"
+          - "'EclipseAdoptium.Temurin.21.JDK' in java_windows"
+          - "'name: winget' in java_windows"
+          - "'JAVA_HOME' in java_debian"
+          - "'JAVA_HOME' in java_darwin"
+          - "'JAVA_HOME' in java_windows"
+          - "'level: machine' in java_windows"
+          - "'scope: machine' in java_windows"
+        fail_msg: >-
+          Java must install JDK 21 through apt, Homebrew and the shared winget
+          role, then register JAVA_HOME without editing user dotfiles.
+
+    - name: Assert Command-line Tools and SDK packages are reproducibly pinned
+      ansible.builtin.assert:
+        that:
+          - "'android_cmdline_tools_version: \"15859902\"' in android_defaults"
+          - "'linux_x86_64:' in android_defaults"
+          - "'darwin_x86_64:' in android_defaults"
+          - "'darwin_arm64:' in android_defaults"
+          - "'windows_x86_64:' in android_defaults"
+          - "'android_sdk_core_packages:' in android_defaults"
+          - "'platform-tools' in android_defaults"
+          - "'android_sdk_platform_versions:' in android_defaults"
+          - "'android_sdk_build_tools_versions:' in android_defaults"
+          - "'- \"35.0.0\"' in android_defaults"
+          - "'- \"36.0.0\"' in android_defaults"
+          - "'android_sdk_additional_packages:' in android_defaults"
+          - "'platforms;android-' in android_packages"
+          - "'build-tools;' in android_packages"
+          - "'android_sdk_packages_effective' in android_unix"
+          - "'android_sdk_packages_effective' in android_windows"
+          - "'android_sdk_packages is defined' in android_packages"
+          - "'checksum:' in android_unix"
+          - "'checksum_algorithm: sha256' in android_windows"
+        fail_msg: >-
+          Android must pin Command-line Tools build 15859902 with a checksum
+          per supported platform, compose versioned SDK packages from lists,
+          and install Build Tools 35.0.0 and 36.0.0 side by side.
+
+    - name: Resolve a multi-version SDK package selection
+      ansible.builtin.include_tasks: >-
+        {{ android_dir }}/tasks/resolve_packages.yml
+      vars:
+        android_sdk_core_packages:
+          - platform-tools
+        android_sdk_platform_versions:
+          - "35"
+          - "36"
+        android_sdk_build_tools_versions:
+          - "35.0.0"
+          - "36.0.0"
+        android_sdk_additional_packages:
+          - extras;google;m2repository
+
+    - name: Assert all requested versions survive package resolution
+      ansible.builtin.assert:
+        that:
+          - >-
+            android_sdk_packages_effective == [
+              'platform-tools',
+              'extras;google;m2repository',
+              'platforms;android-35',
+              'platforms;android-36',
+              'build-tools;35.0.0',
+              'build-tools;36.0.0'
+            ]
+        fail_msg: >-
+          Structured Android SDK lists must preserve every requested platform,
+          Build Tools version and additional sdkmanager package.
+
+    - name: Assert all OSes install SDK packages and accept licenses
+      ansible.builtin.assert:
+        that:
+          - "'sdkmanager' in android_unix"
+          - "'sdkmanager.bat' in android_windows"
+          - "'yes |' in android_unix"
+          - "'PIPESTATUS' in android_unix"
+          - "'ForEach-Object' in android_windows"
+          - "'android_missing_packages' in android_unix"
+          - "'android_missing_packages' in android_windows"
+          - "'android-sdk-platform-tools' in android_debian"
+          - "'state: absent' in android_debian"
+        fail_msg: >-
+          Both implementations must accept licenses non-interactively and
+          install only missing SDK packages; Ubuntu must retire its old adb.
+
+    - name: Assert Android shell integration remains the user's responsibility
+      ansible.builtin.assert:
+        that:
+          - "'/etc/environment' not in android_debian"
+          - "'/etc/zshenv' not in android_darwin"
+          - "'win_environment' not in android_windows"
+          - "'win_path' not in android_windows"
+          - "'/usr/local/bin' not in android_unix"
+          - "'.ansible-cli-links' not in android_unix"
+          - "'ANDROID_SDK_ROOT' not in android_defaults"
+          - "'ANDROID_SDK_ROOT' not in android_debian"
+          - "'ANDROID_SDK_ROOT' not in android_darwin"
+          - "'ANDROID_SDK_ROOT' not in android_windows"
+          - "'/.zshrc' not in android_debian + android_darwin + android_windows"
+          - "'/.zprofile' not in android_debian + android_darwin + android_windows"
+          - "'/.bashrc' not in android_debian + android_darwin + android_windows"
+        fail_msg: >-
+          Android installs the SDK under the user's conventional home path but
+          must not persist ANDROID_HOME, PATH entries, command links or
+          ANDROID_SDK_ROOT. Shell integration belongs to the user.
+
+    - name: Assert CLI-only scope and supported architectures remain explicit
+      ansible.builtin.assert:
+        that:
+          - "'architecture' in android_debian"
+          - "'architecture' in android_darwin"
+          - "'architecture' in android_windows"
+          - "'system-images;' not in android_defaults"
+          - "'emulator' not in android_defaults"
+          - "'android-studio' not in android_defaults"
+        fail_msg: >-
+          The role is a CLI build environment only and must reject unsupported
+          architectures rather than installing incompatible artifacts.

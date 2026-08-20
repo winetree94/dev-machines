@@ -1,0 +1,171 @@
+---
+- name: Android | Assert JAVA_HOME was prepared
+  ansible.builtin.assert:
+    that:
+      - java_home is defined
+      - java_home | length > 0
+    fail_msg: >-
+      Android Command-line Tools require Java. Run the java role first, or
+      invoke this role through the android tag so its Java dependency runs.
+    quiet: true
+
+- name: Android | Resolve requested SDK packages
+  ansible.builtin.include_tasks: resolve_packages.yml
+
+- name: Android | Ensure the SDK root exists
+  ansible.builtin.file:
+    path: "{{ android_sdk_root_effective }}"
+    state: directory
+    mode: "0755"
+  become: false
+
+- name: Android | Inspect the installed Command-line Tools build
+  ansible.builtin.stat:
+    path: "{{ android_sdk_root_effective }}/cmdline-tools/latest/.ansible-source-build"
+  register: android_cmdline_build_marker
+  become: false
+
+- name: Android | Read the installed Command-line Tools build
+  ansible.builtin.slurp:
+    path: "{{ android_sdk_root_effective }}/cmdline-tools/latest/.ansible-source-build"
+  register: android_cmdline_build_content
+  when: android_cmdline_build_marker.stat.exists
+  become: false
+
+- name: Android | Decide whether Command-line Tools need installation
+  ansible.builtin.set_fact:
+    android_cmdline_tools_install_required: >-
+      {{ not android_cmdline_build_marker.stat.exists or
+         (android_cmdline_build_content.content | default('') | b64decode | trim)
+         != android_cmdline_tools_version }}
+
+- name: Android | Report the planned Command-line Tools installation
+  ansible.builtin.debug:
+    msg: >-
+      Android Command-line Tools build {{ android_cmdline_tools_version }}
+      would be installed in {{ android_sdk_root_effective }}.
+  changed_when: true
+  when:
+    - android_cmdline_tools_install_required | bool
+    - ansible_check_mode
+
+- name: Android | Install pinned Command-line Tools
+  when:
+    - android_cmdline_tools_install_required | bool
+    - not ansible_check_mode
+  block:
+    - name: Android | Download pinned Command-line Tools
+      ansible.builtin.get_url:
+        url: "{{ android_cmdline_tools_url }}"
+        dest: "/tmp/android-commandlinetools-{{ android_cmdline_tools_version }}.zip"
+        checksum: "{{ android_cmdline_tools_checksum }}"
+        mode: "0644"
+      become: false
+
+    - name: Android | Create a temporary extraction directory
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: ansible-android-
+      register: android_cmdline_extract_dir
+      become: false
+
+    - name: Android | Extract Command-line Tools
+      ansible.builtin.unarchive:
+        src: "/tmp/android-commandlinetools-{{ android_cmdline_tools_version }}.zip"
+        dest: "{{ android_cmdline_extract_dir.path }}"
+        remote_src: true
+      become: false
+
+    - name: Android | Ensure the Command-line Tools parent exists
+      ansible.builtin.file:
+        path: "{{ android_sdk_root_effective }}/cmdline-tools"
+        state: directory
+        mode: "0755"
+      become: false
+
+    - name: Android | Remove the superseded Command-line Tools directory
+      ansible.builtin.file:
+        path: "{{ android_sdk_root_effective }}/cmdline-tools/latest"
+        state: absent
+      become: false
+
+    - name: Android | Move Command-line Tools into the SDK
+      ansible.builtin.command:
+        argv:
+          - mv
+          - "{{ android_cmdline_extract_dir.path }}/cmdline-tools"
+          - "{{ android_sdk_root_effective }}/cmdline-tools/latest"
+      changed_when: true
+      become: false
+
+    - name: Android | Record the installed source build
+      ansible.builtin.copy:
+        content: "{{ android_cmdline_tools_version }}\n"
+        dest: "{{ android_sdk_root_effective }}/cmdline-tools/latest/.ansible-source-build"
+        mode: "0644"
+      become: false
+  always:
+    - name: Android | Remove the temporary extraction directory
+      ansible.builtin.file:
+        path: "{{ android_cmdline_extract_dir.path }}"
+        state: absent
+      when:
+        - android_cmdline_extract_dir is defined
+        - android_cmdline_extract_dir.path is defined
+      become: false
+
+- name: Android | Remember whether Command-line Tools are usable
+  ansible.builtin.set_fact:
+    android_cmdline_tools_ready: >-
+      {{ not ansible_check_mode or not android_cmdline_tools_install_required }}
+
+- name: Android | Accept all Android SDK licenses
+  ansible.builtin.shell: |
+    set -o pipefail
+    yes | "{{ android_sdk_root_effective }}/cmdline-tools/latest/bin/sdkmanager" \
+      --sdk_root="{{ android_sdk_root_effective }}" --licenses
+    pipeline_status=("${PIPESTATUS[@]}")
+    exit "${pipeline_status[1]}"
+  args:
+    executable: /bin/bash
+  environment:
+    ANDROID_HOME: "{{ android_sdk_root_effective }}"
+    JAVA_HOME: "{{ java_home }}"
+  changed_when: false
+  when: android_cmdline_tools_ready | bool
+  become: false
+
+- name: Android | Inspect requested SDK packages
+  ansible.builtin.stat:
+    path: >-
+      {{ android_sdk_root_effective }}/{{ android_package | replace(';', '/') }}/source.properties
+  loop: "{{ android_sdk_packages_effective }}"
+  loop_control:
+    loop_var: android_package
+    label: "{{ android_package }}"
+  register: android_sdk_package_markers
+  when: android_cmdline_tools_ready | bool
+  become: false
+
+- name: Android | Collect missing SDK packages
+  ansible.builtin.set_fact:
+    android_missing_packages: >-
+      {{ android_sdk_package_markers.results | default([])
+         | rejectattr('skipped', 'defined')
+         | rejectattr('stat.exists')
+         | map(attribute='android_package') | list }}
+
+- name: Android | Install missing SDK packages
+  ansible.builtin.command:
+    argv: >-
+      {{ [android_sdk_root_effective ~ '/cmdline-tools/latest/bin/sdkmanager',
+          '--sdk_root=' ~ android_sdk_root_effective]
+         + android_missing_packages }}
+  environment:
+    ANDROID_HOME: "{{ android_sdk_root_effective }}"
+    JAVA_HOME: "{{ java_home }}"
+  changed_when: true
+  when:
+    - android_cmdline_tools_ready | bool
+    - android_missing_packages | length > 0
+  become: false

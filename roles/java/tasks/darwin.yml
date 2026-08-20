@@ -1,0 +1,95 @@
+---
+- name: Java | Install OpenJDK 21 (Homebrew)
+  when: "'openjdk@21' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: openjdk@21
+    state: present
+  become: false
+
+- name: Java | Resolve the Homebrew prefix
+  ansible.builtin.command:
+    argv:
+      - brew
+      - --prefix
+  environment:
+    PATH: >-
+      /opt/homebrew/bin:/usr/local/bin:{{ ansible_facts['env']['PATH'] }}
+  register: java_brew_prefix
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: Java | Remember JAVA_HOME
+  ansible.builtin.set_fact:
+    java_home: >-
+      {{ java_brew_prefix.stdout
+         }}/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+
+- name: Java | Check whether the JDK commands are available
+  ansible.builtin.stat:
+    path: "{{ java_home }}/bin"
+  register: java_bin_directory
+  become: false
+
+- name: Java | Find JDK command-line tools
+  ansible.builtin.find:
+    paths: "{{ java_home }}/bin"
+    file_type: file
+    recurse: false
+  register: java_cli_tools
+  when: java_bin_directory.stat.exists
+  become: false
+
+- name: Java | Ensure the system command directory exists
+  ansible.builtin.file:
+    path: /usr/local/bin
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Java | Inspect existing command links
+  ansible.builtin.stat:
+    path: "/usr/local/bin/{{ java_tool.path | basename }}"
+    follow: false
+  loop: "{{ java_cli_tools.files | default([]) }}"
+  loop_control:
+    loop_var: java_tool
+    label: "{{ java_tool.path | basename }}"
+  register: java_cli_targets
+  become: true
+
+- name: Java | Refuse to overwrite unmanaged commands
+  ansible.builtin.assert:
+    that:
+      - not java_target.stat.exists or java_target.stat.islnk | default(false)
+    fail_msg: >-
+      /usr/local/bin/{{ java_target.java_tool.path | basename }} already exists
+      and is not a
+      symbolic link. Move it out of the way before managing OpenJDK 21.
+    quiet: true
+  loop: "{{ java_cli_targets.results | default([]) }}"
+  loop_control:
+    loop_var: java_target
+    label: "{{ java_target.java_tool.path | basename }}"
+
+- name: Java | Expose JDK command-line tools on the system PATH
+  ansible.builtin.file:
+    src: "{{ java_tool.path }}"
+    dest: "/usr/local/bin/{{ java_tool.path | basename }}"
+    state: link
+    force: true
+  loop: "{{ java_cli_tools.files | default([]) }}"
+  loop_control:
+    loop_var: java_tool
+    label: "{{ java_tool.path | basename }}"
+  become: true
+
+- name: Java | Register JAVA_HOME for zsh
+  ansible.builtin.blockinfile:
+    path: /etc/zshenv
+    marker: "# {mark} ANSIBLE MANAGED JAVA"
+    block: |
+      export JAVA_HOME="{{ java_home }}"
+    create: true
+    mode: "0644"
+  become: true

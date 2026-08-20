@@ -1,0 +1,26 @@
+---
+# Google recommends pinning Command-line Tools in automation rather than
+# following the moving "latest" package. The numeric build and checksums come
+# from https://developer.android.com/studio.
+android_cmdline_tools_version: "15859902"
+android_cmdline_tools_checksums:
+  linux_x86_64: 4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
+  darwin_x86_64: c5a6378ab5cf7e0d5701921405115befff13e9ff7417fb588389338f8bd050f3
+  darwin_arm64: 835b62a26162b229b441d1f6d4680383815a270809eb33522c0d480fa5002c4e
+  windows_x86_64: 90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a
+
+android_sdk_core_packages:
+  - platform-tools
+
+# Each list can contain as many versions as a host needs. sdkmanager installs
+# them side by side under platforms/ and build-tools/.
+android_sdk_platform_versions:
+  - "36"
+android_sdk_build_tools_versions:
+  - "35.0.0"
+  - "36.0.0"
+
+# Raw sdkmanager package names for components that do not have a dedicated
+# version list above, for example an NDK package. `android_sdk_packages` remains
+# accepted as a complete legacy/advanced override of all four lists.
+android_sdk_additional_packages: []

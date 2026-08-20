@@ -1,0 +1,33 @@
+---
+- name: Android | Start the requested SDK package list
+  ansible.builtin.set_fact:
+    android_sdk_packages_effective: >-
+      {{ android_sdk_packages
+         if android_sdk_packages is defined
+         else android_sdk_core_packages + android_sdk_additional_packages }}
+
+- name: Android | Add requested SDK platform versions
+  ansible.builtin.set_fact:
+    android_sdk_packages_effective: >-
+      {{ android_sdk_packages_effective
+         + ['platforms;android-' ~ android_platform_version] }}
+  loop: "{{ android_sdk_platform_versions }}"
+  loop_control:
+    loop_var: android_platform_version
+    label: "Android {{ android_platform_version }}"
+  when: android_sdk_packages is not defined
+
+- name: Android | Add requested Build Tools versions
+  ansible.builtin.set_fact:
+    android_sdk_packages_effective: >-
+      {{ android_sdk_packages_effective
+         + ['build-tools;' ~ android_build_tools_version] }}
+  loop: "{{ android_sdk_build_tools_versions }}"
+  loop_control:
+    loop_var: android_build_tools_version
+    label: "{{ android_build_tools_version }}"
+  when: android_sdk_packages is not defined
+
+- name: Android | Remove duplicate SDK package requests
+  ansible.builtin.set_fact:
+    android_sdk_packages_effective: "{{ android_sdk_packages_effective | unique }}"
