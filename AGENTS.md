@@ -11,7 +11,7 @@ This project is an Ansible-based automation suite that bootstraps and configures
   - **Key Tools Managed:** Docker, Mise (runtime manager), Neovim, Kubernetes (kubectl), Zsh, Tmux, Git, and various AI CLI tools.
 - **Architecture:**
   - **Playbooks:** Entry point is `playbooks/setup.yml`, a multi-play playbook (`playbooks/ping.yml` is a connectivity check split by OS):
-    1. `Group hosts by OS` — an `assert` fails the host up front unless it is Windows, macOS or `distribution == 'Ubuntu'` (the `group_by` below funnels every other Linux into `ubuntu`, so an unsupported distro has to be rejected before any role runs); `group_by` then assigns each host to `ubuntu` / `macos` / `windows` at runtime from facts, so `localhost` works on any supported control machine.
+    1. `Group hosts by OS` — an `assert` fails the host up front unless it is Windows, macOS or `distribution == 'Ubuntu'` (the `group_by` below funnels every other Linux into `ubuntu`, so an unsupported distro has to be rejected before any role runs); `group_by` then assigns each host to `ubuntu` / `macos` / `windows` at runtime from facts, so `localhost` works on any supported control machine. The same play sets `wsl` from the kernel string (`microsoft` covers both WSL1 and WSL2) and turns `vpn` off there.
     2. `Ubuntu bootstrap` — apt_update, snap, flatpak, homebrew deps + GUI auto-detection (xsessions/wayland, WSL excluded).
     3. `MacOS bootstrap` — xcode (Command Line Tools headlessly via softwareupdate, then Xcode.app via `mas`).
     4. `Windows bootstrap` — winget with no packages (assert only; winget ships with the OS).
@@ -47,6 +47,7 @@ secret setup step, since the SSH private key is in the vault too.
 ### Configuration Options
 
 - **GUI Apps:** auto-enabled when a desktop environment is detected on Ubuntu (WSL excluded); always enabled on macOS/Windows. Override with `-e "gui=true|false"` or `inventories/host_vars/<host>.yml`.
+- **VPN roles:** `tailscale` and `wireguard` carry `when: vpn | bool` in the `Common tooling` play. `vpn` defaults true and the `Group hosts by OS` play sets it false on WSL guests: the guest is NATed behind its Windows host, which is the machine that actually holds the VPN (provisioned here as `desktop`), and `tailscaled` in the guest needs systemd plus `/dev/net/tun` before it starts fighting the host over the same routes. Override with `-e "vpn=true"`. `tests/validate_tailscale_role.yml` and `tests/validate_wireguard_role.yml` assert both the gate and the WSL override.
 - **`gui` consumers:** the `GUI applications` play (via the `gui_enabled` group built by the `Group GUI-enabled hosts` play) and the Linux systray tasks in `roles/tailscale/tasks/debian.yml`.
 
 ## Development Conventions

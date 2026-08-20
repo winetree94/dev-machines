@@ -52,6 +52,7 @@ make install-requirements
 make ping  ANSIBLE_ARGS="--limit macmini"
 make check ANSIBLE_ARGS="--limit ubuntu-dev"
 make apply ANSIBLE_ARGS="--limit ubuntu-dev,macmini"
+make apply ANSIBLE_ARGS="--limit localhost"
 ```
 
 # Secret 구조
@@ -93,6 +94,20 @@ per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml
 `gui` 는 `GUI applications` 플레이(데스크톱 앱 25개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
+
+## WSL
+
+`localhost` 가 WSL 게스트면 `Group hosts by OS` 플레이가 커널 문자열(`microsoft`)로
+이를 감지해 두 가지를 끈다.
+
+- **GUI 앱** — `gui` 자동 감지에서 제외된다. 게스트에 데스크톱 앱을 깔아 봐야 실제
+  화면은 Windows 쪽이고, 그 머신은 `desktop` 호스트로 따로 관리한다.
+- **VPN(`tailscale`, `wireguard`)** — `vpn` 이 false 가 되어 두 롤을 건너뛴다. WSL 은
+  Windows 호스트 뒤에 NAT 되어 있어 VPN 은 호스트가 들고 있어야 하고, 게스트의
+  `tailscaled` 는 systemd 와 `/dev/net/tun` 을 요구한 뒤 같은 라우팅을 두고 호스트와
+  충돌한다.
+
+굳이 게스트 안에 VPN 을 넣어야 한다면 `-e vpn=true` 로 되돌릴 수 있다.
 
 # 사람이 수동으로 해야 하는 작업
 
