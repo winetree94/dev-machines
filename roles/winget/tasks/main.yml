@@ -18,8 +18,10 @@
 # installs and dies with a generic MSI 1603 when it tries to lay a package
 # over an install it did not make.
 #
-# "--source winget" pins the community repository. The msstore source needs
-# separate agreement handling and returns IDs that cannot be automated.
+# Community packages stay pinned to "--source winget". Callers that need an
+# official Microsoft Store package pass its product ID through the separate
+# `winget_msstore_packages` list; those calls pin "--source msstore" and accept
+# both source and package agreements non-interactively.
 
 # winget ships with Windows 10 1809+ and Windows 11 as part of the App
 # Installer package, so there is nothing to bootstrap - unlike Chocolatey and
@@ -57,6 +59,12 @@
 - name: Winget | Snapshot the installed packages
   ansible.builtin.include_tasks: snapshot.yml
   when: winget_installed_ids is not defined
+
+- name: Winget | Snapshot the installed Microsoft Store packages
+  ansible.builtin.include_tasks: snapshot_msstore.yml
+  when:
+    - winget_msstore_packages | length > 0
+    - winget_msstore_installed_ids is not defined
 
 # Only the packages the snapshot could not vouch for. An export lists a package
 # only while the source still carries a matching manifest, so anything missing
@@ -99,6 +107,38 @@
   when: item.rc != 0
   register: winget_install
   until: winget_install is succeeded
+  retries: 2
+  delay: 10
+  changed_when: true
+
+# Store packages mirror the community-source flow above, but keep their own
+# snapshot and explicit source because Store product IDs are a separate
+# namespace and require agreement handling.
+- name: Winget | Confirm Microsoft Store packages not in the snapshot
+  vars:
+    winget_msstore_unaccounted: >-
+      {{ winget_msstore_packages
+         | reject('in', winget_msstore_installed_ids | default([])) | list }}
+  ansible.windows.win_shell: >-
+    winget list --id {{ item }} --exact --source msstore
+    --accept-source-agreements
+  register: winget_msstore_present
+  loop: "{{ winget_msstore_unaccounted }}"
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Winget | Install missing Microsoft Store packages
+  ansible.windows.win_shell: >-
+    winget install --id {{ item.item }} --exact --source msstore --silent
+    --disable-interactivity --accept-source-agreements
+    --accept-package-agreements
+  loop: "{{ winget_msstore_present.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.rc != 0
+  register: winget_msstore_install
+  until: winget_msstore_install is succeeded
   retries: 2
   delay: 10
   changed_when: true

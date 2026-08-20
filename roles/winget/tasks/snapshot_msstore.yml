@@ -1,0 +1,19 @@
+---
+# Microsoft Store is queried only when a caller actually requests a Store
+# package. This preserves the fast community-source-only path for all other
+# roles while still answering installed state once per host.
+- name: Winget | Export the installed Microsoft Store packages
+  ansible.windows.win_shell: |
+    $out = Join-Path $env:TEMP 'winget-msstore-export.json'
+    winget export -o $out --source msstore --accept-source-agreements | Out-Null
+    (Get-Content $out -Raw | ConvertFrom-Json).Sources.Packages.PackageIdentifier -join "`n"
+    Remove-Item $out -Force -ErrorAction SilentlyContinue
+  register: winget_msstore_export
+  changed_when: false
+  check_mode: false
+
+- name: Winget | Remember the installed Microsoft Store package IDs
+  ansible.builtin.set_fact:
+    winget_msstore_installed_ids: >-
+      {{ winget_msstore_export.stdout_lines
+         | map('trim') | reject('equalto', '') | list }}
