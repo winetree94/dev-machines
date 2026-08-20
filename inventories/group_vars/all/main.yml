@@ -6,6 +6,11 @@
 # still have a defined value during the first play.
 gui: false
 
+# VPN default. Set to false for WSL guests by the "Group hosts by OS" play,
+# which is why it is a plain var here rather than a set_fact: an `-e vpn=true`
+# on the command line still wins over that runtime override.
+vpn: true
+
 # --- vault indirection -------------------------------------------------
 # Every secret lives in ./vault.yml (ansible-vault, one password).
 # Roles and playbooks must never reference a vault_* name directly.
