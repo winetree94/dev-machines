@@ -90,7 +90,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `GUI applications` 플레이(데스크톱 앱 20개)와 Linux 의 tailscale systray
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 21개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
 
@@ -368,7 +368,7 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 
 ## GUI 앱
 
-데스크톱 앱 20개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 21개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 전부 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을 쓴다.
@@ -379,8 +379,16 @@ Ubuntu 는 전부 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 
 Linux 전용 프로젝트다. `debian.yml` 만 두고 나머지는 만들지 않는다 - 비슷한 다른 앱으로
 대체하지 않는다.
 
-`parsec` 만 pkg 기반 cask 라 `sudo_password` 를 넘긴다. 나머지 15개는 `.app` 드래그 설치라
-sudo 가 필요 없다.
+`karabiner_elements` 는 정반대로 **유일한 macOS 전용 롤**이다. Karabiner-Elements 는
+macOS 시스템 확장 위에 올라가는 키보드 드라이버라 Linux/Windows 대응물이 없고,
+`darwin.yml` 하나만 둔다. `tests/validate_app_roles.yml` 은 이런 롤을 별도
+`macos_only_roles` 테이블로 관리하면서 `debian.yml` 이 **없다는 것**을 `darwin.yml` 이
+있다는 것만큼 엄격하게 검사한다. 설치 후 시스템 설정 > 개인정보 보호 및 보안에서
+드라이버 확장 승인과 입력 모니터링 권한 부여를 한 번 손으로 해줘야 한다 - Apple 이
+스크립트로 처리할 방법을 주지 않는다.
+
+pkg 기반 cask 는 `parsec` 와 `karabiner_elements` 둘뿐이라(테이블에서 `pkg: true` 로
+표시), 이 둘만 `sudo_password` 를 넘긴다. 나머지는 `.app` 드래그 설치라 sudo 가 필요 없다.
 
 **Microsoft Edge 는 Windows 에서 설치하지 않는다.** winget 매니페스트는 Edge Enterprise
 MSI(`InstallerType: wix`, machine scope)인데 Windows 11 기본 탑재 Edge 는 설치 기술이 다른

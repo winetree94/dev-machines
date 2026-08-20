@@ -1,0 +1,18 @@
+---
+# karabiner-elements is a pkg-based cask, so Homebrew shells out to
+# "sudo installer" to place the app and its driver extension, and an Ansible
+# run has no terminal for sudo to prompt at. sudo_password hands the module the
+# vault become password and it writes a throwaway SUDO_ASKPASS helper, which is
+# what makes Homebrew call "sudo -A". Same shape as roles/parsec. Homebrew
+# itself must stay unprivileged: it refuses to run as root.
+#
+# The driver extension still has to be approved once by hand under System
+# Settings > Privacy & Security, along with Input Monitoring for the
+# karabiner_* processes. Apple offers no supported way to script either.
+- name: Karabiner Elements | Install Karabiner-Elements (Homebrew cask)
+  when: "'karabiner-elements' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: karabiner-elements
+    state: present
+    sudo_password: "{{ ansible_become_password }}"
+  become: false

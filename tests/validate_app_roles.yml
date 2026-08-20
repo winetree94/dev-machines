@@ -73,6 +73,7 @@
         debian: com.parsecgaming.parsec
         darwin: parsec
         windows: Parsec.Parsec
+        pkg: true
       - name: pinta
         debian: com.github.PintaProject.Pinta
         darwin: pinta
@@ -105,6 +106,17 @@
         windows: VideoLAN.VLC
       - name: xclicker
         debian: xyz.xclicker.xclicker
+
+    # macOS-only application roles. Karabiner-Elements is a keyboard driver
+    # extension built on a macOS system extension - there is no Linux or
+    # Windows counterpart to substitute, so the role has only darwin.yml. That
+    # absence is the curation, and it is asserted below just as strictly as the
+    # one file that must exist. `pkg: true` marks a cask whose artifact is a
+    # .pkg installer rather than a drag-installed .app.
+    macos_only_roles:
+      - name: karabiner_elements
+        darwin: karabiner-elements
+        pkg: true
 
 
     # CLI tool roles. `debian`/`darwin` are the Homebrew formula (or the apt
@@ -256,14 +268,19 @@
         darwin: ninja
         windows: Ninja-build.Ninja
 
-    app_roles: "{{ ai_roles + cli_roles + gui_roles }}"
+    app_roles: "{{ ai_roles + cli_roles + gui_roles + macos_only_roles }}"
     # Everything that runs in the Common tooling play rather than the GUI one.
     common_roles: "{{ ai_roles + cli_roles }}"
     shared_roles: "{{ app_roles | selectattr('shared', 'defined') | list }}"
+    # Every application role except the macOS-only ones, which have no
+    # debian.yml to read.
+    debian_roles: >-
+      {{ app_roles | rejectattr('name', 'in',
+         macos_only_roles | map(attribute='name') | list) | list }}
     # GUI applications and the three AI CLIs are Homebrew casks; the rest of
     # the CLI roles are formulae or include a shared sub-file.
     cask_roles: >-
-      {{ (ai_roles + gui_roles) | selectattr('darwin', 'defined')
+      {{ (ai_roles + gui_roles + macos_only_roles) | selectattr('darwin', 'defined')
          | rejectattr('shared', 'defined') | list }}
     darwin_roles: "{{ app_roles | selectattr('darwin', 'defined') | list }}"
     darwin_absent: "{{ app_roles | rejectattr('darwin', 'defined') | list }}"
@@ -446,7 +463,7 @@
       ansible.builtin.stat:
         path: "{{ roles_dir }}/{{ item.name }}/tasks/debian.yml"
       register: debian_stats
-      loop: "{{ app_roles }}"
+      loop: "{{ debian_roles }}"
       loop_control:
         label: "{{ item.name }}"
 
@@ -456,7 +473,26 @@
           - debian_stats.results | rejectattr('stat.exists') | list | length == 0
         fail_msg: >-
           Every application in this set is available on Ubuntu, so each role
-          needs tasks/debian.yml.
+          needs tasks/debian.yml. The only exceptions are macos_only_roles,
+          which are checked the other way round just below.
+
+    - name: Check the macOS-only roles have no Debian task file
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.name }}/tasks/debian.yml"
+      register: debian_absent_stats
+      loop: "{{ macos_only_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert the macOS-only roles have no Debian task file
+      ansible.builtin.assert:
+        that:
+          - debian_absent_stats.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          Karabiner-Elements is a macOS system extension with no Linux build at
+          all - there is no Flathub id, no apt package and no formula to fall
+          back on. Leaving debian.yml out is what makes the dispatcher a no-op
+          on Ubuntu; do not substitute a different keyboard remapper.
 
     # A third-party APT repository is allowed for a tool the Ubuntu archive
     # does not carry, but only added the way roles/tailscale and roles/doppler
@@ -476,7 +512,7 @@
           deb822_repository. Use deb822_repository with signed_by, the way
           roles/tailscale and roles/doppler do - and only for a tool the
           official Ubuntu archive does not carry.
-      loop: "{{ app_roles }}"
+      loop: "{{ debian_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
@@ -641,15 +677,16 @@
       vars:
         darwin_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/darwin.yml') }}"
 
-    - name: Assert only the pkg-based cask passes a sudo password
+    - name: Assert only the pkg-based casks pass a sudo password
       ansible.builtin.assert:
         that:
-          - ('sudo_password' in darwin_content) == (item.name == 'parsec')
+          - ('sudo_password' in darwin_content) == (item.pkg | default(false))
         fail_msg: >-
-          parsec is the only pkg-based cask in this set, so it is the only one
-          that needs sudo_password - Homebrew shells out to "sudo installer"
-          and an Ansible run has no terminal to prompt at. Plain .app casks
-          must not ask for the become password.
+          Only the casks marked `pkg: true` in the table above - parsec and
+          karabiner_elements - need sudo_password: their artifact is a .pkg, so
+          Homebrew shells out to "sudo installer" and an Ansible run has no
+          terminal to prompt at. Plain .app casks are drag-installed and must
+          not ask for the become password.
       loop: "{{ darwin_roles }}"
       loop_control:
         label: "{{ item.name }}"
@@ -685,8 +722,9 @@
         that:
           - windows_absent_stats.results | selectattr('stat.exists') | list | length == 0
         fail_msg: >-
-          Bottles, Flatseal, XClicker and Remmina have no winget package, and
-          Microsoft Edge is deliberately left alone on Windows: the winget
+          Bottles, Flatseal, XClicker and Remmina have no winget package,
+          Karabiner-Elements is macOS-only, and Microsoft Edge is deliberately
+          left alone on Windows: the winget
           manifest ships the Enterprise MSI while Windows 11 preinstalls the
           consumer build, so installing it fails with "the install technology
           is different from the current version installed". No windows.yml
@@ -746,7 +784,7 @@
         fail_msg: >-
           Role {{ item.name }} must sit in the "GUI applications" play, which
           targets the gui_enabled group. Gating by play targeting is what keeps
-          a `when: gui | bool` off all twenty roles.
-      loop: "{{ gui_roles }}"
+          a `when: gui | bool` off every one of them.
+      loop: "{{ gui_roles + macos_only_roles }}"
       loop_control:
         label: "{{ item.name }}"

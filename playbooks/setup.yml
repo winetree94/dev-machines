@@ -228,6 +228,8 @@
       tags: [gimp]
     - role: headlamp
       tags: [headlamp]
+    - role: karabiner_elements
+      tags: [karabiner_elements]
     - role: libreoffice
       tags: [libreoffice]
     - role: microsoft_edge
