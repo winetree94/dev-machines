@@ -1,0 +1,7 @@
+---
+- name: VS Code | Install Visual Studio Code (Homebrew cask)
+  when: "'visual-studio-code' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: visual-studio-code
+    state: present
+  become: false

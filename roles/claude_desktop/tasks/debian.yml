@@ -1,0 +1,38 @@
+---
+# Official Claude Desktop APT repository:
+# https://support.claude.com/en/articles/10065433-install-claude-desktop
+- name: Claude Desktop | Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Claude Desktop | Download the APT signing key
+  ansible.builtin.get_url:
+    url: https://downloads.claude.ai/claude-desktop/key.asc
+    dest: /usr/share/keyrings/claude-desktop-archive-keyring.asc
+    mode: "0644"
+  become: true
+
+- name: Claude Desktop | Add the official APT repository
+  ansible.builtin.deb822_repository:
+    name: claude-desktop
+    types:
+      - deb
+    uris:
+      - https://downloads.claude.ai/claude-desktop/apt/stable
+    suites:
+      - stable
+    components:
+      - main
+    signed_by: /usr/share/keyrings/claude-desktop-archive-keyring.asc
+    state: present
+  become: true
+
+- name: Claude Desktop | Install Claude Desktop
+  ansible.builtin.apt:
+    name: claude-desktop
+    state: present
+    update_cache: true
+  become: true

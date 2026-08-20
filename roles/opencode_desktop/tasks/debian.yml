@@ -1,0 +1,35 @@
+---
+# OpenCode currently publishes an official Ubuntu/Debian package only for x64
+# at this stable URL. ARM Ubuntu hosts deliberately skip the role until an
+# equivalent .deb is part of the supported download surface.
+- name: OpenCode Desktop | Install the official x64 Debian package
+  when: ansible_facts['architecture'] == 'x86_64'
+  block:
+    - name: OpenCode Desktop | Check whether the Debian package is installed
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - --showformat=${db:Status-Status}
+          - opencode
+      register: opencode_desktop_debian_status
+      changed_when: false
+      failed_when: false
+      become: false
+
+    - name: OpenCode Desktop | Install the Debian package
+      when: opencode_desktop_debian_status.stdout | trim != 'installed'
+      block:
+        - name: OpenCode Desktop | Download the latest stable Debian package
+          ansible.builtin.get_url:
+            url: https://opencode.ai/download/stable/linux-x64-deb
+            dest: /tmp/opencode-desktop-linux-amd64.deb
+            mode: "0644"
+            timeout: 600
+          become: false
+
+        - name: OpenCode Desktop | Install the downloaded Debian package
+          ansible.builtin.apt:
+            deb: /tmp/opencode-desktop-linux-amd64.deb
+            state: present
+          become: true

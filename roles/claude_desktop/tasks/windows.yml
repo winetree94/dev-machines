@@ -1,0 +1,7 @@
+---
+- name: Claude Desktop | Install Claude Desktop (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Anthropic.Claude

@@ -1,0 +1,8 @@
+---
+# The unified ChatGPT/Codex app is distributed only through Microsoft Store.
+- name: ChatGPT Desktop | Install ChatGPT with Codex (Microsoft Store)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_msstore_packages:
+      - 9PLM9XGG6VKS

@@ -1,0 +1,7 @@
+---
+- name: OpenCode Desktop | Install OpenCode Desktop (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - SST.OpenCodeDesktop

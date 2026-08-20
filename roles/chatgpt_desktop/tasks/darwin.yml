@@ -1,0 +1,8 @@
+---
+# Codex is part of the unified ChatGPT desktop app from July 2026 onward.
+- name: ChatGPT Desktop | Install ChatGPT with Codex (Homebrew cask)
+  when: "'chatgpt' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: chatgpt
+    state: present
+  become: false

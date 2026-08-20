@@ -1,0 +1,7 @@
+---
+- name: Claude Desktop | Install Claude Desktop (Homebrew cask)
+  when: "'claude' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: claude
+    state: present
+  become: false

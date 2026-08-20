@@ -1,0 +1,44 @@
+---
+# Official Visual Studio Code APT repository:
+# https://code.visualstudio.com/docs/setup/linux
+- name: VS Code | Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+# apt supports ASCII-armored keys directly, so there is no need to pipe the
+# download through gpg --dearmor.
+- name: VS Code | Download the Microsoft APT signing key
+  ansible.builtin.get_url:
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: /usr/share/keyrings/microsoft.asc
+    mode: "0644"
+  become: true
+
+- name: VS Code | Add the Microsoft APT repository
+  ansible.builtin.deb822_repository:
+    name: vscode
+    types:
+      - deb
+    uris:
+      - https://packages.microsoft.com/repos/code
+    suites:
+      - stable
+    components:
+      - main
+    architectures:
+      - amd64
+      - arm64
+      - armhf
+    signed_by: /usr/share/keyrings/microsoft.asc
+    state: present
+  become: true
+
+- name: VS Code | Install Visual Studio Code
+  ansible.builtin.apt:
+    name: code
+    state: present
+    update_cache: true
+  become: true

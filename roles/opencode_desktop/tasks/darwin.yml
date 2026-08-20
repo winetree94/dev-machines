@@ -1,0 +1,7 @@
+---
+- name: OpenCode Desktop | Install OpenCode Desktop (Homebrew cask)
+  when: "'opencode-desktop' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: opencode-desktop
+    state: present
+  become: false
