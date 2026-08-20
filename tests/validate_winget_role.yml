@@ -6,6 +6,7 @@
     repo_root: "{{ playbook_dir }}/.."
     winget_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/main.yml"
     winget_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot.yml"
+    winget_msstore_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot_msstore.yml"
     winget_defaults_path: "{{ playbook_dir }}/../roles/winget/defaults/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     requirements_path: "{{ playbook_dir }}/../requirements.yml"
@@ -21,6 +22,7 @@
       loop:
         - "{{ winget_tasks_path }}"
         - "{{ winget_snapshot_path }}"
+        - "{{ winget_msstore_snapshot_path }}"
         - "{{ winget_defaults_path }}"
 
     - name: Assert the winget role files exist
@@ -34,6 +36,8 @@
       ansible.builtin.set_fact:
         winget_tasks: "{{ lookup('ansible.builtin.file', winget_tasks_path) }}"
         winget_defaults: "{{ lookup('ansible.builtin.file', winget_defaults_path) }}"
+        winget_msstore_snapshot: >-
+          {{ lookup('ansible.builtin.file', winget_msstore_snapshot_path) }}
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
         requirements_content: "{{ lookup('ansible.builtin.file', requirements_path) }}"
 
@@ -78,6 +82,19 @@
           snapshot must be guarded by "winget_installed_ids is not defined" so it runs
           once per host rather than once per including role.
 
+    - name: Assert Microsoft Store state is snapshotted only when requested
+      ansible.builtin.assert:
+        that:
+          - "'winget export' in winget_msstore_snapshot"
+          - "'--source msstore' in winget_msstore_snapshot"
+          - "'winget_msstore_installed_ids' in winget_msstore_snapshot"
+          - "'winget_msstore_packages | length > 0' in winget_tasks"
+          - "'winget_msstore_installed_ids is not defined' in winget_tasks"
+          - "'snapshot_msstore.yml' in winget_tasks"
+        fail_msg: >-
+          Microsoft Store installed state must be exported once per host, and
+          only when a caller requested at least one Store package.
+
     - name: Assert the per-package probe survives as the fallback
       ansible.builtin.assert:
         that:
@@ -90,17 +107,18 @@
           than be assumed absent. The install loop needs default([]) because the probe
           task is skipped outright when the snapshot covered every package.
 
-    - name: Assert the winget role pins the community source
+    - name: Assert every winget operation pins its package source
       ansible.builtin.assert:
         that:
           - winget_tasks | regex_findall('--source winget') | length >= 2
+          - winget_tasks | regex_findall('--source msstore') | length >= 2
           - "'--disable-interactivity' in winget_tasks"
           - "'--accept-source-agreements' in winget_tasks"
           - "'--accept-package-agreements' in winget_tasks"
         fail_msg: >-
-          Every winget call must pin --source winget and run non-interactively. The
-          msstore source needs separate agreement handling and returns IDs that cannot
-          be automated.
+          Every winget lookup and install must explicitly pin either the
+          community winget source or Microsoft Store. Installs must remain
+          non-interactive and accept the required source/package agreements.
 
     - name: Assert winget presence is asserted in the Windows bootstrap play
       ansible.builtin.assert:
@@ -108,6 +126,7 @@
           - "'winget --version' in winget_tasks"
           - "'ansible.builtin.assert' in winget_tasks"
           - "'winget_packages: []' in winget_defaults"
+          - "'winget_msstore_packages: []' in winget_defaults"
           - "'- role: winget' in setup_playbook_content"
           - >-
             setup_playbook_content is search("Windows bootstrap[\s\S]*- role: winget[\s\S]*Common tooling")
@@ -115,7 +134,7 @@
           The winget role must assert winget is present, and the "Windows bootstrap"
           play must include it with no packages so a host without winget fails once with
           a clear message instead of failing in every package role in turn. That needs
-          winget_packages to default to an empty list.
+          both package inputs to default to empty lists.
 
     - name: Assert the winget availability check runs once per host
       ansible.builtin.assert:

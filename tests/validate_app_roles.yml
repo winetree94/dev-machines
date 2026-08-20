@@ -32,8 +32,27 @@
         shared: brew.yml
         shared_contains: anomalyco/tap/opencode
 
-    # GUI application roles: Flathub id, Homebrew cask token, winget id.
+    # GUI application roles: Ubuntu package marker, Homebrew cask token,
+    # winget id. Ubuntu uses Flathub unless `debian_channel` says otherwise.
     gui_roles:
+      - name: claude_desktop
+        cli_tag: claude_code
+        debian: "name: claude-desktop"
+        debian_channel: apt_repository
+        debian_repository: https://downloads.claude.ai/claude-desktop/apt/stable
+        darwin: claude
+        windows: Anthropic.Claude
+      - name: chatgpt_desktop
+        cli_tag: codex
+        darwin: chatgpt
+        windows: 9PLM9XGG6VKS
+        windows_source: msstore
+      - name: opencode_desktop
+        cli_tag: opencode
+        debian: https://opencode.ai/download/stable/linux-x64-deb
+        debian_channel: direct_deb
+        darwin: opencode-desktop
+        windows: SST.OpenCodeDesktop
       - name: bitwarden_desktop
         debian: com.bitwarden.desktop
         darwin: bitwarden
@@ -104,6 +123,12 @@
         debian: org.videolan.VLC
         darwin: vlc
         windows: VideoLAN.VLC
+      - name: vscode
+        debian: "name: code"
+        debian_channel: apt_repository
+        debian_repository: https://packages.microsoft.com/repos/code
+        darwin: visual-studio-code
+        windows: Microsoft.VisualStudioCode
       - name: xclicker
         debian: xyz.xclicker.xclicker
 
@@ -183,6 +208,12 @@
         debian: biome
         darwin: biome
         windows: BiomeJS.Biome
+      # Android's sdkmanager and terminal Gradle builds use this JDK. It is a
+      # separate role so Java remains independently taggable and reusable.
+      - name: java
+        debian: openjdk-21-jdk
+        darwin: openjdk@21
+        windows: EclipseAdoptium.Temurin.21.JDK
       # split out of neovim
       - name: neovim
         debian: brew.yml
@@ -272,20 +303,31 @@
     # Everything that runs in the Common tooling play rather than the GUI one.
     common_roles: "{{ ai_roles + cli_roles }}"
     shared_roles: "{{ app_roles | selectattr('shared', 'defined') | list }}"
-    # Every application role except the macOS-only ones, which have no
-    # debian.yml to read.
-    debian_roles: >-
-      {{ app_roles | rejectattr('name', 'in',
-         macos_only_roles | map(attribute='name') | list) | list }}
+    debian_roles: "{{ app_roles | selectattr('debian', 'defined') | list }}"
+    debian_absent: "{{ app_roles | rejectattr('debian', 'defined') | list }}"
     # GUI applications and the three AI CLIs are Homebrew casks; the rest of
     # the CLI roles are formulae or include a shared sub-file.
     cask_roles: >-
       {{ (ai_roles + gui_roles + macos_only_roles) | selectattr('darwin', 'defined')
          | rejectattr('shared', 'defined') | list }}
+    flatpak_gui_roles: >-
+      {{ gui_roles | selectattr('debian', 'defined')
+         | rejectattr('debian_channel', 'defined') | list }}
+    apt_repository_gui_roles: >-
+      {{ gui_roles | selectattr('debian_channel', 'defined')
+         | selectattr('debian_channel', 'equalto', 'apt_repository') | list }}
+    direct_deb_gui_roles: >-
+      {{ gui_roles | selectattr('debian_channel', 'defined')
+         | selectattr('debian_channel', 'equalto', 'direct_deb') | list }}
     darwin_roles: "{{ app_roles | selectattr('darwin', 'defined') | list }}"
     darwin_absent: "{{ app_roles | rejectattr('darwin', 'defined') | list }}"
     windows_roles: "{{ app_roles | selectattr('windows', 'defined') | list }}"
     windows_absent: "{{ app_roles | rejectattr('windows', 'defined') | list }}"
+    winget_windows_roles: >-
+      {{ windows_roles | rejectattr('windows_source', 'defined') | list }}
+    msstore_windows_roles: >-
+      {{ windows_roles | selectattr('windows_source', 'defined')
+         | selectattr('windows_source', 'equalto', 'msstore') | list }}
 
   tasks:
     - name: Read the setup playbook
@@ -476,23 +518,22 @@
           needs tasks/debian.yml. The only exceptions are macos_only_roles,
           which are checked the other way round just below.
 
-    - name: Check the macOS-only roles have no Debian task file
+    - name: Check the curated-out roles have no Debian task file
       ansible.builtin.stat:
         path: "{{ roles_dir }}/{{ item.name }}/tasks/debian.yml"
       register: debian_absent_stats
-      loop: "{{ macos_only_roles }}"
+      loop: "{{ debian_absent }}"
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Assert the macOS-only roles have no Debian task file
+    - name: Assert the curated-out roles have no Debian task file
       ansible.builtin.assert:
         that:
           - debian_absent_stats.results | selectattr('stat.exists') | list | length == 0
         fail_msg: >-
-          Karabiner-Elements is a macOS system extension with no Linux build at
-          all - there is no Flathub id, no apt package and no formula to fall
-          back on. Leaving debian.yml out is what makes the dispatcher a no-op
-          on Ubuntu; do not substitute a different keyboard remapper.
+          These applications have no supported Ubuntu package. Leaving
+          debian.yml out is what makes the dispatcher a no-op there; do not
+          substitute a different application.
 
     # A third-party APT repository is allowed for a tool the Ubuntu archive
     # does not carry, but only added the way roles/tailscale and roles/doppler
@@ -528,7 +569,46 @@
           roles/{{ item.name }}/tasks/debian.yml must install {{ item.debian }}
           with community.general.flatpak. None of these applications has a
           Homebrew formula that works on Linux, so Flathub is the only route.
-      loop: "{{ gui_roles }}"
+      loop: "{{ flatpak_gui_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert each upstream APT GUI role uses a signed vendor repository
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in debian_content"
+          - "'ansible.builtin.deb822_repository' in debian_content"
+          - "'signed_by:' in debian_content"
+          - item.debian_repository in debian_content
+          - "'ansible.builtin.apt' in debian_content"
+          - item.debian in debian_content
+          - "'become: true' in debian_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must add the signed official
+          vendor repository with get_url and deb822_repository, then install
+          the package with apt.
+      loop: "{{ apt_repository_gui_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert each direct Debian GUI role uses the official package
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in debian_content"
+          - "'ansible.builtin.apt' in debian_content"
+          - "'deb:' in debian_content"
+          - item.debian in debian_content
+          - "\"ansible_facts['architecture'] == 'x86_64'\" in debian_content"
+          - "'become: true' in debian_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must download the official x64
+          Debian package separately and install it with apt, while skipping
+          unsupported Ubuntu architectures.
+      loop: "{{ direct_deb_gui_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
@@ -730,7 +810,7 @@
           is different from the current version installed". No windows.yml
           means the dispatcher is a no-op there, which is the intent.
 
-    - name: Assert each Windows task file installs through the shared winget role
+    - name: Assert each community-source Windows task uses the shared winget role
       ansible.builtin.assert:
         that:
           - "'name: winget' in windows_content"
@@ -742,7 +822,24 @@
           roles/{{ item.name }}/tasks/windows.yml must include the shared
           winget role with {{ item.windows }}. Never call a package manager
           module directly from a windows.yml.
-      loop: "{{ windows_roles }}"
+      loop: "{{ winget_windows_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        windows_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/windows.yml') }}"
+
+    - name: Assert each Microsoft Store task uses the shared winget role
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in windows_content"
+          - "'winget_msstore_packages' in windows_content"
+          - "'- ' ~ item.windows in windows_content"
+          - "'win_chocolatey' not in windows_content"
+          - "'win_scoop' not in windows_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/windows.yml must include the shared
+          winget role with Microsoft Store ID {{ item.windows }}.
+      loop: "{{ msstore_windows_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
@@ -786,5 +883,18 @@
           targets the gui_enabled group. Gating by play targeting is what keeps
           a `when: gui | bool` off every one of them.
       loop: "{{ gui_roles + macos_only_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert each AI desktop role inherits its CLI tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("- role: " ~ item.name
+            ~ "[\\s\\S]{0,80}tags: \\[" ~ item.name ~ ", " ~ item.cli_tag ~ "\\]")
+        fail_msg: >-
+          Role {{ item.name }} must carry both its own tag and {{ item.cli_tag }}
+          so a targeted CLI run installs the corresponding desktop app too.
+      loop: "{{ gui_roles | selectattr('cli_tag', 'defined') | list }}"
       loop_control:
         label: "{{ item.name }}"
