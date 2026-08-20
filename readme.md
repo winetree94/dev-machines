@@ -90,7 +90,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `GUI applications` 플레이(데스크톱 앱 21개)와 Linux 의 tailscale systray
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 25개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
 
@@ -320,8 +320,9 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 설치했든 알아본다. 멱등성은 종료 코드 하나로 끝난다 — `winget list --id <id>
 --exact` 가 설치돼 있으면 `0`, 없으면 `-1978335212`(`0x8A150014`).
 
-- `--source winget` 을 항상 고정한다. msstore 소스는 별도 약관 동의가 필요하고
-  자동화에 쓸 수 없는 ID 를 돌려준다.
+- 커뮤니티 패키지는 `winget_packages` / `--source winget`, Microsoft Store 제품은
+  `winget_msstore_packages` / `--source msstore` 로 분리한다. Store 호출은 source 와
+  package 약관을 명시적으로 수락하며, 어느 경우에도 소스 자동 선택에 맡기지 않는다.
 - winget 은 Windows 10 1809+ / 11 에 기본 탑재라 설치할 게 없다. 존재 여부
   assert 는 `winget` 롤 자체에 들어 있고, `Windows bootstrap` 플레이는 패키지
   없이 (`winget_packages` 기본값이 `[]`) 이 롤을 포함해 assert 만 돌린다. 없는
@@ -336,6 +337,25 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 `roles/python/tasks/windows.yml` 이 `Python.Python.3.14` 로 고정돼 있다. 마이너
 릴리스마다 손으로 올려야 한다. Chocolatey 의 `python3` 메타패키지는 자동
 추종했으므로 이 한 가지는 후퇴다.
+
+## Android CLI 개발 환경
+
+`android` 롤은 Android Studio나 에뮬레이터 없이 세 OS에 동일한 CLI 빌드 환경을
+구성한다. `java` 롤이 먼저 JDK 21을 설치하고, Android Command-line Tools 빌드
+`15859902`와 `platform-tools`, API 36 platform, Build Tools 35.0.0 및 36.0.0을
+사용자별 SDK 디렉터리에 side-by-side로 설치한다.
+호스트별 구성은 `android_sdk_platform_versions`,
+`android_sdk_build_tools_versions`, `android_sdk_additional_packages` 목록으로
+조정한다. 전체 sdkmanager 패키지 목록을 직접 지정하는 기존
+`android_sdk_packages` 오버라이드도 유지한다.
+
+Android SDK는 사용자 홈에 속하므로 롤은 `ANDROID_HOME`, PATH, 사용자 셸 파일이나
+CLI 링크를 등록하지 않는다. 셸 통합의 책임은 SDK를 소유한 사용자에게 있다. Java는
+예외다. JDK가 apt/Homebrew/winget의 시스템 경로에 설치되므로 `java` 롤이
+`JAVA_HOME`과 Java CLI 노출까지 관리한다.
+
+SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 21이므로 오래된 프로젝트는
+프로젝트의 Gradle Wrapper가 Java 21 실행을 지원하는지 별도로 확인해야 한다.
 
 ## AI CLI 도구
 
@@ -368,12 +388,26 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 
 ## GUI 앱
 
-데스크톱 앱 21개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 25개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
-Ubuntu 는 전부 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을 쓴다.
-24개 이름을 전부 조회해 본 결과 **Linux 에서 도는 Homebrew formula 가 있는 것은
-`opencode` 뿐**이라, GUI 앱은 Flathub 가 유일한 선택지다.
+Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
+쓴다. VS Code 와 Claude Desktop 은 Ubuntu 에서 각각 Microsoft/Anthropic 공식 signed
+APT 저장소를 쓰고, OpenCode Desktop 은 공식 stable x64 `.deb` 를 쓴다. OpenCode가
+Ubuntu ARM용 `.deb`를 공식 다운로드 표면에 제공하기 전까지 ARM 호스트에서는 건너뛴다.
+
+AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자체 태그와 CLI 태그가
+함께 붙어 있어 `--tags claude_code`, `--tags codex`, `--tags opencode` 실행도 GUI가
+활성화된 호스트에서는 데스크톱 앱을 같이 설치한다.
+
+| GUI 롤 | Ubuntu | macOS | Windows |
+| --- | --- | --- | --- |
+| `claude_desktop` | 공식 APT `claude-desktop` | cask `claude` | `Anthropic.Claude` |
+| `chatgpt_desktop` | 미지원 | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
+| `opencode_desktop` | 공식 x64 `.deb` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
+
+Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
+폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다.
 
 `bottles`, `flatseal`, `xclicker`, `remmina` 네 개는 macOS/Windows 패키지가 아예 없는
 Linux 전용 프로젝트다. `debian.yml` 만 두고 나머지는 만들지 않는다 - 비슷한 다른 앱으로
