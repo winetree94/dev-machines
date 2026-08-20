@@ -172,6 +172,10 @@
       tags: [deno]
     - role: biome
       tags: [biome]
+    - role: java
+      # Android's sdkmanager is a Java program. Keep the java tag for direct
+      # runs, and inherit android so `--tags android` remains self-contained.
+      tags: [java, android]
     # build tools
     - role: cmake
       tags: [cmake]
@@ -216,6 +220,14 @@
   # Empty when no host has gui enabled, in which case the play is skipped.
   hosts: gui_enabled
   roles:
+    # AI desktop apps inherit their CLI tag so a targeted CLI run installs the
+    # matching GUI on GUI-enabled hosts as well.
+    - role: claude_desktop
+      tags: [claude_desktop, claude_code]
+    - role: chatgpt_desktop
+      tags: [chatgpt_desktop, codex]
+    - role: opencode_desktop
+      tags: [opencode_desktop, opencode]
     - role: bitwarden_desktop
       tags: [bitwarden_desktop]
     - role: bottles
@@ -256,5 +268,7 @@
       tags: [thunderbird]
     - role: vlc
       tags: [vlc]
+    - role: vscode
+      tags: [vscode]
     - role: xclicker
       tags: [xclicker]
