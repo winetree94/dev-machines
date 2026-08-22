@@ -1,0 +1,7 @@
+---
+- name: Dotweave | Install dotweave (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - tinyrack.dotweave

@@ -1,0 +1,43 @@
+---
+# Google Chrome's official Linux package is currently published for x86_64.
+- name: Chrome | Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+  when: ansible_facts['architecture'] == 'x86_64'
+
+- name: Chrome | Download the Google signing key
+  ansible.builtin.get_url:
+    url: https://dl.google.com/linux/linux_signing_key.pub
+    dest: /usr/share/keyrings/google-chrome-archive-keyring.asc
+    mode: "0644"
+  become: true
+  when: ansible_facts['architecture'] == 'x86_64'
+
+- name: Chrome | Add the official Google APT repository
+  ansible.builtin.deb822_repository:
+    name: google-chrome
+    types:
+      - deb
+    uris:
+      - https://dl.google.com/linux/chrome/deb
+    suites:
+      - stable
+    components:
+      - main
+    architectures:
+      - amd64
+    signed_by: /usr/share/keyrings/google-chrome-archive-keyring.asc
+    state: present
+  become: true
+  when: ansible_facts['architecture'] == 'x86_64'
+
+- name: Chrome | Install Google Chrome
+  ansible.builtin.apt:
+    name: google-chrome-stable
+    state: present
+    update_cache: true
+  become: true
+  when: ansible_facts['architecture'] == 'x86_64'

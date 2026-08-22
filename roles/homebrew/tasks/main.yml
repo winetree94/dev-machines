@@ -1,10 +1,64 @@
 ---
-- name: Install required dependencies
+- name: Homebrew | Install required dependencies
   become: true
   ansible.builtin.apt:
     name: "{{ item }}"
     state: present
   with_items:
     - curl
+    - file
     - git
     - build-essential
+    - procps
+
+- name: Homebrew | Check whether brew is already installed
+  ansible.builtin.stat:
+    path: /home/linuxbrew/.linuxbrew/bin/brew
+  register: homebrew_binary
+  become: false
+
+- name: Homebrew | Prepare the Linux default prefix
+  ansible.builtin.file:
+    path: /home/linuxbrew/.linuxbrew
+    state: directory
+    owner: "{{ ansible_facts['user_id'] }}"
+    group: "{{ ansible_facts['user_id'] }}"
+    mode: '0755'
+  when: not homebrew_binary.stat.exists
+  become: true
+
+- name: Homebrew | Create the installer cache directory
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/.cache"
+    state: directory
+    mode: '0700'
+  when: not homebrew_binary.stat.exists
+  become: false
+
+- name: Homebrew | Bootstrap Homebrew
+  when: not homebrew_binary.stat.exists
+  become: false
+  block:
+    - name: Homebrew | Download the official installer
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
+        dest: "{{ ansible_facts['env']['HOME'] }}/.cache/homebrew-install.sh"
+        mode: '0700'
+
+    - name: Homebrew | Install Homebrew in the Linux default prefix
+      ansible.builtin.command:
+        cmd: /bin/bash "{{ ansible_facts['env']['HOME'] }}/.cache/homebrew-install.sh"
+        creates: /home/linuxbrew/.linuxbrew/bin/brew
+      environment:
+        NONINTERACTIVE: '1'
+  always:
+    - name: Homebrew | Remove the installer
+      ansible.builtin.file:
+        path: "{{ ansible_facts['env']['HOME'] }}/.cache/homebrew-install.sh"
+        state: absent
+
+- name: Homebrew | Verify brew is available
+  ansible.builtin.command: /home/linuxbrew/.linuxbrew/bin/brew --version
+  changed_when: false
+  when: homebrew_binary.stat.exists or not ansible_check_mode
+  become: false

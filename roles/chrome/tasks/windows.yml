@@ -1,0 +1,8 @@
+---
+- name: Chrome | Install Google Chrome (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Google.Chrome
+    winget_msstore_packages: []

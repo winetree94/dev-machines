@@ -15,6 +15,21 @@
     mode: "0644"
   become: true
 
+- name: Claude Desktop | Disable the package-managed APT repository
+  ansible.builtin.lineinfile:
+    path: /etc/default/claude-desktop
+    regexp: '^CLAUDE_DESKTOP_ADD_REPO='
+    line: 'CLAUDE_DESKTOP_ADD_REPO="false"'
+    create: true
+    mode: "0644"
+  become: true
+
+- name: Claude Desktop | Remove the package-managed duplicate repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/claude-desktop.list
+    state: absent
+  become: true
+
 - name: Claude Desktop | Add the official APT repository
   ansible.builtin.deb822_repository:
     name: claude-desktop

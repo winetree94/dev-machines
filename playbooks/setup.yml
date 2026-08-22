@@ -49,6 +49,10 @@
 
 - name: Ubuntu bootstrap
   hosts: ubuntu
+  environment: &homebrew_path
+    PATH: >-
+      /opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:{{
+      ansible_facts['env']['PATH'] }}
   pre_tasks:
     - name: Check for GUI session directories
       ansible.builtin.stat:
@@ -95,6 +99,7 @@
 
 - name: MacOS bootstrap
   hosts: macos
+  environment: *homebrew_path
   roles:
     # The Command Line Tools are the prerequisite for Homebrew and for every
     # role that compiles anything, so they have to land before Common tooling.
@@ -133,6 +138,7 @@
 
 - name: Common tooling
   hosts: all
+  environment: *homebrew_path
   roles:
     # One role per piece of software, grouped by comment rather than by play:
     # extra plays cost a fact-gathering and connection round trip each, and the
@@ -183,6 +189,8 @@
       tags: [lazygit]
     - role: graphite
       tags: [graphite]
+    - role: dotweave
+      tags: [dotweave]
     # languages and runtimes
     - role: mise
       tags: [mise]
@@ -245,6 +253,7 @@
 - name: GUI applications
   # Empty when no host has gui enabled, in which case the play is skipped.
   hosts: gui_enabled
+  environment: *homebrew_path
   roles:
     # AI desktop apps inherit their CLI tag so a targeted CLI run installs the
     # matching GUI on GUI-enabled hosts as well.
@@ -258,6 +267,8 @@
       tags: [bitwarden_desktop]
     - role: bottles
       tags: [bottles]
+    - role: chrome
+      tags: [chrome]
     - role: discord
       tags: [discord]
     - role: flatseal

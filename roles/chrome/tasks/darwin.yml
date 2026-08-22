@@ -1,0 +1,7 @@
+---
+- name: Chrome | Install Google Chrome (Homebrew cask)
+  when: "'google-chrome' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: google-chrome
+    state: present
+  become: false

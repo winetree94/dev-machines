@@ -9,6 +9,7 @@
   vars:
     repo_root: "{{ playbook_dir }}/.."
     brew_snapshot_path: "{{ playbook_dir }}/../roles/brew/tasks/main.yml"
+    homebrew_tasks_path: "{{ playbook_dir }}/../roles/homebrew/tasks/main.yml"
     flatpak_tasks_path: "{{ playbook_dir }}/../roles/flatpak/tasks/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
 
@@ -19,14 +20,27 @@
       register: snapshot_raw
       loop:
         - "{{ brew_snapshot_path }}"
+        - "{{ homebrew_tasks_path }}"
         - "{{ flatpak_tasks_path }}"
         - "{{ setup_playbook_path }}"
 
     - name: Decode the snapshot task files
       ansible.builtin.set_fact:
         brew_snapshot: "{{ snapshot_raw.results[0].content | b64decode }}"
-        flatpak_tasks: "{{ snapshot_raw.results[1].content | b64decode }}"
-        setup_playbook: "{{ snapshot_raw.results[2].content | b64decode }}"
+        homebrew_tasks: "{{ snapshot_raw.results[1].content | b64decode }}"
+        flatpak_tasks: "{{ snapshot_raw.results[2].content | b64decode }}"
+        setup_playbook: "{{ snapshot_raw.results[3].content | b64decode }}"
+
+    - name: Assert Ubuntu bootstraps Homebrew
+      ansible.builtin.assert:
+        that:
+          - "'/home/linuxbrew/.linuxbrew/bin/brew' in homebrew_tasks"
+          - "'NONINTERACTIVE' in homebrew_tasks"
+          - "'get_url' in homebrew_tasks"
+          - "'become: false' in homebrew_tasks"
+        fail_msg: >-
+          The Ubuntu homebrew role must install the official Linux Homebrew prefix
+          non-interactively as the target user.
 
     - name: Assert the brew snapshot publishes both facts and never installs
       ansible.builtin.assert:

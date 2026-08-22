@@ -1,6 +1,6 @@
 ---
 # One test for every per-application role, driven by the table below instead of
-# 24 near-identical playbooks. A missing OS key means the role must NOT carry a
+# one near-identical playbook per application. A missing OS key means the role must NOT carry a
 # task file for that OS - that absence is the curation, so it is asserted just
 # as strictly as the presence of the others.
 - name: Validate per-application roles
@@ -47,6 +47,12 @@
         darwin: chatgpt
         windows: 9PLM9XGG6VKS
         windows_source: msstore
+      - name: chrome
+        debian: "name: google-chrome-stable"
+        debian_channel: apt_repository
+        debian_repository: https://dl.google.com/linux/chrome/deb
+        darwin: google-chrome
+        windows: Google.Chrome
       - name: opencode_desktop
         cli_tag: opencode
         debian: https://opencode.ai/download/stable/linux-x64-deb
@@ -277,6 +283,12 @@
         darwin: brew.yml
         shared: brew.yml
         shared_contains: withgraphite/tap/graphite
+      - name: dotweave
+        debian: brew.yml
+        darwin: brew.yml
+        windows: tinyrack.dotweave
+        shared: brew.yml
+        shared_contains: tinyrack-net/tap/dotweave
       - name: rust
         debian: rustup.yml
         darwin: rustup.yml
@@ -594,6 +606,19 @@
         label: "{{ item.name }}"
       vars:
         debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert Claude Desktop disables its duplicate package repository
+      ansible.builtin.assert:
+        that:
+          - "'CLAUDE_DESKTOP_ADD_REPO=\\\"false\\\"' in claude_desktop_content"
+          - "'claude-desktop.list' in claude_desktop_content"
+          - "'deb822_repository' in claude_desktop_content"
+        fail_msg: >-
+          roles/claude_desktop/tasks/debian.yml must disable the repository
+          added by the Claude Desktop package and keep only its Ansible-managed
+          deb822 repository.
+      vars:
+        claude_desktop_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/claude_desktop/tasks/debian.yml') }}"
 
     - name: Assert each direct Debian GUI role uses the official package
       ansible.builtin.assert:

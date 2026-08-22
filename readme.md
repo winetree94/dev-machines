@@ -91,7 +91,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `GUI applications` 플레이(데스크톱 앱 25개)와 Linux 의 tailscale systray
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 26개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
 
@@ -127,7 +127,8 @@ ansible 로 최대한 자동화했지만 머신별 초기 설정은 사람이 �
   `xcode` 롤이 같은 방식으로 Xcode.app 을 설치하는데, 로그인이 안 되어
   있거나 구매 이력에 앱이 없으면 설치가 실패한다. 두 경우 모두 플레이는 죽지
   않고 안내 메시지만 남기고 넘어간다.
-- Homebrew 는 미리 설치되어 있어야 한다. Command Line Tools 는 `xcode`
+- Homebrew 는 Ubuntu bootstrap 단계에서 Linux 공식 기본 경로에 자동 설치된다.
+  macOS 는 Homebrew 가 미리 설치되어 있어야 한다. Command Line Tools 는 `xcode`
   롤이 알아서 설치하므로 수동 작업이 아니다.
 
 **Windows** (관리자 PowerShell)
@@ -153,7 +154,7 @@ icacls $k /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
 
 # Supported Targets
 
-- Ubuntu 24.04+
+- Ubuntu 24.04+ (Homebrew is bootstrapped automatically on Ubuntu)
 - macOS (Homebrew must be installed beforehand; the Xcode Command Line Tools are handled by `xcode`)
 - Windows 10/11 (via winget, over OpenSSH)
 
@@ -419,14 +420,23 @@ SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 2
 어긋난다(`--no-auto-update` 또는 `CI=1` 로 끈다). Claude Code 는 스크립트/npm 설치본만
 자동 업데이트한다(`DISABLE_AUTOUPDATER=1`). 이 롤들은 해당 환경변수를 강제하지 않는다.
 
+## dotweave
+
+`dotweave`는 Ubuntu와 macOS에서 `tinyrack-net/tap/dotweave` Homebrew formula로,
+Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 macOS에서는
+서드파티 tap을 Homebrew 6 정책에 맞게 trusted tap으로 등록하며, Ubuntu에서는
+`brew_installed_formulae` snapshot을 사용해 설치 여부를 판단한다.
+
 ## GUI 앱
 
-데스크톱 앱 25개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 26개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
 쓴다. VS Code 와 Claude Desktop 은 Ubuntu 에서 각각 Microsoft/Anthropic 공식 signed
-APT 저장소를 쓰고, OpenCode Desktop 은 공식 stable x64 `.deb` 를 쓴다. OpenCode가
+APT 저장소를 쓴다. Claude Desktop 패키지가 자동으로 추가하는 중복 저장소는 끄고
+Ansible이 관리하는 `.sources` 하나만 유지한다. Chrome도 Google 공식 signed APT
+저장소를 사용하며, Ubuntu ARM에서는 공식 패키지가 없어 건너뛴다. OpenCode Desktop 은 공식 stable x64 `.deb` 를 쓴다. OpenCode가
 Ubuntu ARM용 `.deb`를 공식 다운로드 표면에 제공하기 전까지 ARM 호스트에서는 건너뛴다.
 
 AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자체 태그와 CLI 태그가
@@ -437,6 +447,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | --- | --- | --- | --- |
 | `claude_desktop` | 공식 APT `claude-desktop` | cask `claude` | `Anthropic.Claude` |
 | `chatgpt_desktop` | 미지원 | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
+| `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
 | `opencode_desktop` | 공식 x64 `.deb` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은

@@ -1,0 +1,14 @@
+---
+- name: Dotweave | Tap the Tinyrack Homebrew repository
+  community.general.homebrew_tap:
+    name: tinyrack-net/tap
+    state: present
+    trust: true
+  become: false
+
+- name: Dotweave | Install dotweave from Homebrew
+  when: "'tinyrack-net/tap/dotweave' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: tinyrack-net/tap/dotweave
+    state: present
+  become: false
