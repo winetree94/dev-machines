@@ -1,0 +1,67 @@
+---
+- name: Validate the JetBrains Toolbox role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/jetbrains_toolbox"
+    defaults: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}
+    debian_tasks: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}
+    darwin_tasks: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}
+    windows_tasks: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}
+
+  tasks:
+    - name: Assert the Linux archives are pinned for both supported architectures
+      ansible.builtin.assert:
+        that:
+          - "'jetbrains_toolbox_linux_build: \"3.7.2.87231\"' in defaults"
+          - "'jetbrains-toolbox-3.7.2.87231.tar.gz' in defaults"
+          - "'jetbrains-toolbox-3.7.2.87231-arm64.tar.gz' in defaults"
+          - "defaults | regex_findall('sha256:[0-9a-f]{64}') | length == 2"
+          - "'x86_64:' in defaults"
+          - "'aarch64:' in defaults"
+        quiet: true
+
+    - name: Assert the Ubuntu bootstrap declares every vendor dependency
+      ansible.builtin.assert:
+        that:
+          - "item in defaults"
+          - "'ansible.builtin.apt' in debian_tasks"
+          - "'become: true' in debian_tasks"
+        quiet: true
+      loop:
+        - libxi6
+        - libxrender1
+        - libxtst6
+        - mesa-utils
+        - libfontconfig1
+        - libgtk-3-bin
+        - tar
+        - dbus-user-session
+        - libxcb-keysyms1
+
+    - name: Assert Linux uses the user installation and leaves the launcher alone
+      ansible.builtin.assert:
+        that:
+          - "'.local/share/JetBrains/Toolbox' in defaults"
+          - "'.local/bin/jetbrains-toolbox' in debian_tasks"
+          - "'checksum:' in debian_tasks"
+          - "'creates:' in debian_tasks"
+          - "'.local/share/applications' not in debian_tasks"
+          - "'ansible.builtin.copy' not in debian_tasks"
+          - "'ansible.builtin.template' not in debian_tasks"
+        quiet: true
+
+    - name: Assert macOS and Windows use their native shared channels
+      ansible.builtin.assert:
+        that:
+          - "'brew_installed_casks | default([])' in darwin_tasks"
+          - "'community.general.homebrew_cask' in darwin_tasks"
+          - "'name: jetbrains-toolbox' in darwin_tasks"
+          - "'name: winget' in windows_tasks"
+          - "'winget_packages' in windows_tasks"
+          - "'JetBrains.Toolbox' in windows_tasks"
+        quiet: true

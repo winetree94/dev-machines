@@ -1,0 +1,7 @@
+---
+- name: JetBrains Toolbox | Install JetBrains Toolbox (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - JetBrains.Toolbox

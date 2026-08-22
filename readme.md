@@ -91,7 +91,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `GUI applications` 플레이(데스크톱 앱 26개)와 Linux 의 tailscale systray
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 28개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
 
@@ -438,7 +438,7 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 
 ## GUI 앱
 
-데스크톱 앱 27개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 28개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
@@ -447,6 +447,9 @@ APT 저장소를 쓴다. Claude Desktop 패키지가 자동으로 추가하는 �
 Ansible이 관리하는 `.sources` 하나만 유지한다. Chrome도 Google 공식 signed APT
 저장소를 사용하며, Ubuntu ARM에서는 공식 패키지가 없어 건너뛴다. OpenCode Desktop 은 공식 stable x64 `.deb` 를 쓴다. OpenCode가
 Ubuntu ARM용 `.deb`를 공식 다운로드 표면에 제공하기 전까지 ARM 호스트에서는 건너뛴다.
+JetBrains Toolbox는 Ubuntu에서 checksum을 고정한 공식 x86_64/ARM64 archive를
+사용하고, macOS에서는 cask, Windows에서는 winget을 사용한다. Linux desktop launcher는
+최초 실행 시 Toolbox가 직접 만들기 때문에 Ansible은 실행 링크만 관리한다.
 
 AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자체 태그와 CLI 태그가
 함께 붙어 있어 `--tags claude_code`, `--tags codex`, `--tags opencode` 실행도 GUI가
@@ -459,6 +462,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
 | `opencode_desktop` | 공식 x64 `.deb` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
 | `kitty` | Ubuntu archive `kitty` | cask `kitty` | 미지원 |
+| `jetbrains_toolbox` | 공식 checksum-pinned archive | cask `jetbrains-toolbox` | `JetBrains.Toolbox` |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
 폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다.

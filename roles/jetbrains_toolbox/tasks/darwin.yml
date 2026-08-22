@@ -1,0 +1,7 @@
+---
+- name: JetBrains Toolbox | Install JetBrains Toolbox (Homebrew cask)
+  when: "'jetbrains-toolbox' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: jetbrains-toolbox
+    state: present
+  become: false
