@@ -6,7 +6,7 @@
 - name: Neovim | Install Neovim dependencies (apt)
   become: true
   ansible.builtin.apt:
-    name: "{{ item }}"
+    name: "{{ neovim_dependency }}"
     state: present
   with_items:
     - git
@@ -14,6 +14,8 @@
     - python3-pip
     - xclip
     - wl-clipboard
+  loop_control:
+    loop_var: neovim_dependency
 
 - name: Neovim | Install Neovim from Homebrew
   ansible.builtin.include_tasks: brew.yml
