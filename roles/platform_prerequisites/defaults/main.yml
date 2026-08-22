@@ -14,7 +14,7 @@ platform_prerequisites_ubuntu_packages:
 # Compatibility alias for existing host_vars overrides. New configuration
 # should prefer platform_prerequisites_ubuntu_packages; an explicitly defined
 # desktop_libs_packages still wins because inventory variables outrank defaults.
-desktop_libs_packages: "{{ platform_prerequisites_ubuntu_packages }}"
+desktop_libs_packages: "{{ platform_prerequisites_ubuntu_packages }}" # noqa var-naming[no-role-prefix]
 
 # Ubuntu desktop integration packages that have no purpose on headless or WSL
 # guests. The Ubuntu bootstrap finalises `gui` before this role runs.
