@@ -1,0 +1,8 @@
+---
+# Ubuntu ships Clang in its own archive, so follow the native-package priority
+# rather than adding LLVM's upstream repository or installing the brew formula.
+- name: Clang | Install Clang (apt)
+  become: true
+  ansible.builtin.apt:
+    name: clang
+    state: present

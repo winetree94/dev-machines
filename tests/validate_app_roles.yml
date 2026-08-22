@@ -83,6 +83,11 @@
         debian: "name: kitty"
         debian_channel: apt
         darwin: kitty
+      - name: jetbrains_toolbox
+        debian: https://download.jetbrains.com/toolbox/
+        debian_channel: direct_archive
+        darwin: jetbrains-toolbox
+        windows: JetBrains.Toolbox
       - name: libreoffice
         debian: org.libreoffice.LibreOffice
         darwin: libreoffice
@@ -299,13 +304,16 @@
         windows: Rustlang.Rustup
         shared: rustup.yml
         shared_contains: https://sh.rustup.rs
-      # build tools. Both take apt on Ubuntu rather than the Homebrew
-      # formula - see roles/cmake/tasks/debian.yml for why - so the Ubuntu
-      # marker is the apt package name, and it is ninja-build there. On
-      # Windows the standalone packages are the only ones a plain PowerShell
-      # session sees: Visual Studio's C++ workload bundles both, but only
-      # inside a Developer Command Prompt, and this repository does not
-      # manage Visual Studio.
+      # build tools. All three take apt on Ubuntu rather than Homebrew, so the
+      # Ubuntu marker is the apt package name. macOS gets Apple Clang from the
+      # Xcode bootstrap and therefore deliberately has no clang darwin.yml.
+      # On Windows the standalone packages are the only ones a plain
+      # PowerShell session sees: Visual Studio's C++ workload bundles them,
+      # but only inside a Developer Command Prompt, and this repository does
+      # not manage Visual Studio.
+      - name: clang
+        debian: "name: clang"
+        windows: LLVM.LLVM
       - name: cmake
         debian: "name: cmake"
         darwin: cmake
@@ -335,6 +343,9 @@
     direct_deb_gui_roles: >-
       {{ gui_roles | selectattr('debian_channel', 'defined')
          | selectattr('debian_channel', 'equalto', 'direct_deb') | list }}
+    direct_archive_gui_roles: >-
+      {{ gui_roles | selectattr('debian_channel', 'defined')
+         | selectattr('debian_channel', 'equalto', 'direct_archive') | list }}
     apt_gui_roles: >-
       {{ gui_roles | selectattr('debian_channel', 'defined')
          | selectattr('debian_channel', 'equalto', 'apt') | list }}
@@ -663,6 +674,30 @@
         label: "{{ item.name }}"
       vars:
         debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert each direct archive GUI role verifies and extracts the vendor archive
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in debian_content"
+          - item.debian in defaults_content
+          - "'checksum:' in defaults_content"
+          - "'architecture' in debian_content"
+          - "'creates:' in debian_content"
+          - "'state: link' in debian_content"
+          - "'.local/share/applications' not in debian_content"
+          - "'ansible.builtin.copy' not in debian_content"
+          - "'ansible.builtin.template' not in debian_content"
+          - "'become: false' in debian_content"
+        fail_msg: >-
+          roles/{{ item.name }} must download a checksum-pinned vendor archive,
+          select it by target architecture, extract it idempotently, and leave
+          desktop launcher creation to the application itself.
+      loop: "{{ direct_archive_gui_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+        defaults_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/defaults/main.yml') }}"
 
     - name: Assert each AI role uses its documented Linux install path
       ansible.builtin.assert:

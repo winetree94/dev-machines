@@ -218,6 +218,8 @@
       # runs, and inherit android so `--tags android` remains self-contained.
       tags: [java, android]
     # build tools
+    - role: clang
+      tags: [clang]
     - role: cmake
       tags: [cmake]
     - role: ninja
@@ -288,6 +290,8 @@
       tags: [karabiner_elements]
     - role: kitty
       tags: [kitty]
+    - role: jetbrains_toolbox
+      tags: [jetbrains_toolbox]
     - role: libreoffice
       tags: [libreoffice]
     - role: microsoft_edge
