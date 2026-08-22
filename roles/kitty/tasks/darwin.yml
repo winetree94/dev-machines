@@ -1,0 +1,7 @@
+---
+- name: Kitty | Install kitty (Homebrew cask)
+  when: "'kitty' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: kitty
+    state: present
+  become: false

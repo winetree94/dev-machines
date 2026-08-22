@@ -79,6 +79,10 @@
         debian: io.kinvolk.Headlamp
         darwin: headlamp
         windows: Headlamp.Headlamp
+      - name: kitty
+        debian: "name: kitty"
+        debian_channel: apt
+        darwin: kitty
       - name: libreoffice
         debian: org.libreoffice.LibreOffice
         darwin: libreoffice
@@ -331,6 +335,9 @@
     direct_deb_gui_roles: >-
       {{ gui_roles | selectattr('debian_channel', 'defined')
          | selectattr('debian_channel', 'equalto', 'direct_deb') | list }}
+    apt_gui_roles: >-
+      {{ gui_roles | selectattr('debian_channel', 'defined')
+         | selectattr('debian_channel', 'equalto', 'apt') | list }}
     darwin_roles: "{{ app_roles | selectattr('darwin', 'defined') | list }}"
     darwin_absent: "{{ app_roles | rejectattr('darwin', 'defined') | list }}"
     windows_roles: "{{ app_roles | selectattr('windows', 'defined') | list }}"
@@ -602,6 +609,24 @@
           vendor repository with get_url and deb822_repository, then install
           the package with apt.
       loop: "{{ apt_repository_gui_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert each Ubuntu archive GUI role installs with apt
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.apt' in debian_content"
+          - item.debian in debian_content
+          - "'state: present' in debian_content"
+          - "'become: true' in debian_content"
+          - "'deb822_repository' not in debian_content"
+          - "'community.general.flatpak' not in debian_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/debian.yml must install {{ item.debian }}
+          directly from the official Ubuntu archive with apt.
+      loop: "{{ apt_gui_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:
