@@ -198,7 +198,11 @@ OS files that actually have platform-level preparation to perform.
 | `libayatana-appindicator3-dev` | 트레이 빌드용 헤더 |
 | `libsecret-1-dev` | 키링 바인딩 빌드용 헤더 |
 | `mesa-utils` | `glxinfo` / `glxgears` — GL 스택이 실제로 도는지 확인하는 수단 |
+| `nethogs` | 프로세스별 네트워크 대역폭 모니터링 |
+| `iotop-c` | 프로세스별 디스크 I/O 모니터링 |
 | `gnome-browser-connector` | 브라우저와 GNOME Shell 확장 관리 기능 연결 |
+| `gir1.2-gtop-2.0` | GNOME 앱·확장에서 libgtop 시스템 통계를 사용하는 GIR 바인딩 |
+| `gnome-tweaks` | GNOME의 고급 데스크톱 설정 도구 |
 
 기반 라이브러리는 `platform_prerequisites_ubuntu_packages`, GUI 통합 패키지는
 `platform_prerequisites_ubuntu_gui_packages`에서 관리한다. 전자는 headless/WSL에도
