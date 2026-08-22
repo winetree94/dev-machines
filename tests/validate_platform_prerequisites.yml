@@ -1,0 +1,63 @@
+---
+- name: Validate the platform prerequisites role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/platform_prerequisites"
+    setup_playbook: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}
+    dispatcher: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}
+    debian_tasks: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}
+    defaults: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}
+
+  tasks:
+    - name: Check the retired desktop_libs role and unsupported OS files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ playbook_dir }}/../roles/desktop_libs"
+        - "{{ role_dir }}/tasks/default.yml"
+        - "{{ role_dir }}/tasks/darwin.yml"
+        - "{{ role_dir }}/tasks/windows.yml"
+      register: absent_paths
+
+    - name: Assert the role dispatches by OS without empty stubs
+      ansible.builtin.assert:
+        that:
+          - absent_paths.results | selectattr('stat.exists') | list | length == 0
+          - "'with_first_found' in dispatcher"
+          - '"ansible_facts[''os_family''] | lower" in dispatcher'
+          - "'ansible.builtin.apt' not in dispatcher"
+        quiet: true
+
+    - name: Assert the Ubuntu package classes and compatibility alias
+      ansible.builtin.assert:
+        that:
+          - "'platform_prerequisites_ubuntu_packages:' in defaults"
+          - "'desktop_libs_packages:' in defaults"
+          - "'platform_prerequisites_ubuntu_packages }}' in defaults"
+          - "'platform_prerequisites_ubuntu_gui_packages:' in defaults"
+          - "'gnome-browser-connector' in defaults"
+          - "'desktop_libs_packages' in debian_tasks"
+          - "'platform_prerequisites_ubuntu_gui_packages' in debian_tasks"
+          - "'gui | bool' in debian_tasks"
+          - "'become: true' in debian_tasks"
+        quiet: true
+
+    - name: Assert every OS bootstrap wires the role at the required point
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook is search("Ubuntu bootstrap[\\s\\S]*- role:
+            apt_update[\\s\\S]*- role: platform_prerequisites[\\s\\S]*- role: snap")
+          - >-
+            setup_playbook is search("MacOS bootstrap[\\s\\S]*- role:
+            xcode[\\s\\S]*- role: platform_prerequisites[\\s\\S]*- role: brew")
+          - >-
+            setup_playbook is search("Windows bootstrap[\\s\\S]*- role:
+            winget[\\s\\S]*- role: platform_prerequisites[\\s\\S]*Group GUI-enabled hosts")
+          - "'tags: [platform_prerequisites, desktop_libs]' in setup_playbook"
+        quiet: true

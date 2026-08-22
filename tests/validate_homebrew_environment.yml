@@ -1,0 +1,57 @@
+---
+- name: Validate the Homebrew environment is POSIX-only
+  hosts: localhost
+  gather_facts: false
+  vars:
+    all_vars_path: "{{ playbook_dir }}/../inventories/group_vars/all/main.yml"
+    windows_vars_path: "{{ playbook_dir }}/../inventories/group_vars/windows.yml"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+  tasks:
+    - name: Read the environment configuration
+      ansible.builtin.set_fact:
+        all_vars_content: "{{ lookup('ansible.builtin.file', all_vars_path) }}"
+        windows_vars_content: "{{ lookup('ansible.builtin.file', windows_vars_path) }}"
+        setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert the Homebrew environment is derived from OS facts
+      ansible.builtin.assert:
+        that:
+          - "'homebrew_environment:' in all_vars_content"
+          - "'/opt/homebrew/bin' in all_vars_content"
+          - "'/usr/local/bin' in all_vars_content"
+          - "'/home/linuxbrew/.linuxbrew/bin' in all_vars_content"
+          - "\"ansible_facts['env']['PATH']\" in all_vars_content"
+          - "\"ansible_facts['os_family'] != 'Windows'\" in all_vars_content"
+          - "'else {}' in all_vars_content"
+        fail_msg: >-
+          group_vars/all/main.yml must derive the non-interactive Homebrew PATH
+          from gathered OS facts, enable it on macOS/Linux and return an empty
+          environment on Windows.
+
+    - name: Assert Windows needs no manual Homebrew override
+      ansible.builtin.assert:
+        that:
+          - "'homebrew_environment' not in windows_vars_content"
+          - "'/opt/homebrew' not in windows_vars_content"
+          - "'/home/linuxbrew' not in windows_vars_content"
+          - "\"ansible_facts['env']['PATH']\" not in windows_vars_content"
+        fail_msg: >-
+          Windows must rely on the shared fact-derived environment and must not
+          carry a manual Homebrew override, POSIX path or POSIX PATH reference.
+
+    - name: Assert every Homebrew-aware play consumes the host environment
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content
+            | regex_findall('environment: "\\{\\{ homebrew_environment \\}\\}"')
+            | length == 4
+          - "'&homebrew_path' not in setup_playbook_content"
+          - "'*homebrew_path' not in setup_playbook_content"
+          - "'/opt/homebrew/bin' not in setup_playbook_content"
+          - "'/home/linuxbrew/.linuxbrew/bin' not in setup_playbook_content"
+        fail_msg: >-
+          The Ubuntu bootstrap, macOS bootstrap, Common tooling and GUI
+          applications plays must consume the host-specific homebrew_environment.
+          The playbook must not carry a global Homebrew PATH anchor.

@@ -180,15 +180,16 @@ Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다. 패�
 둔다 - 파일이 없는 OS 가 no-op 이라는 사실 자체가 OS별 큐레이션이다.
 `tests/validate_app_roles.yml` 이 파일의 존재와 부재를 양쪽 다 검사한다.
 
-OS-exclusive roles (`apt_update`, `desktop_libs`, `snap`, `flatpak`, `homebrew`,
-`xcode`, `winget`) are instead gated by OS-targeted plays in
-`playbooks/setup.yml`.
+OS-exclusive roles (`apt_update`, `snap`, `flatpak`, `homebrew`, `xcode`,
+`winget`) are instead gated by OS-targeted plays in `playbooks/setup.yml`.
+`platform_prerequisites` is wired into each OS bootstrap and dispatches to the
+OS files that actually have platform-level preparation to perform.
 
-## desktop_libs (우분투 부트스트랩)
+## platform_prerequisites (OS 부트스트랩)
 
-앱이 아니라 **공유 라이브러리**라서 롤을 하나씩 쪼개지 않은 유일한 예외다.
-`Ubuntu bootstrap` 플레이에서 `apt_update` 바로 다음에 돌며, 패키지 목록은
-`roles/desktop_libs/defaults/main.yml` 의 `desktop_libs_packages` 하나에 있다.
+독립 앱이 아니라 **OS 공통 기반이나 데스크톱 통합**인 항목을 묶는 롤이다. 특정 앱만
+필요로 하는 의존성은 해당 앱 롤에 남기고, 사용자가 직접 실행하는 프로그램은 기존처럼
+앱 하나당 롤 하나를 유지한다. Ubuntu에서는 `apt_update` 바로 다음에 실행된다.
 
 | 패키지 | 이유 |
 |---|---|
@@ -197,10 +198,14 @@ OS-exclusive roles (`apt_update`, `desktop_libs`, `snap`, `flatpak`, `homebrew`,
 | `libayatana-appindicator3-dev` | 트레이 빌드용 헤더 |
 | `libsecret-1-dev` | 키링 바인딩 빌드용 헤더 |
 | `mesa-utils` | `glxinfo` / `glxgears` — GL 스택이 실제로 도는지 확인하는 수단 |
+| `gnome-browser-connector` | 브라우저와 GNOME Shell 확장 관리 기능 연결 |
 
-`gui` 로 게이트하지 않는다. 데스크톱 앱을 설치할지와 무관하게, 호스트에서 무언가를
-빌드하거나 실행할 때 링크되는 의존성이기 때문이다. WSL 게스트도 마찬가지로 설치한다.
-호스트별로 더 필요하면 `inventories/host_vars/<host>.yml` 에서 목록을 덮어쓴다.
+기반 라이브러리는 `platform_prerequisites_ubuntu_packages`, GUI 통합 패키지는
+`platform_prerequisites_ubuntu_gui_packages`에서 관리한다. 전자는 headless/WSL에도
+설치하고 후자는 `gui`가 true인 Ubuntu에만 설치한다. 기존 host override와
+`--tags desktop_libs` 호출은 호환 별칭으로 계속 동작한다. macOS와 Windows에 필요한
+항목이 생기면 각각 `darwin.yml`과 `windows.yml`을 추가하며, Windows 설치는 shared
+`winget` 롤만 사용한다.
 
 ## xcode (macOS 부트스트랩)
 
@@ -429,7 +434,7 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 
 ## GUI 앱
 
-데스크톱 앱 26개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 27개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
@@ -449,6 +454,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `chatgpt_desktop` | 미지원 | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
 | `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
 | `opencode_desktop` | 공식 x64 `.deb` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
+| `kitty` | Ubuntu archive `kitty` | cask `kitty` | 미지원 |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
 폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다.

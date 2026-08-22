@@ -11,6 +11,22 @@ gui: false
 # on the command line still wins over that runtime override.
 vpn: true
 
+# Homebrew is not on the default non-interactive PATH on macOS or Linux. Build
+# the task environment from the gathered OS facts so cross-OS plays apply it
+# automatically on POSIX hosts and pass an empty mapping on Windows. The inline
+# conditional is lazy, so Windows never evaluates its differently-cased PATH
+# fact while producing the empty branch.
+homebrew_environment: >-
+  {{
+    {
+      'PATH':
+        '/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:'
+        ~ ansible_facts['env']['PATH']
+    }
+    if ansible_facts['os_family'] != 'Windows'
+    else {}
+  }}
+
 # --- vault indirection -------------------------------------------------
 # Every secret lives in ./vault.yml (ansible-vault, one password).
 # Roles and playbooks must never reference a vault_* name directly.

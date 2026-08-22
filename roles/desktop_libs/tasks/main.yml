@@ -1,9 +1,0 @@
----
-# Ubuntu-only, and flat for that reason: the role runs in the OS-targeted
-# "Ubuntu bootstrap" play, like apt_update/snap/flatpak/homebrew, so there is
-# no dispatcher and no os_family condition inside it.
-- name: Desktop libs | Install the shared desktop libraries (apt)
-  become: true
-  ansible.builtin.apt:
-    name: "{{ desktop_libs_packages }}"
-    state: present

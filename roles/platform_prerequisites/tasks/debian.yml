@@ -1,0 +1,15 @@
+---
+- name: Platform prerequisites | Install the Ubuntu base packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ desktop_libs_packages }}"
+    state: present
+
+- name: Platform prerequisites | Install the Ubuntu GUI integration packages
+  become: true
+  ansible.builtin.apt:
+    name: "{{ platform_prerequisites_ubuntu_gui_packages }}"
+    state: present
+  when:
+    - gui | bool
+    - platform_prerequisites_ubuntu_gui_packages | length > 0

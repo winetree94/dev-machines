@@ -49,10 +49,7 @@
 
 - name: Ubuntu bootstrap
   hosts: ubuntu
-  environment: &homebrew_path
-    PATH: >-
-      /opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:{{
-      ansible_facts['env']['PATH'] }}
+  environment: "{{ homebrew_environment }}"
   pre_tasks:
     - name: Check for GUI session directories
       ansible.builtin.stat:
@@ -82,9 +79,9 @@
     - role: apt_update
       tags: [apt_update]
     # Straight after the cache refresh and before anything that builds or links
-    # against them - see roles/desktop_libs/defaults/main.yml for the list.
-    - role: desktop_libs
-      tags: [desktop_libs]
+    # against them. The desktop_libs tag remains as a compatibility alias.
+    - role: platform_prerequisites
+      tags: [platform_prerequisites, desktop_libs]
     - role: snap
       tags: [snap]
     - role: flatpak
@@ -99,13 +96,17 @@
 
 - name: MacOS bootstrap
   hosts: macos
-  environment: *homebrew_path
+  environment: "{{ homebrew_environment }}"
   roles:
     # The Command Line Tools are the prerequisite for Homebrew and for every
     # role that compiles anything, so they have to land before Common tooling.
     # The role installs Xcode.app from the Mac App Store on top of them.
     - role: xcode
       tags: [xcode]
+    # No darwin.yml yet: the missing file is the intentional macOS no-op until
+    # a non-application platform prerequisite is needed there.
+    - role: platform_prerequisites
+      tags: [platform_prerequisites]
     # Snapshot of the installed formulae/casks - see the Ubuntu bootstrap play.
     - role: brew
       tags: [brew]
@@ -118,6 +119,10 @@
     # without it fails once, up front, with a clear message.
     - role: winget
       tags: [winget]
+    # No windows.yml yet. Future Windows prerequisites must use the shared
+    # winget role from that file rather than invoking a package manager here.
+    - role: platform_prerequisites
+      tags: [platform_prerequisites]
 
 - name: Group GUI-enabled hosts
   hosts: all
@@ -138,7 +143,9 @@
 
 - name: Common tooling
   hosts: all
-  environment: *homebrew_path
+  # The fact-derived mapping is empty on Windows, so the shared role list
+  # dispatches to winget tasks without inheriting any Homebrew paths.
+  environment: "{{ homebrew_environment }}"
   roles:
     # One role per piece of software, grouped by comment rather than by play:
     # extra plays cost a fact-gathering and connection round trip each, and the
@@ -253,7 +260,7 @@
 - name: GUI applications
   # Empty when no host has gui enabled, in which case the play is skipped.
   hosts: gui_enabled
-  environment: *homebrew_path
+  environment: "{{ homebrew_environment }}"
   roles:
     # AI desktop apps inherit their CLI tag so a targeted CLI run installs the
     # matching GUI on GUI-enabled hosts as well.
@@ -279,6 +286,8 @@
       tags: [headlamp]
     - role: karabiner_elements
       tags: [karabiner_elements]
+    - role: kitty
+      tags: [kitty]
     - role: libreoffice
       tags: [libreoffice]
     - role: microsoft_edge
