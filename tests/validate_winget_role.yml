@@ -135,6 +135,7 @@
           - "'--manifest' in winget_local_package"
           - "'--silent' in winget_local_package"
           - "'--disable-interactivity' in winget_local_package"
+          - "'Font already installed.' in winget_local_package"
           - "'ansible_check_mode' in winget_local_package"
           - "'win_file' in winget_local_package"
           - "'state: absent' in winget_local_package"

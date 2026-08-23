@@ -50,10 +50,15 @@
         --manifest "{{ winget_local_manifest_temp.path }}" --silent
         --disable-interactivity --accept-package-agreements
       register: winget_local_install
-      until: winget_local_install is succeeded
+      until: >-
+        winget_local_install.rc == 0
+        or 'Font already installed.' in winget_local_install.stdout
       retries: 2
       delay: 10
-      changed_when: true
+      failed_when:
+        - winget_local_install.rc != 0
+        - "'Font already installed.' not in winget_local_install.stdout"
+      changed_when: winget_local_install.rc == 0
 
     - name: Winget | Add the applied package to the in-memory ARP snapshot
       ansible.builtin.set_fact:
