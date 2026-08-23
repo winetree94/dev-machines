@@ -1,0 +1,11 @@
+---
+- name: D2Coding | Install from a local winget font manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: NAVER.D2Coding
+        version: "{{ d2coding_version }}"
+        display_name: NAVER.D2Coding
+        manifest_source: >-
+          {{ playbook_dir }}/../roles/d2coding/files/winget/NAVER.D2Coding/1.3.3

@@ -224,6 +224,8 @@
       tags: [cmake]
     - role: ninja
       tags: [ninja]
+    - role: xvfb
+      tags: [xvfb]
     # kubernetes
     - role: kubectl
       tags: [kubectl]
@@ -266,6 +268,12 @@
   hosts: gui_enabled
   environment: "{{ homebrew_environment }}"
   roles:
+    # Fonts are kept as separate roles but share the `fonts` tag, so either
+    # family can be managed alone and both can be refreshed in one targeted run.
+    - role: agave_nerd_font
+      tags: [agave_nerd_font, fonts]
+    - role: d2coding
+      tags: [d2coding, fonts]
     # AI desktop apps inherit their CLI tag so a targeted CLI run installs the
     # matching GUI on GUI-enabled hosts as well.
     - role: claude_desktop

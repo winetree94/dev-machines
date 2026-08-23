@@ -1,0 +1,12 @@
+---
+- name: D2Coding | Install the archive extractor
+  ansible.builtin.apt:
+    name: unzip
+    state: present
+  become: true
+
+- name: D2Coding | Install the official font archive
+  ansible.builtin.include_tasks: unix.yml
+  vars:
+    d2coding_install_dir: >-
+      {{ ansible_facts['env']['HOME'] }}/.local/share/fonts/D2Coding

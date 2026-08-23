@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+PackageIdentifier: NAVER.D2Coding
+PackageVersion: 1.3.3
+PackageLocale: en-US
+Publisher: NAVER
+PublisherUrl: https://www.navercorp.com/
+PublisherSupportUrl: https://github.com/naver/d2-coding-font/issues
+PackageName: D2Coding
+PackageUrl: https://github.com/naver/d2-coding-font
+License: SIL Open Font License 1.1
+LicenseUrl: https://github.com/naver/d2-coding-font/blob/master/OFL.txt
+ShortDescription: A Korean and Latin monospaced coding font
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

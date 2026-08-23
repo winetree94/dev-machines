@@ -1,0 +1,12 @@
+---
+- name: Agave Nerd Font | Install the archive extractor
+  ansible.builtin.apt:
+    name: xz-utils
+    state: present
+  become: true
+
+- name: Agave Nerd Font | Install the official font archive
+  ansible.builtin.include_tasks: unix.yml
+  vars:
+    agave_nerd_font_install_dir: >-
+      {{ ansible_facts['env']['HOME'] }}/.local/share/fonts/AgaveNerdFont

@@ -1,0 +1,11 @@
+---
+- name: Agave Nerd Font | Install from a local winget font manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: NerdFonts.Agave
+        version: "{{ agave_nerd_font_version }}"
+        display_name: NerdFonts.Agave
+        manifest_source: >-
+          {{ playbook_dir }}/../roles/agave_nerd_font/files/winget/NerdFonts.Agave/3.5.1

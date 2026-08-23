@@ -1,0 +1,99 @@
+---
+- name: Agave Nerd Font | Create the user font directory
+  ansible.builtin.file:
+    path: "{{ agave_nerd_font_install_dir }}"
+    state: directory
+    mode: "0755"
+  become: false
+
+- name: Agave Nerd Font | Read the installed version marker
+  ansible.builtin.slurp:
+    src: "{{ agave_nerd_font_install_dir }}/.agave-nerd-font.version"
+  register: agave_nerd_font_marker
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: Agave Nerd Font | Check the installed font files
+  ansible.builtin.stat:
+    path: "{{ agave_nerd_font_install_dir }}/{{ item }}"
+  loop: "{{ agave_nerd_font_files }}"
+  register: agave_nerd_font_file_stats
+  become: false
+
+- name: Agave Nerd Font | Resolve whether installation is needed
+  ansible.builtin.set_fact:
+    agave_nerd_font_needs_install: >-
+      {{ agave_nerd_font_marker.content | default('') | b64decode | trim
+         != agave_nerd_font_version
+         or agave_nerd_font_file_stats.results
+            | rejectattr('stat.exists') | list | length > 0 }}
+
+- name: Agave Nerd Font | Report the pinned font change in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Agave Nerd Font {{ agave_nerd_font_version }} would be installed from
+      the official checksum-pinned archive.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - agave_nerd_font_needs_install | bool
+
+- name: Agave Nerd Font | Install the pinned font files
+  when:
+    - not ansible_check_mode
+    - agave_nerd_font_needs_install | bool
+  block:
+    - name: Agave Nerd Font | Create a temporary extraction directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: -agave-nerd-font
+      register: agave_nerd_font_temp
+      become: false
+
+    - name: Agave Nerd Font | Download the official archive
+      ansible.builtin.get_url:
+        url: "{{ agave_nerd_font_archives.unix.url }}"
+        dest: "{{ agave_nerd_font_temp.path }}/Agave.tar.xz"
+        checksum: "{{ agave_nerd_font_archives.unix.checksum }}"
+        mode: "0600"
+        timeout: 600
+      become: false
+
+    - name: Agave Nerd Font | Extract only the TTF files
+      ansible.builtin.command:
+        argv: >-
+          {{ ['tar', '-xJf',
+              agave_nerd_font_temp.path ~ '/Agave.tar.xz',
+              '-C', agave_nerd_font_temp.path, '--']
+             + agave_nerd_font_files }}
+      changed_when: true
+      become: false
+
+    - name: Agave Nerd Font | Copy the font files into place
+      ansible.builtin.copy:
+        src: "{{ agave_nerd_font_temp.path }}/{{ item }}"
+        dest: "{{ agave_nerd_font_install_dir }}/{{ item }}"
+        mode: "0644"
+        remote_src: true
+      loop: "{{ agave_nerd_font_files }}"
+      notify: Refresh the user font cache
+      become: false
+
+    - name: Agave Nerd Font | Record the installed version
+      ansible.builtin.copy:
+        content: "{{ agave_nerd_font_version }}\n"
+        dest: "{{ agave_nerd_font_install_dir }}/.agave-nerd-font.version"
+        mode: "0644"
+      become: false
+
+  always:
+    - name: Agave Nerd Font | Remove the temporary extraction directory
+      ansible.builtin.file:
+        path: "{{ agave_nerd_font_temp.path }}"
+        state: absent
+      when:
+        - agave_nerd_font_temp is defined
+        - agave_nerd_font_temp.path is defined
+      become: false

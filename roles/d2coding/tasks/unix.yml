@@ -1,0 +1,101 @@
+---
+- name: D2Coding | Create the user font directory
+  ansible.builtin.file:
+    path: "{{ d2coding_install_dir }}"
+    state: directory
+    mode: "0755"
+  become: false
+
+- name: D2Coding | Read the installed version marker
+  ansible.builtin.slurp:
+    src: "{{ d2coding_install_dir }}/.d2coding.version"
+  register: d2coding_marker
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: D2Coding | Check the installed font files
+  ansible.builtin.stat:
+    path: "{{ d2coding_install_dir }}/{{ item.target }}"
+  loop: "{{ d2coding_font_files }}"
+  loop_control:
+    label: "{{ item.target }}"
+  register: d2coding_file_stats
+  become: false
+
+- name: D2Coding | Resolve whether installation is needed
+  ansible.builtin.set_fact:
+    d2coding_needs_install: >-
+      {{ d2coding_marker.content | default('') | b64decode | trim
+         != (d2coding_version ~ '-' ~ d2coding_build)
+         or d2coding_file_stats.results
+            | rejectattr('stat.exists') | list | length > 0 }}
+
+- name: D2Coding | Report the pinned font change in check mode
+  ansible.builtin.debug:
+    msg: >-
+      D2Coding {{ d2coding_version }} ({{ d2coding_build }}) would be installed
+      from the official checksum-pinned archive.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - d2coding_needs_install | bool
+
+- name: D2Coding | Install the pinned TTF files
+  when:
+    - not ansible_check_mode
+    - d2coding_needs_install | bool
+  block:
+    - name: D2Coding | Create a temporary extraction directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: -d2coding
+      register: d2coding_temp
+      become: false
+
+    - name: D2Coding | Download the official archive
+      ansible.builtin.get_url:
+        url: "{{ d2coding_archive.url }}"
+        dest: "{{ d2coding_temp.path }}/D2Coding.zip"
+        checksum: "{{ d2coding_archive.checksum }}"
+        mode: "0600"
+        timeout: 600
+      become: false
+
+    - name: D2Coding | Extract only the selected TTF files
+      ansible.builtin.unarchive:
+        src: "{{ d2coding_temp.path }}/D2Coding.zip"
+        dest: "{{ d2coding_temp.path }}"
+        include: "{{ d2coding_font_files | map(attribute='source') | list }}"
+        remote_src: true
+      become: false
+
+    - name: D2Coding | Copy the font files into place
+      ansible.builtin.copy:
+        src: "{{ d2coding_temp.path }}/{{ item.source }}"
+        dest: "{{ d2coding_install_dir }}/{{ item.target }}"
+        mode: "0644"
+        remote_src: true
+      loop: "{{ d2coding_font_files }}"
+      loop_control:
+        label: "{{ item.target }}"
+      notify: Refresh the user font cache
+      become: false
+
+    - name: D2Coding | Record the installed version
+      ansible.builtin.copy:
+        content: "{{ d2coding_version }}-{{ d2coding_build }}\n"
+        dest: "{{ d2coding_install_dir }}/.d2coding.version"
+        mode: "0644"
+      become: false
+
+  always:
+    - name: D2Coding | Remove the temporary extraction directory
+      ansible.builtin.file:
+        path: "{{ d2coding_temp.path }}"
+        state: absent
+      when:
+        - d2coding_temp is defined
+        - d2coding_temp.path is defined
+      become: false

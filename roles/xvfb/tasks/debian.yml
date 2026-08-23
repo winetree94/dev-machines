@@ -1,0 +1,8 @@
+---
+# Ubuntu ships Xvfb in its own archive, so use apt rather than adding an
+# upstream repository or installing it through Homebrew.
+- name: Xvfb | Install Xvfb (apt)
+  become: true
+  ansible.builtin.apt:
+    name: xvfb
+    state: present

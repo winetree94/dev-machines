@@ -166,6 +166,21 @@
         darwin: karabiner-elements
         pkg: true
 
+    # User-scoped fonts. Both official archives are installed directly on
+    # Unix; Windows uses checked-in winget 1.12 font manifests because neither
+    # family has a community-source package with the requested file set.
+    font_roles:
+      - name: agave_nerd_font
+        debian: Agave.tar.xz
+        darwin: Agave.tar.xz
+        windows: NerdFonts.Agave
+        windows_source: local_manifest
+      - name: d2coding
+        debian: D2Coding-Ver1.3.3-20260725.zip
+        darwin: D2Coding-Ver1.3.3-20260725.zip
+        windows: NAVER.D2Coding
+        windows_source: local_manifest
+
 
     # CLI tool roles. `debian`/`darwin` are the Homebrew formula (or the apt
     # package where noted); a `shared` key means both OS files only include that
@@ -316,9 +331,10 @@
         windows: Rustlang.Rustup
         shared: rustup.yml
         shared_contains: https://sh.rustup.rs
-      # build tools. All three take apt on Ubuntu rather than Homebrew, so the
-      # Ubuntu marker is the apt package name. macOS gets Apple Clang from the
-      # Xcode bootstrap and therefore deliberately has no clang darwin.yml.
+      # Build and display tools available from the Ubuntu archive use apt
+      # rather than Homebrew, so the Ubuntu marker is the apt package name.
+      # macOS gets Apple Clang from the Xcode bootstrap and therefore
+      # deliberately has no clang darwin.yml; Xvfb is Ubuntu-only.
       # On Windows the standalone packages are the only ones a plain
       # PowerShell session sees: Visual Studio's C++ workload bundles them,
       # but only inside a Developer Command Prompt, and this repository does
@@ -334,8 +350,11 @@
         debian: "name: ninja-build"
         darwin: ninja
         windows: Ninja-build.Ninja
+      - name: xvfb
+        debian: "name: xvfb"
 
-    app_roles: "{{ ai_roles + cli_roles + gui_roles + macos_only_roles }}"
+    app_roles: >-
+      {{ ai_roles + cli_roles + gui_roles + macos_only_roles + font_roles }}
     # Everything that runs in the Common tooling play rather than the GUI one.
     common_roles: "{{ ai_roles + cli_roles }}"
     shared_roles: "{{ app_roles | selectattr('shared', 'defined') | list }}"
@@ -1001,7 +1020,20 @@
           Role {{ item.name }} must sit in the "GUI applications" play, which
           targets the gui_enabled group. Gating by play targeting is what keeps
           a `when: gui | bool` off every one of them.
-      loop: "{{ gui_roles + macos_only_roles }}"
+      loop: "{{ gui_roles + macos_only_roles + font_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert the font roles share a targeted convenience tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("- role: " ~ item.name
+            ~ "[\\s\\S]{0,80}tags: \\[" ~ item.name ~ ", fonts\\]")
+        fail_msg: >-
+          Role {{ item.name }} must carry both its own tag and the shared fonts
+          tag so either family or the complete font set can be managed directly.
+      loop: "{{ font_roles }}"
       loop_control:
         label: "{{ item.name }}"
 
