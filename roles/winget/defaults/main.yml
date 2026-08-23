@@ -6,3 +6,9 @@ winget_packages: []
 # Microsoft Store product IDs are kept separate so every lookup and install
 # pins the correct source instead of relying on winget's source resolution.
 winget_msstore_packages: []
+
+# Packages whose vendor publishes a Windows installer but which have no
+# community or Microsoft Store source manifest yet. Each item points at a
+# controller-side directory containing a complete multi-file winget manifest
+# and declares the Add/Remove Programs identity used for idempotency.
+winget_local_packages: []

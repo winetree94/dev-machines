@@ -7,6 +7,9 @@
     winget_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/main.yml"
     winget_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot.yml"
     winget_msstore_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot_msstore.yml"
+    winget_local_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/local.yml"
+    winget_local_package_path: "{{ playbook_dir }}/../roles/winget/tasks/local_package.yml"
+    winget_local_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot_local.yml"
     winget_defaults_path: "{{ playbook_dir }}/../roles/winget/defaults/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     requirements_path: "{{ playbook_dir }}/../requirements.yml"
@@ -23,6 +26,9 @@
         - "{{ winget_tasks_path }}"
         - "{{ winget_snapshot_path }}"
         - "{{ winget_msstore_snapshot_path }}"
+        - "{{ winget_local_tasks_path }}"
+        - "{{ winget_local_package_path }}"
+        - "{{ winget_local_snapshot_path }}"
         - "{{ winget_defaults_path }}"
 
     - name: Assert the winget role files exist
@@ -38,6 +44,12 @@
         winget_defaults: "{{ lookup('ansible.builtin.file', winget_defaults_path) }}"
         winget_msstore_snapshot: >-
           {{ lookup('ansible.builtin.file', winget_msstore_snapshot_path) }}
+        winget_local_tasks: >-
+          {{ lookup('ansible.builtin.file', winget_local_tasks_path) }}
+        winget_local_package: >-
+          {{ lookup('ansible.builtin.file', winget_local_package_path) }}
+        winget_local_snapshot: >-
+          {{ lookup('ansible.builtin.file', winget_local_snapshot_path) }}
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
         requirements_content: "{{ lookup('ansible.builtin.file', requirements_path) }}"
 
@@ -95,6 +107,42 @@
           Microsoft Store installed state must be exported once per host, and
           only when a caller requested at least one Store package.
 
+    - name: Assert local manifests use one Add/Remove Programs snapshot
+      ansible.builtin.assert:
+        that:
+          - "'winget_local_packages: []' in winget_defaults"
+          - "'winget_local_packages | length > 0' in winget_tasks"
+          - "'snapshot_local.yml' in winget_local_tasks"
+          - "'winget_arp_installed_packages is not defined' in winget_local_tasks"
+          - "'HKCU:' in winget_local_snapshot"
+          - "'HKLM:' in winget_local_snapshot"
+          - "'WOW6432Node' in winget_local_snapshot"
+          - "'winget_arp_installed_packages' in winget_local_snapshot"
+        fail_msg: >-
+          Packages without a public source must share one cached snapshot of
+          the per-user and machine Add/Remove Programs registry views.
+
+    - name: Assert local manifests stay inside the shared winget workflow
+      ansible.builtin.assert:
+        that:
+          - "'settings --enable LocalManifestFiles' in winget_local_tasks"
+          - "'become: true' in winget_local_tasks"
+          - "'win_tempfile' in winget_local_package"
+          - "'win_copy' in winget_local_package"
+          - "'winget validate --manifest' in winget_local_package"
+          - "'install' in winget_local_package"
+          - "'upgrade' in winget_local_package"
+          - "'--manifest' in winget_local_package"
+          - "'--silent' in winget_local_package"
+          - "'--disable-interactivity' in winget_local_package"
+          - "'ansible_check_mode' in winget_local_package"
+          - "'win_file' in winget_local_package"
+          - "'state: absent' in winget_local_package"
+        fail_msg: >-
+          Local packages must be validated and installed or upgraded through
+          winget, predict changes in check mode, and always remove their copied
+          manifest directory.
+
     - name: Assert the per-package probe survives as the fallback
       ansible.builtin.assert:
         that:
@@ -127,6 +175,7 @@
           - "'ansible.builtin.assert' in winget_tasks"
           - "'winget_packages: []' in winget_defaults"
           - "'winget_msstore_packages: []' in winget_defaults"
+          - "'winget_local_packages: []' in winget_defaults"
           - "'- role: winget' in setup_playbook_content"
           - >-
             setup_playbook_content is search("Windows bootstrap[\s\S]*- role: winget[\s\S]*Common tooling")

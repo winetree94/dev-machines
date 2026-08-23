@@ -1,0 +1,37 @@
+---
+- name: Winget | Validate local manifest package declarations
+  ansible.builtin.assert:
+    that:
+      - winget_local_declaration.id is defined
+      - winget_local_declaration.version is defined
+      - winget_local_declaration.display_name is defined
+      - winget_local_declaration.manifest_source is defined
+    fail_msg: >-
+      Every winget_local_packages item needs id, version, display_name and
+      manifest_source.
+    quiet: true
+  loop: "{{ winget_local_packages }}"
+  loop_control:
+    loop_var: winget_local_declaration
+    label: "{{ winget_local_declaration.id | default('unnamed local package') }}"
+
+- name: Winget | Snapshot locally manifested installed packages
+  ansible.builtin.include_tasks: snapshot_local.yml
+  when: winget_arp_installed_packages is not defined
+
+# Microsoft requires this administrator setting before `--manifest` is
+# accepted. Keep it enabled once local manifests are in use so later roles and
+# later runs do not toggle machine policy around every package.
+- name: Winget | Enable local manifest installation
+  ansible.windows.win_shell: >-
+    winget settings --enable LocalManifestFiles --disable-interactivity
+  changed_when: false
+  become: true
+  when: not ansible_check_mode
+
+- name: Winget | Manage local manifest packages
+  ansible.builtin.include_tasks: local_package.yml
+  loop: "{{ winget_local_packages }}"
+  loop_control:
+    loop_var: winget_local_package
+    label: "{{ winget_local_package.id }}"

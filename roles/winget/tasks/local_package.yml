@@ -1,0 +1,74 @@
+---
+- name: Winget | Resolve local manifest package state
+  ansible.builtin.set_fact:
+    winget_local_matching_packages: >-
+      {{ winget_arp_installed_packages
+         | selectattr('display_name', 'equalto', winget_local_package.display_name)
+         | list }}
+    winget_local_exact_packages: >-
+      {{ winget_arp_installed_packages
+         | selectattr('display_name', 'equalto', winget_local_package.display_name)
+         | selectattr('display_version', 'equalto', winget_local_package.version)
+         | list }}
+
+- name: Winget | Report local manifest package change in check mode
+  ansible.builtin.debug:
+    msg: >-
+      {{ winget_local_package.id }} {{ winget_local_package.version }} would be
+      {{ 'installed' if winget_local_matching_packages | length == 0 else 'upgraded' }}
+      from its local winget manifest.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - winget_local_exact_packages | length == 0
+
+- name: Winget | Apply local manifest package
+  when:
+    - not ansible_check_mode
+    - winget_local_exact_packages | length == 0
+  block:
+    - name: Winget | Create a temporary local manifest directory
+      ansible.windows.win_tempfile:
+        state: directory
+        suffix: -winget-manifest
+      register: winget_local_manifest_temp
+
+    - name: Winget | Copy the local manifest to the Windows host
+      ansible.windows.win_copy:
+        src: "{{ winget_local_package.manifest_source }}/"
+        dest: "{{ winget_local_manifest_temp.path }}\\"
+
+    - name: Winget | Validate the local package manifest
+      ansible.windows.win_shell: >-
+        winget validate --manifest "{{ winget_local_manifest_temp.path }}"
+        --disable-interactivity
+      changed_when: false
+
+    - name: Winget | Install or upgrade from the local manifest
+      ansible.windows.win_shell: >-
+        winget {{ 'install' if winget_local_matching_packages | length == 0 else 'upgrade' }}
+        --manifest "{{ winget_local_manifest_temp.path }}" --silent
+        --disable-interactivity --accept-package-agreements
+      register: winget_local_install
+      until: winget_local_install is succeeded
+      retries: 2
+      delay: 10
+      changed_when: true
+
+    - name: Winget | Add the applied package to the in-memory ARP snapshot
+      ansible.builtin.set_fact:
+        winget_arp_installed_packages: >-
+          {{ winget_arp_installed_packages + [{
+               'display_name': winget_local_package.display_name,
+               'display_version': winget_local_package.version,
+               'publisher': ''
+             }] }}
+
+  always:
+    - name: Winget | Remove the temporary local manifest directory
+      ansible.windows.win_file:
+        path: "{{ winget_local_manifest_temp.path }}"
+        state: absent
+      when:
+        - winget_local_manifest_temp is defined
+        - winget_local_manifest_temp.path is defined

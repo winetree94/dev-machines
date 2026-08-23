@@ -1,0 +1,34 @@
+---
+# A local manifest is not backed by a winget source, so `winget export` cannot
+# retain its package id. Snapshot Add/Remove Programs once instead and let all
+# local-manifest callers reuse the result.
+- name: Winget | Snapshot Add/Remove Programs packages
+  ansible.windows.win_shell: |
+    $registryPaths = @(
+      'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+      'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+      'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+
+    $packages = @(
+      Get-ItemProperty -Path $registryPaths -ErrorAction SilentlyContinue |
+        Where-Object { $_.DisplayName } |
+        ForEach-Object {
+          [PSCustomObject]@{
+            display_name = [string]$_.DisplayName
+            display_version = [string]$_.DisplayVersion
+            publisher = [string]$_.Publisher
+          }
+        }
+    )
+
+    ConvertTo-Json -InputObject $packages -Compress
+  register: winget_local_arp_snapshot
+  changed_when: false
+  check_mode: false
+
+- name: Winget | Remember Add/Remove Programs packages
+  ansible.builtin.set_fact:
+    winget_arp_installed_packages: >-
+      {{ (winget_local_arp_snapshot.stdout | trim | default('[]', true))
+         | from_json }}
