@@ -1,0 +1,55 @@
+---
+- name: Syncthing | Ensure the APT keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Syncthing | Download the official repository signing key
+  ansible.builtin.get_url:
+    url: https://syncthing.net/release-key.gpg
+    dest: /etc/apt/keyrings/syncthing-archive-keyring.gpg
+    mode: "0644"
+  become: true
+
+- name: Syncthing | Add the official stable-v2 APT repository
+  ansible.builtin.deb822_repository:
+    name: syncthing
+    types:
+      - deb
+    uris:
+      - https://apt.syncthing.net/
+    suites:
+      - syncthing
+    components:
+      - stable-v2
+    signed_by: /etc/apt/keyrings/syncthing-archive-keyring.gpg
+    state: present
+  become: true
+
+- name: Syncthing | Prefer packages from the official repository
+  ansible.builtin.copy:
+    dest: /etc/apt/preferences.d/syncthing.pref
+    content: |
+      Package: *
+      Pin: origin apt.syncthing.net
+      Pin-Priority: 990
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Syncthing | Install Syncthing
+  ansible.builtin.apt:
+    name: syncthing
+    state: present
+    update_cache: true
+  become: true
+
+- name: Syncthing | Enable and start Syncthing for the target user
+  ansible.builtin.systemd_service:
+    name: "syncthing@{{ ansible_facts['user_id'] }}.service"
+    enabled: true
+    state: started
+  become: true

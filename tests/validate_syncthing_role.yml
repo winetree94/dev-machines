@@ -1,0 +1,115 @@
+---
+- name: Validate Syncthing role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    syncthing_tasks_dir: "{{ playbook_dir }}/../roles/syncthing/tasks"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    syncthing_task_files:
+      - main.yml
+      - debian.yml
+      - darwin.yml
+      - windows.yml
+
+  tasks:
+    - name: Check Syncthing role task files exist
+      ansible.builtin.stat:
+        path: "{{ syncthing_tasks_dir }}/{{ item }}"
+      register: syncthing_task_stats
+      loop: "{{ syncthing_task_files }}"
+
+    - name: Check Syncthing role has no default task file
+      ansible.builtin.stat:
+        path: "{{ syncthing_tasks_dir }}/default.yml"
+      register: syncthing_default_stat
+
+    - name: Assert the Syncthing role file layout
+      ansible.builtin.assert:
+        that:
+          - syncthing_task_stats.results | rejectattr('stat.exists') | list | length == 0
+          - not syncthing_default_stat.stat.exists
+        fail_msg: >-
+          The Syncthing role must have main.yml and one task file per supported
+          OS, with no default.yml fallback.
+
+    - name: Read the Syncthing role and setup playbook
+      ansible.builtin.set_fact:
+        syncthing_main: "{{ lookup('ansible.builtin.file', syncthing_tasks_dir ~ '/main.yml') }}"
+        syncthing_debian: "{{ lookup('ansible.builtin.file', syncthing_tasks_dir ~ '/debian.yml') }}"
+        syncthing_darwin: "{{ lookup('ansible.builtin.file', syncthing_tasks_dir ~ '/darwin.yml') }}"
+        syncthing_windows: "{{ lookup('ansible.builtin.file', syncthing_tasks_dir ~ '/windows.yml') }}"
+        setup_playbook: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
+
+    - name: Assert Syncthing dispatches by OS only
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in syncthing_main"
+          - "'with_first_found' in syncthing_main"
+          - "syncthing_main is search(\"ansible_facts\\['os_family'\\] \\| lower\")"
+          - "'deb822_repository' not in syncthing_main"
+          - "'homebrew' not in syncthing_main"
+          - "'winget' not in syncthing_main"
+        fail_msg: Syncthing main.yml must remain an OS dispatcher only.
+
+    - name: Assert Ubuntu uses the signed official stable-v2 repository
+      ansible.builtin.assert:
+        that:
+          - "'https://syncthing.net/release-key.gpg' in syncthing_debian"
+          - "'dest: /etc/apt/keyrings/syncthing-archive-keyring.gpg' in syncthing_debian"
+          - "'ansible.builtin.deb822_repository' in syncthing_debian"
+          - "'https://apt.syncthing.net/' in syncthing_debian"
+          - "'- syncthing' in syncthing_debian"
+          - "'- stable-v2' in syncthing_debian"
+          - "'signed_by: /etc/apt/keyrings/syncthing-archive-keyring.gpg' in syncthing_debian"
+          - "'Pin: origin apt.syncthing.net' in syncthing_debian"
+          - "'Pin-Priority: 990' in syncthing_debian"
+        fail_msg: >-
+          Ubuntu must use Syncthing's signed stable-v2 APT repository and pin
+          that origin at priority 990.
+
+    - name: Assert Ubuntu installs Syncthing and starts it as the target user
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.apt' in syncthing_debian"
+          - "'name: syncthing' in syncthing_debian"
+          - "'ansible.builtin.systemd_service' in syncthing_debian"
+          - "syncthing_debian is search(\"syncthing@.*ansible_facts\\['user_id'\\].*service\")"
+          - "'enabled: true' in syncthing_debian"
+          - "'state: started' in syncthing_debian"
+        fail_msg: >-
+          Ubuntu must enable and start syncthing@<target-user>.service after
+          installing the package.
+
+    - name: Assert macOS uses the Homebrew snapshot and launchd service
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew' in syncthing_darwin"
+          - "'brew_installed_formulae | default([])' in syncthing_darwin"
+          - "'community.general.homebrew_services' in syncthing_darwin"
+          - "'name: syncthing' in syncthing_darwin"
+          - "'state: present' in syncthing_darwin"
+          - "syncthing_darwin is not search('(?m)^\\s+become: true')"
+        fail_msg: >-
+          macOS must install the Homebrew formula through the shared snapshot
+          convention and enable its launchd service without privilege escalation.
+
+    - name: Assert Windows uses the installed community winget package
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in syncthing_windows"
+          - "'winget_packages' in syncthing_windows"
+          - "'- BillStewart.SyncthingWindowsSetup' in syncthing_windows"
+          - "'win_chocolatey' not in syncthing_windows"
+          - "'win_scoop' not in syncthing_windows"
+        fail_msg: >-
+          Windows must install BillStewart.SyncthingWindowsSetup through the
+          shared winget role.
+
+    - name: Assert Syncthing is wired into Common tooling with its tag
+      ansible.builtin.assert:
+        that:
+          - "setup_playbook is search('Common tooling[\\s\\S]*- role: syncthing')"
+          - "setup_playbook is search('- role: syncthing[\\s\\S]{0,80}tags: \\[syncthing\\]')"
+        fail_msg: >-
+          setup.yml must include the Syncthing role and syncthing tag in the
+          Common tooling play.

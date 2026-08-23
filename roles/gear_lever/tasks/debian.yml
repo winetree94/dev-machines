@@ -1,0 +1,7 @@
+---
+- name: Gear Lever | Install Gear Lever (Flatpak)
+  when: "'it.mijorus.gearlever' not in (flatpak_installed_ids | default([]))"
+  become: true
+  community.general.flatpak:
+    name: it.mijorus.gearlever
+    state: present

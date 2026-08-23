@@ -246,6 +246,8 @@
       tags: [awscli]
     - role: rclone
       tags: [rclone]
+    - role: syncthing
+      tags: [syncthing]
     # mobile
     - role: android
       tags: [android]
@@ -282,6 +284,8 @@
       tags: [discord]
     - role: flatseal
       tags: [flatseal]
+    - role: gear_lever
+      tags: [gear_lever]
     - role: gimp
       tags: [gimp]
     - role: headlamp
@@ -302,6 +306,8 @@
       tags: [onlyoffice]
     - role: parsec
       tags: [parsec]
+    - role: paseo
+      tags: [paseo]
     - role: pinta
       tags: [pinta]
     - role: redisinsight

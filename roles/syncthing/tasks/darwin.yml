@@ -1,0 +1,13 @@
+---
+- name: Syncthing | Install Syncthing (brew)
+  when: "'syncthing' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: syncthing
+    state: present
+  become: false
+
+- name: Syncthing | Enable and start the launchd service
+  community.general.homebrew_services:
+    name: syncthing
+    state: present
+  become: false

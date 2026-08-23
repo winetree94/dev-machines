@@ -1,0 +1,59 @@
+---
+# The stable Paseo release currently publishes an amd64 Debian package and no
+# arm64 Linux desktop artifact. Leave unsupported Ubuntu architectures alone
+# until the vendor adds one to the official release surface.
+- name: Paseo | Install the official amd64 Debian package
+  when: ansible_facts['architecture'] == 'x86_64'
+  vars:
+    paseo_linux_download: "{{ paseo_linux_downloads[ansible_facts['architecture']] }}"
+    paseo_linux_archive: "/tmp/paseo-{{ paseo_version }}-amd64.deb"
+  block:
+    - name: Paseo | Read the installed Debian package version
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - --showformat=${Version}
+          - paseo
+      register: paseo_debian_version
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: false
+
+    - name: Paseo | Report the pinned package change in check mode
+      ansible.builtin.debug:
+        msg: >-
+          Paseo {{ paseo_version }} would be installed from the official
+          checksum-pinned Debian package.
+      changed_when: true
+      when:
+        - ansible_check_mode
+        - paseo_debian_version.stdout | trim != paseo_version
+
+    - name: Paseo | Install the pinned Debian package
+      when:
+        - not ansible_check_mode
+        - paseo_debian_version.stdout | trim != paseo_version
+      block:
+        - name: Paseo | Download the official Debian package
+          ansible.builtin.get_url:
+            url: "{{ paseo_linux_download.url }}"
+            dest: "{{ paseo_linux_archive }}"
+            checksum: "{{ paseo_linux_download.checksum }}"
+            mode: "0644"
+            timeout: 600
+          become: false
+        - name: Paseo | Install the downloaded Debian package
+          ansible.builtin.apt:
+            deb: "{{ paseo_linux_archive }}"
+            state: present
+            allow_downgrade: true
+          become: true
+
+      always:
+        - name: Paseo | Remove the downloaded Debian package
+          ansible.builtin.file:
+            path: "{{ paseo_linux_archive }}"
+            state: absent
+          become: false

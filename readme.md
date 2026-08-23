@@ -91,7 +91,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `GUI applications` 플레이(데스크톱 앱 28개)와 Linux 의 tailscale systray
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 30개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
 
@@ -339,10 +339,25 @@ macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한�
 - `windows.yml` — winget `Doppler.doppler`. Chocolatey 에는 Doppler 패키지가
   아예 없다.
 
+## syncthing
+
+`syncthing` 롤은 프로그램 설치와 자동 시작까지만 관리한다. 기기 연결, 공유 폴더,
+GUI 인증과 방화벽 규칙은 각 머신에서 별도로 설정한다.
+
+- `debian.yml` — Syncthing 공식 APT 저장소의 `stable-v2` 채널을 서명 키와 함께
+  등록하고 origin 우선순위를 990으로 고정한다. 패키지 설치 후
+  `syncthing@<접속 사용자>.service`를 enable/start해 로그인 전부터 해당 사용자
+  권한으로 실행한다.
+- `darwin.yml` — Homebrew core의 `syncthing` formula를 설치하고
+  `homebrew_services`로 사용자 launchd 서비스를 시작한다.
+- `windows.yml` — 현재 `desktop`에서 사용하는 winget 패키지
+  `BillStewart.SyncthingWindowsSetup`을 공유 `winget` 롤로 관리한다.
+
 ## winget (Windows 패키지 관리)
 
-Windows 의 모든 패키지 설치는 공용 `winget` 롤 하나를 거친다. 각 롤의
-`windows.yml` 은 winget ID 목록만 넘긴다.
+Windows 의 모든 패키지 설치는 공용 `winget` 롤 하나를 거친다. 공개 source가 있는
+패키지는 ID 목록을 넘기고, 없는 패키지는 checksum-pinned multi-file manifest와
+Add/Remove Programs 식별자를 `winget_local_packages`로 넘긴다.
 
 ```yaml
 - name: Install Docker Desktop (winget)
@@ -366,6 +381,10 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 - 커뮤니티 패키지는 `winget_packages` / `--source winget`, Microsoft Store 제품은
   `winget_msstore_packages` / `--source msstore` 로 분리한다. Store 호출은 source 와
   package 약관을 명시적으로 수락하며, 어느 경우에도 소스 자동 선택에 맡기지 않는다.
+- vendor가 공식 설치 파일은 제공하지만 source manifest가 없으면
+  `winget_local_packages`를 사용한다. 공용 롤은 `LocalManifestFiles`를 필요할 때만
+  활성화하고, manifest를 원격 임시 디렉터리에서 검증한 뒤 install/upgrade한다.
+  설치 상태는 HKCU/HKLM Add/Remove Programs 스냅샷 하나로 판별한다.
 - winget 은 Windows 10 1809+ / 11 에 기본 탑재라 설치할 게 없다. 존재 여부
   assert 는 `winget` 롤 자체에 들어 있고, `Windows bootstrap` 플레이는 패키지
   없이 (`winget_packages` 기본값이 `[]`) 이 롤을 포함해 assert 만 돌린다. 없는
@@ -438,7 +457,7 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 
 ## GUI 앱
 
-데스크톱 앱 28개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 30개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
@@ -463,11 +482,12 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `opencode_desktop` | 공식 x64 `.deb` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
 | `kitty` | Ubuntu archive `kitty` | cask `kitty` | 미지원 |
 | `jetbrains_toolbox` | 공식 checksum-pinned archive | cask `jetbrains-toolbox` | `JetBrains.Toolbox` |
+| `paseo` | 공식 checksum-pinned amd64 `.deb` | cask `paseo` | local winget manifest |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
 폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다.
 
-`bottles`, `flatseal`, `xclicker`, `remmina` 네 개는 macOS/Windows 패키지가 아예 없는
+`bottles`, `flatseal`, `gear_lever`, `xclicker`, `remmina` 다섯 개는 macOS/Windows 패키지가 아예 없는
 Linux 전용 프로젝트다. `debian.yml` 만 두고 나머지는 만들지 않는다 - 비슷한 다른 앱으로
 대체하지 않는다.
 

@@ -1,0 +1,54 @@
+---
+- name: Validate the Paseo role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/paseo"
+    defaults: "{{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}"
+    debian_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}"
+    darwin_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}"
+    windows_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    manifest_dir: "{{ role_dir }}/files/winget/GetPaseo.Paseo/0.4.0"
+    installer_manifest: >-
+      {{ lookup('ansible.builtin.file', manifest_dir ~ '/GetPaseo.Paseo.installer.yaml') }}
+    locale_manifest: >-
+      {{ lookup('ansible.builtin.file', manifest_dir ~ '/GetPaseo.Paseo.locale.en-US.yaml') }}
+
+  tasks:
+    - name: Assert Linux pins the official amd64 Debian package
+      ansible.builtin.assert:
+        that:
+          - "'paseo_version: \"0.4.0\"' in defaults"
+          - "'Paseo-0.4.0-amd64.deb' in defaults"
+          - "defaults | regex_findall('sha256:[0-9a-f]{64}') | length == 1"
+          - "\"ansible_facts['architecture'] == 'x86_64'\" in debian_tasks"
+          - "'dpkg-query' in debian_tasks"
+          - "'ansible.builtin.get_url' in debian_tasks"
+          - "'checksum:' in debian_tasks"
+          - "'ansible.builtin.apt' in debian_tasks"
+          - "'deb:' in debian_tasks"
+          - "'allow_downgrade: true' in debian_tasks"
+          - "'ansible_check_mode' in debian_tasks"
+          - "'state: absent' in debian_tasks"
+
+    - name: Assert macOS uses the official Homebrew cask
+      ansible.builtin.assert:
+        that:
+          - "'brew_installed_casks | default([])' in darwin_tasks"
+          - "'community.general.homebrew_cask' in darwin_tasks"
+          - "'name: paseo' in darwin_tasks"
+
+    - name: Assert Windows uses a checked-in multi-architecture winget manifest
+      ansible.builtin.assert:
+        that:
+          - "'winget_local_packages' in windows_tasks"
+          - "'GetPaseo.Paseo' in windows_tasks"
+          - "'manifest_source' in windows_tasks"
+          - "'InstallerType: nullsoft' in installer_manifest"
+          - "'Scope: user' in installer_manifest"
+          - "'Architecture: x64' in installer_manifest"
+          - "'Architecture: arm64' in installer_manifest"
+          - "installer_manifest | regex_findall('InstallerSha256: [0-9A-F]{64}') | length == 2"
+          - "'DisplayName: Paseo' in installer_manifest"
+          - "'PackageName: Paseo' in locale_manifest"
+          - "'AGPL-3.0-or-later' in locale_manifest"

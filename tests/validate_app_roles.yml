@@ -71,6 +71,8 @@
         windows: Discord.Discord
       - name: flatseal
         debian: com.github.tchx84.Flatseal
+      - name: gear_lever
+        debian: it.mijorus.gearlever
       - name: gimp
         debian: org.gimp.GIMP
         darwin: gimp
@@ -108,6 +110,12 @@
         darwin: parsec
         windows: Parsec.Parsec
         pkg: true
+      - name: paseo
+        debian: paseo_linux_download.url
+        debian_channel: direct_deb
+        darwin: paseo
+        windows: GetPaseo.Paseo
+        windows_source: local_manifest
       - name: pinta
         debian: com.github.PintaProject.Pinta
         darwin: pinta
@@ -287,6 +295,10 @@
         debian: rclone
         darwin: rclone
         windows: Rclone.Rclone
+      - name: syncthing
+        debian: "name: syncthing"
+        darwin: syncthing
+        windows: BillStewart.SyncthingWindowsSetup
       - name: graphite
         debian: brew.yml
         darwin: brew.yml
@@ -358,6 +370,9 @@
     msstore_windows_roles: >-
       {{ windows_roles | selectattr('windows_source', 'defined')
          | selectattr('windows_source', 'equalto', 'msstore') | list }}
+    local_manifest_windows_roles: >-
+      {{ windows_roles | selectattr('windows_source', 'defined')
+         | selectattr('windows_source', 'equalto', 'local_manifest') | list }}
 
   tasks:
     - name: Read the setup playbook
@@ -925,6 +940,25 @@
           roles/{{ item.name }}/tasks/windows.yml must include the shared
           winget role with Microsoft Store ID {{ item.windows }}.
       loop: "{{ msstore_windows_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        windows_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/windows.yml') }}"
+
+    - name: Assert each local manifest task uses the shared winget role
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in windows_content"
+          - "'winget_local_packages' in windows_content"
+          - item.windows in windows_content
+          - "'manifest_source' in windows_content"
+          - "'win_chocolatey' not in windows_content"
+          - "'win_scoop' not in windows_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/windows.yml must pass its checked-in
+          local manifest to the shared winget role. A role must never download
+          or execute a Windows installer directly.
+      loop: "{{ local_manifest_windows_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:

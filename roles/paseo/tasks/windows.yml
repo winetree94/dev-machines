@@ -1,0 +1,11 @@
+---
+- name: Paseo | Install Paseo from a local winget manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: GetPaseo.Paseo
+        version: "0.4.0"
+        display_name: "Paseo {{ paseo_version }}"
+        manifest_source: >-
+          {{ playbook_dir }}/../roles/paseo/files/winget/GetPaseo.Paseo/0.4.0

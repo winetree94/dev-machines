@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.10.0.schema.json
+PackageIdentifier: GetPaseo.Paseo
+PackageVersion: 0.4.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - silent
+UpgradeBehavior: install
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/getpaseo/paseo/releases/download/v0.4.0/Paseo-Setup-0.4.0-x64.exe
+    InstallerSha256: 6CD775CD53AD117D4284F5EFEB90F913A308463DFED7F8B514AD1CFC9AD8E79E
+    AppsAndFeaturesEntries:
+      - DisplayName: Paseo 0.4.0
+        Publisher: Mohamed Boudra
+        DisplayVersion: 0.4.0
+  - Architecture: arm64
+    InstallerUrl: https://github.com/getpaseo/paseo/releases/download/v0.4.0/Paseo-Setup-0.4.0-arm64.exe
+    InstallerSha256: BF7EB6968FCEC64B23C2F4889C39690A334C26854BFA122DDEE0DC156357D76F
+    AppsAndFeaturesEntries:
+      - DisplayName: Paseo 0.4.0
+        Publisher: Mohamed Boudra
+        DisplayVersion: 0.4.0
+ManifestType: installer
+ManifestVersion: 1.10.0

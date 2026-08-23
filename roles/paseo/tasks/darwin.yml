@@ -1,0 +1,7 @@
+---
+- name: Paseo | Install Paseo (Homebrew cask)
+  when: "'paseo' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: paseo
+    state: present
+  become: false
