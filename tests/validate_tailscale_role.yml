@@ -100,8 +100,22 @@
           - "'gnome-shell-extension-appindicator' in tailscale_debian"
           - "'xsel' in tailscale_debian"
           - "'wl-clipboard' in tailscale_debian"
+          - "'tailscale get operator' in tailscale_debian"
+          - "'tailscale set --operator=' in tailscale_debian"
+          - "\"ansible_facts['user_id']\" in tailscale_debian"
+          - >-
+            tailscale_debian is search(
+              "Allow the desktop user to operate Tailscale[\\s\\S]*gui \\| bool"
+              "[\\s\\S]*tailscale_operator.stdout \\| trim != ansible_facts"
+              "[\\s\\S]*become: true"
+            )
           - "'tailscale configure systray --enable-startup=freedesktop' in tailscale_debian"
           - "'.config/autostart/tailscale-systray.desktop' in tailscale_debian"
+          - "tailscale_debian is search(\"mode: '0755'\")"
+          - >-
+            tailscale_debian is search(
+              "Ensure the systray autostart directory is accessible[\\s\\S]*ansible.builtin.file"
+            )
           - "'creates:' in tailscale_debian"
           - "tailscale_debian is search('gui \\| bool')"
         fail_msg: >-

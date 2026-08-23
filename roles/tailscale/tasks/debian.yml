@@ -69,6 +69,34 @@
   failed_when: false
   become: false
 
+- name: Check the Tailscale operator
+  when: gui | bool
+  ansible.builtin.command: tailscale get operator
+  register: tailscale_operator
+  check_mode: false
+  changed_when: false
+  failed_when: false
+  become: true
+
+- name: Allow the desktop user to operate Tailscale
+  when:
+    - gui | bool
+    - tailscale_operator.rc == 0
+    - tailscale_operator.stdout | trim != ansible_facts['user_id']
+  ansible.builtin.command:
+    cmd: "tailscale set --operator={{ ansible_facts['user_id'] }}"
+  become: true
+
+- name: Ensure the systray autostart directory is accessible
+  when: gui | bool
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/.config/autostart"
+    state: directory
+    mode: '0755'
+  # Tailscale 1.102.3 creates this directory as 0644, without the execute bit,
+  # so repair it before asking the CLI to install its desktop entry.
+  become: false
+
 - name: Enable the Tailscale systray autostart entry
   when:
     - gui | bool
