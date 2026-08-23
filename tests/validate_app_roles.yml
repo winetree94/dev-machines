@@ -97,6 +97,10 @@
       - name: microsoft_edge
         debian: com.microsoft.Edge
         darwin: microsoft-edge
+      - name: moonlight
+        debian: com.moonlight_stream.Moonlight
+        darwin: moonlight
+        windows: MoonlightGameStreamingProject.Moonlight
       - name: obsidian
         debian: md.obsidian.Obsidian
         darwin: obsidian

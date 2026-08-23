@@ -1,0 +1,7 @@
+---
+- name: Moonlight | Install Moonlight (Flatpak)
+  when: "'com.moonlight_stream.Moonlight' not in (flatpak_installed_ids | default([]))"
+  become: true
+  community.general.flatpak:
+    name: com.moonlight_stream.Moonlight
+    state: present

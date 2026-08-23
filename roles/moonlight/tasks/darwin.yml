@@ -1,0 +1,7 @@
+---
+- name: Moonlight | Install Moonlight (Homebrew cask)
+  when: "'moonlight' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: moonlight
+    state: present
+  become: false

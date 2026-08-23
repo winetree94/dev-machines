@@ -308,6 +308,8 @@
       tags: [libreoffice]
     - role: microsoft_edge
       tags: [microsoft_edge]
+    - role: moonlight
+      tags: [moonlight]
     - role: obsidian
       tags: [obsidian]
     - role: onlyoffice
