@@ -22,12 +22,31 @@
           Supported targets are Ubuntu, macOS and Windows.
         quiet: true
 
-    - name: Add hosts to OS groups
-      ansible.builtin.group_by:
-        key: >-
+    - name: Determine the host OS group
+      ansible.builtin.set_fact:
+        detected_os_group: >-
           {{ 'windows' if ansible_facts['os_family'] == 'Windows'
              else ('macos' if ansible_facts['os_family'] == 'Darwin'
              else 'ubuntu') }}
+
+    # Remote hosts need their static group before the first connection so its
+    # shell and become settings apply. Catch a stale or swapped ansible_host
+    # before an OS-exclusive bootstrap role runs against the wrong machine.
+    - name: Assert the detected OS matches the static inventory group
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname == 'localhost' or inventory_hostname in groups[detected_os_group]
+        fail_msg: >-
+          {{ inventory_hostname }} reports {{ ansible_facts['distribution'] }}
+          {{ ansible_facts['distribution_version'] }}
+          ({{ ansible_facts['os_family'] }} family), so it must be declared in
+          the {{ detected_os_group }} inventory group. Check ansible_host and
+          the host's static group before re-running.
+        quiet: true
+
+    - name: Add hosts to OS groups
+      ansible.builtin.group_by:
+        key: "{{ detected_os_group }}"
       changed_when: false
 
     # Every WSL kernel carries the vendor tag - "microsoft-standard-WSL2" on
