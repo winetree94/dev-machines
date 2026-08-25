@@ -1,0 +1,31 @@
+---
+- name: Install Git LFS (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - GitHub.GitLFS
+
+- name: Git LFS | Check the user Git LFS filter configuration
+  ansible.windows.win_shell: |
+    $env:Path = @(
+      [Environment]::GetEnvironmentVariable('Path', 'Machine')
+      [Environment]::GetEnvironmentVariable('Path', 'User')
+    ) -join ';'
+    git config --global --get filter.lfs.process
+  register: git_lfs_filter_process
+  changed_when: false
+  failed_when: git_lfs_filter_process.rc not in [0, 1]
+  check_mode: false
+
+- name: Git LFS | Initialize the user Git LFS filter configuration
+  ansible.windows.win_shell: |
+    $env:Path = @(
+      [Environment]::GetEnvironmentVariable('Path', 'Machine')
+      [Environment]::GetEnvironmentVariable('Path', 'User')
+    ) -join ';'
+    git lfs install --skip-repo
+  when: >-
+    git_lfs_filter_process.rc != 0
+    or git_lfs_filter_process.stdout | trim != 'git-lfs filter-process'
+  changed_when: true

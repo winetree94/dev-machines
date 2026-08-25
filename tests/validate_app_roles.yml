@@ -280,6 +280,10 @@
         debian: "name: git"
         darwin: "name: git"
         windows: Git.Git
+      - name: git_lfs
+        debian: "name: git-lfs"
+        darwin: git-lfs
+        windows: GitHub.GitLFS
       - name: gh
         debian: gh
         darwin: gh
@@ -866,6 +870,33 @@
         label: "{{ item.name }}"
       vars:
         darwin_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/darwin.yml') }}"
+
+    - name: Assert Git LFS is initialized for each target user
+      ansible.builtin.assert:
+        that:
+          - "'filter.lfs.process' in git_lfs_initialize"
+          - "'git-lfs filter-process' in git_lfs_initialize"
+          - "'--skip-repo' in git_lfs_initialize"
+          - "'--force' not in git_lfs_initialize"
+          - "'changed_when: false' in git_lfs_initialize"
+          - "'check_mode: false' in git_lfs_initialize"
+          - "'become: false' in git_lfs_initialize"
+          - "'filter.lfs.process' in git_lfs_windows"
+          - "'git-lfs filter-process' in git_lfs_windows"
+          - "'--skip-repo' in git_lfs_windows"
+          - "'--force' not in git_lfs_windows"
+          - "'GetEnvironmentVariable' in git_lfs_windows"
+          - "'changed_when: false' in git_lfs_windows"
+          - "'check_mode: false' in git_lfs_windows"
+        fail_msg: >-
+          Git LFS must initialize the target user's global filters exactly once,
+          skip repository hook changes, preserve conflicting custom filters,
+          and refresh the Windows process PATH after winget installation.
+      vars:
+        git_lfs_initialize: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/git_lfs/tasks/initialize.yml') }}
+        git_lfs_windows: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/git_lfs/tasks/windows.yml') }}
 
     - name: Assert each CLI role's macOS file names the expected package
       ansible.builtin.assert:

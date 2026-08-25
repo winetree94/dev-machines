@@ -1,0 +1,9 @@
+---
+- name: Git LFS | Install Git LFS (apt)
+  become: true
+  ansible.builtin.apt:
+    name: git-lfs
+    state: present
+
+- name: Git LFS | Initialize Git LFS for the user
+  ansible.builtin.include_tasks: initialize.yml

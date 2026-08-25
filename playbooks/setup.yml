@@ -207,6 +207,8 @@
     # version control
     - role: git
       tags: [git]
+    - role: git_lfs
+      tags: [git_lfs]
     - role: gh
       tags: [gh]
     - role: delta

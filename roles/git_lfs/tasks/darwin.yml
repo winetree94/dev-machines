@@ -1,0 +1,10 @@
+---
+- name: Git LFS | Install Git LFS (Homebrew)
+  when: "'git-lfs' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: git-lfs
+    state: present
+  become: false
+
+- name: Git LFS | Initialize Git LFS for the user
+  ansible.builtin.include_tasks: initialize.yml

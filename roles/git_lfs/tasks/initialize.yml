@@ -1,0 +1,27 @@
+---
+- name: Git LFS | Check the user Git LFS filter configuration
+  ansible.builtin.command:
+    argv:
+      - git
+      - config
+      - --global
+      - --get
+      - filter.lfs.process
+  register: git_lfs_filter_process
+  changed_when: false
+  failed_when: git_lfs_filter_process.rc not in [0, 1]
+  check_mode: false
+  become: false
+
+- name: Git LFS | Initialize the user Git LFS filter configuration
+  ansible.builtin.command:
+    argv:
+      - git
+      - lfs
+      - install
+      - --skip-repo
+  when: >-
+    git_lfs_filter_process.rc != 0
+    or git_lfs_filter_process.stdout | trim != 'git-lfs filter-process'
+  changed_when: true
+  become: false
