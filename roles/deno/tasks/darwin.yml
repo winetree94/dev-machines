@@ -1,7 +1,0 @@
----
-- name: Deno | Install Deno (brew)
-  when: "'deno' not in (brew_installed_formulae | default([]))"
-  community.general.homebrew:
-    name: deno
-    state: present
-  become: false

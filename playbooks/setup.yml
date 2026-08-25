@@ -230,8 +230,6 @@
       tags: [bun]
     - role: pnpm
       tags: [pnpm]
-    - role: deno
-      tags: [deno]
     - role: biome
       tags: [biome]
     - role: java

@@ -256,10 +256,6 @@
         debian: pnpm
         darwin: pnpm
         windows: pnpm.pnpm
-      - name: deno
-        debian: deno
-        darwin: deno
-        windows: DenoLand.Deno
       - name: biome
         debian: biome
         darwin: biome
