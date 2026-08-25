@@ -118,6 +118,60 @@
   delay: 10
   changed_when: true
 
+# `winget list --upgrade-available` is a read-only query. A matching row is
+# present only when the requested installed package has a newer source-backed
+# manifest, so callers can opt into latest-version convergence without making
+# every application role pay for an upgrade lookup.
+- name: Winget | Check requested packages for upgrades
+  ansible.windows.win_shell: >-
+    winget list --upgrade-available --id {{ winget_upgrade_package }} --exact
+    --source winget
+    --accept-source-agreements
+  register: winget_upgrade_available
+  loop: "{{ winget_upgrade_packages }}"
+  loop_control:
+    loop_var: winget_upgrade_package
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Winget | Report available package upgrades in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Winget would upgrade {{ winget_upgrade_result.winget_upgrade_package }}
+      from the winget source.
+  loop: "{{ winget_upgrade_available.results | default([]) }}"
+  loop_control:
+    loop_var: winget_upgrade_result
+    label: "{{ winget_upgrade_result.winget_upgrade_package }}"
+  when:
+    - ansible_check_mode
+    - >-
+      winget_upgrade_result.winget_upgrade_package
+      in winget_upgrade_result.stdout
+  changed_when: true
+
+- name: Winget | Upgrade requested packages
+  ansible.windows.win_shell: >-
+    winget upgrade --id {{ winget_upgrade_result.winget_upgrade_package }}
+    --exact --source winget --silent
+    --disable-interactivity --accept-source-agreements
+    --accept-package-agreements
+  loop: "{{ winget_upgrade_available.results | default([]) }}"
+  loop_control:
+    loop_var: winget_upgrade_result
+    label: "{{ winget_upgrade_result.winget_upgrade_package }}"
+  when:
+    - not ansible_check_mode
+    - >-
+      winget_upgrade_result.winget_upgrade_package
+      in winget_upgrade_result.stdout
+  register: winget_upgrade
+  until: winget_upgrade is succeeded
+  retries: 2
+  delay: 10
+  changed_when: true
+
 # Store packages mirror the community-source flow above, but keep their own
 # snapshot and explicit source because Store product IDs are a separate
 # namespace and require agreement handling.

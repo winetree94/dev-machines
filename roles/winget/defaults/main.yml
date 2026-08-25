@@ -3,6 +3,11 @@
 # the availability assert in tasks/main.yml.
 winget_packages: []
 
+# Most roles only ensure that a package is installed. Callers that require a
+# current file or repository format can opt specific community packages into
+# an exact-source upgrade check on every run.
+winget_upgrade_packages: []
+
 # Microsoft Store product IDs are kept separate so every lookup and install
 # pins the correct source instead of relying on winget's source resolution.
 winget_msstore_packages: []

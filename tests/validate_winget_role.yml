@@ -170,12 +170,28 @@
           community winget source or Microsoft Store. Installs must remain
           non-interactive and accept the required source/package agreements.
 
+    - name: Assert package upgrades are explicit and idempotent
+      ansible.builtin.assert:
+        that:
+          - "'winget_upgrade_packages: []' in winget_defaults"
+          - "'winget list --upgrade-available --id' in winget_tasks"
+          - "'winget upgrade --id' in winget_tasks"
+          - "'winget_upgrade_result.winget_upgrade_package' in winget_tasks"
+          - "'loop_var: winget_upgrade_package' in winget_tasks"
+          - "'not ansible_check_mode' in winget_tasks"
+        fail_msg: >-
+          Only callers that opt into winget_upgrade_packages may converge to
+          the latest version. The role must query upgrades read-only, run the
+          source-pinned upgrade only for a matching row, and preserve check
+          mode.
+
     - name: Assert winget presence is asserted in the Windows bootstrap play
       ansible.builtin.assert:
         that:
           - "'winget --version' in winget_tasks"
           - "'ansible.builtin.assert' in winget_tasks"
           - "'winget_packages: []' in winget_defaults"
+          - "'winget_upgrade_packages: []' in winget_defaults"
           - "'winget_msstore_packages: []' in winget_defaults"
           - "'winget_local_packages: []' in winget_defaults"
           - "'- role: winget' in setup_playbook_content"
