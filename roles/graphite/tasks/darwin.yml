@@ -1,3 +1,0 @@
----
-- name: Graphite | Install the Graphite CLI from Homebrew
-  ansible.builtin.include_tasks: brew.yml

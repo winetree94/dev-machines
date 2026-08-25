@@ -169,11 +169,6 @@ Each role's `tasks/main.yml` is a dispatcher that includes the first matching fi
 
 If no file matches, the role is a no-op for that OS.
 
-**알려진 제약:** `graphite` 는 아직 winget 커뮤니티 저장소에 패키지가
-없어서 `windows.yml` 이 no-op 이다. 이 파일이 존재하는 이유는 dispatcher 가
-Homebrew 기반 `default.yml` 로 폴백하는 것을 막기 위해서다. 패키지가 올라오면
-공용 `winget` 롤을 include 하도록 채워 넣는다.
-
 앱 하나당 롤 하나가 원칙이다. `default.yml` 은 **Windows 를 포함한 모든 OS 의 폴백**
 이라, `windows.yml` 이 없는 롤에서는 Homebrew 태스크가 Windows 에서 돌아버린다.
 그래서 새로 추가하는 롤은 `default.yml` 을 두지 않고 지원하는 OS 마다 파일을 하나씩

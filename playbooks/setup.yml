@@ -215,8 +215,6 @@
       tags: [delta]
     - role: lazygit
       tags: [lazygit]
-    - role: graphite
-      tags: [graphite]
     - role: dotweave
       tags: [dotweave]
     # languages and runtimes

@@ -332,11 +332,6 @@
         debian: "name: syncthing"
         darwin: syncthing
         windows: BillStewart.SyncthingWindowsSetup
-      - name: graphite
-        debian: brew.yml
-        darwin: brew.yml
-        shared: brew.yml
-        shared_contains: withgraphite/tap/graphite
       - name: dotweave
         debian: brew.yml
         darwin: brew.yml
