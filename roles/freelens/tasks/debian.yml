@@ -1,0 +1,7 @@
+---
+- name: FreeLens | Install FreeLens (Flatpak)
+  when: "'app.freelens.Freelens' not in (flatpak_installed_ids | default([]))"
+  become: true
+  community.general.flatpak:
+    name: app.freelens.Freelens
+    state: present

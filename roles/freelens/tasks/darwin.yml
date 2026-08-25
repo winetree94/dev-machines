@@ -1,0 +1,7 @@
+---
+- name: FreeLens | Install FreeLens (Homebrew cask)
+  when: "'freelens' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: freelens
+    state: present
+  become: false

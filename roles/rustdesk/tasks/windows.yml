@@ -1,0 +1,14 @@
+---
+- name: RustDesk | Install RustDesk from a local winget manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: RustDesk.RustDesk
+        version: "{{ rustdesk_version }}"
+        display_name: RustDesk
+        # RustDesk's MSI registers its numeric build suffix in ARP even though
+        # the public release and winget package version are 1.4.9.
+        arp_version: 1.4.9.29722256
+        manifest_source: >-
+          {{ playbook_dir }}/../roles/rustdesk/files/winget/RustDesk.RustDesk/1.4.9

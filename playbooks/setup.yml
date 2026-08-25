@@ -313,6 +313,8 @@
       tags: [discord]
     - role: flatseal
       tags: [flatseal]
+    - role: freelens
+      tags: [freelens]
     - role: gear_lever
       tags: [gear_lever]
     - role: gimp
@@ -345,6 +347,8 @@
       tags: [redisinsight]
     - role: remmina
       tags: [remmina]
+    - role: rustdesk
+      tags: [rustdesk]
     - role: slack
       tags: [slack]
     - role: steam

@@ -57,6 +57,7 @@
         cli_tag: opencode
         debian: https://opencode.ai/download/stable/linux-x64-deb
         debian_channel: direct_deb
+        debian_architecture_marker: "ansible_facts['architecture'] == 'x86_64'"
         darwin: opencode-desktop
         windows: SST.OpenCodeDesktop
       - name: bitwarden_desktop
@@ -71,6 +72,10 @@
         windows: Discord.Discord
       - name: flatseal
         debian: com.github.tchx84.Flatseal
+      - name: freelens
+        debian: app.freelens.Freelens
+        darwin: freelens
+        windows: Freelensapp.Freelens
       - name: gear_lever
         debian: it.mijorus.gearlever
       - name: gimp
@@ -117,6 +122,7 @@
       - name: paseo
         debian: paseo_linux_download.url
         debian_channel: direct_deb
+        debian_architecture_marker: "ansible_facts['architecture'] == 'x86_64'"
         darwin: paseo
         windows: GetPaseo.Paseo
         windows_source: local_manifest
@@ -130,6 +136,14 @@
         windows: RedisInsight.RedisInsight
       - name: remmina
         debian: org.remmina.Remmina
+      - name: rustdesk
+        debian: rustdesk_linux_download.url
+        debian_channel: direct_deb
+        debian_architecture_marker: >-
+          ansible_facts['architecture'] in rustdesk_linux_downloads
+        darwin: rustdesk
+        windows: RustDesk.RustDesk
+        windows_source: local_manifest
       - name: slack
         debian: com.slack.Slack
         darwin: slack
@@ -705,12 +719,12 @@
           - "'ansible.builtin.apt' in debian_content"
           - "'deb:' in debian_content"
           - item.debian in debian_content
-          - "\"ansible_facts['architecture'] == 'x86_64'\" in debian_content"
+          - item.debian_architecture_marker in debian_content
           - "'become: true' in debian_content"
         fail_msg: >-
-          roles/{{ item.name }}/tasks/debian.yml must download the official x64
-          Debian package separately and install it with apt, while skipping
-          unsupported Ubuntu architectures.
+          roles/{{ item.name }}/tasks/debian.yml must download the official
+          Debian package separately and install it with apt, while explicitly
+          gating the architectures supported by that vendor package.
       loop: "{{ direct_deb_gui_roles }}"
       loop_control:
         label: "{{ item.name }}"

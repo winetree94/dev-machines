@@ -1,0 +1,62 @@
+---
+# RustDesk publishes official Debian packages for all three Linux
+# architectures below. An unsupported Ubuntu architecture is deliberately a
+# no-op until the vendor adds a matching package to its release surface.
+- name: RustDesk | Install the official Debian package
+  when: ansible_facts['architecture'] in rustdesk_linux_downloads
+  vars:
+    rustdesk_linux_download: >-
+      {{ rustdesk_linux_downloads[ansible_facts['architecture']] }}
+    rustdesk_linux_archive: >-
+      {{ '/tmp/' ~ rustdesk_linux_download.filename }}
+  block:
+    - name: RustDesk | Read the installed Debian package version
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - --showformat=${Version}
+          - rustdesk
+      register: rustdesk_debian_version
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: false
+
+    - name: RustDesk | Report the pinned package change in check mode
+      ansible.builtin.debug:
+        msg: >-
+          RustDesk {{ rustdesk_version }} would be installed from the official
+          checksum-pinned Debian package.
+      changed_when: true
+      when:
+        - ansible_check_mode
+        - rustdesk_debian_version.stdout | trim != rustdesk_version
+
+    - name: RustDesk | Install the pinned Debian package
+      when:
+        - not ansible_check_mode
+        - rustdesk_debian_version.stdout | trim != rustdesk_version
+      block:
+        - name: RustDesk | Download the official Debian package
+          ansible.builtin.get_url:
+            url: "{{ rustdesk_linux_download.url }}"
+            dest: "{{ rustdesk_linux_archive }}"
+            checksum: "{{ rustdesk_linux_download.checksum }}"
+            mode: "0644"
+            timeout: 600
+          become: false
+
+        - name: RustDesk | Install the downloaded Debian package
+          ansible.builtin.apt:
+            deb: "{{ rustdesk_linux_archive }}"
+            state: present
+            allow_downgrade: true
+          become: true
+
+      always:
+        - name: RustDesk | Remove the downloaded Debian package
+          ansible.builtin.file:
+            path: "{{ rustdesk_linux_archive }}"
+            state: absent
+          become: false

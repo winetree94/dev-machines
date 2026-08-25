@@ -118,6 +118,7 @@
           - "'HKLM:' in winget_local_snapshot"
           - "'WOW6432Node' in winget_local_snapshot"
           - "'winget_arp_installed_packages' in winget_local_snapshot"
+          - "'winget_local_package.arp_version' in winget_local_package"
         fail_msg: >-
           Packages without a public source must share one cached snapshot of
           the per-user and machine Add/Remove Programs registry views.

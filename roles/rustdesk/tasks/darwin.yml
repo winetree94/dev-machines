@@ -1,0 +1,7 @@
+---
+- name: RustDesk | Install RustDesk (Homebrew cask)
+  when: "'rustdesk' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: rustdesk
+    state: present
+  become: false

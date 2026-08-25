@@ -1,0 +1,61 @@
+---
+- name: Validate the RustDesk role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/rustdesk"
+    defaults: "{{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}"
+    debian_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}"
+    darwin_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}"
+    windows_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    manifest_dir: "{{ role_dir }}/files/winget/RustDesk.RustDesk/1.4.9"
+    installer_manifest: >-
+      {{ lookup('ansible.builtin.file', manifest_dir ~ '/RustDesk.RustDesk.installer.yaml') }}
+    locale_manifest: >-
+      {{ lookup('ansible.builtin.file', manifest_dir ~ '/RustDesk.RustDesk.locale.en-US.yaml') }}
+
+  tasks:
+    - name: Assert Ubuntu pins every official Debian architecture
+      ansible.builtin.assert:
+        that:
+          - "'rustdesk_version: \"1.4.9\"' in defaults"
+          - "'rustdesk-1.4.9-x86_64.deb' in defaults"
+          - "'rustdesk-1.4.9-aarch64.deb' in defaults"
+          - "'rustdesk-1.4.9-armv7-sciter.deb' in defaults"
+          - "defaults | regex_findall('sha256:[0-9a-f]{64}') | length == 3"
+          - "\"ansible_facts['architecture'] in rustdesk_linux_downloads\" in debian_tasks"
+          - "'dpkg-query' in debian_tasks"
+          - "'ansible.builtin.get_url' in debian_tasks"
+          - "'checksum:' in debian_tasks"
+          - "'ansible.builtin.apt' in debian_tasks"
+          - "'deb:' in debian_tasks"
+          - "'allow_downgrade: true' in debian_tasks"
+          - "'ansible_check_mode' in debian_tasks"
+          - "'state: absent' in debian_tasks"
+
+    - name: Assert macOS uses the official Homebrew cask
+      ansible.builtin.assert:
+        that:
+          - "'brew_installed_casks | default([])' in darwin_tasks"
+          - "'community.general.homebrew_cask' in darwin_tasks"
+          - "'name: rustdesk' in darwin_tasks"
+
+    - name: Assert Windows uses the official multi-architecture MSI release
+      ansible.builtin.assert:
+        that:
+          - "'winget_local_packages' in windows_tasks"
+          - "'RustDesk.RustDesk' in windows_tasks"
+          - "'arp_version: 1.4.9.29722256' in windows_tasks"
+          - "'manifest_source' in windows_tasks"
+          - "'InstallerType: wix' in installer_manifest"
+          - "'Scope: machine' in installer_manifest"
+          - "'Architecture: x64' in installer_manifest"
+          - "'Architecture: arm64' in installer_manifest"
+          - "'rustdesk-1.4.9-x86_64.msi' in installer_manifest"
+          - "'rustdesk-1.4.9-aarch64.msi' in installer_manifest"
+          - "installer_manifest | regex_findall('InstallerSha256: [0-9A-F]{64}') | length == 2"
+          - "installer_manifest | regex_findall('DisplayName: RustDesk') | length == 2"
+          - "installer_manifest | regex_findall('DisplayVersion: 1.4.9.29722256') | length == 2"
+          - "'Publisher: Purslane Tech Pte. Ltd.' in locale_manifest"
+          - "'PackageName: RustDesk' in locale_manifest"
+          - "'AGPL-3.0' in locale_manifest"

@@ -8,7 +8,11 @@
     winget_local_exact_packages: >-
       {{ winget_arp_installed_packages
          | selectattr('display_name', 'equalto', winget_local_package.display_name)
-         | selectattr('display_version', 'equalto', winget_local_package.version)
+         | selectattr(
+             'display_version',
+             'equalto',
+             winget_local_package.arp_version | default(winget_local_package.version)
+           )
          | list }}
 
 - name: Winget | Report local manifest package change in check mode
@@ -65,7 +69,8 @@
         winget_arp_installed_packages: >-
           {{ winget_arp_installed_packages + [{
                'display_name': winget_local_package.display_name,
-               'display_version': winget_local_package.version,
+               'display_version': winget_local_package.arp_version
+                 | default(winget_local_package.version),
                'publisher': ''
              }] }}
 
