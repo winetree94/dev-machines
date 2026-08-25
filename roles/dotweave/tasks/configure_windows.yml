@@ -1,0 +1,196 @@
+---
+- name: Dotweave | Resolve the application data paths
+  ansible.builtin.set_fact:
+    dotweave_home_directory: "{{ ansible_facts['env']['APPDATA'] }}/dotweave"
+    dotweave_initialized_now: false
+
+- name: Dotweave | Check the repository manifest
+  ansible.windows.win_stat:
+    path: "{{ dotweave_home_directory }}/repository/manifest.jsonc"
+  register: dotweave_manifest
+
+- name: Dotweave | Check the age identity
+  ansible.windows.win_stat:
+    path: "{{ dotweave_home_directory }}/keys.txt"
+  register: dotweave_identity
+  no_log: true
+
+- name: Dotweave | Assert the existing setup is internally consistent
+  ansible.builtin.assert:
+    that:
+      - dotweave_manifest.stat.exists == dotweave_identity.stat.exists
+    fail_msg: >-
+      Dotweave is only partially initialized: manifest.jsonc and keys.txt must
+      either both exist or both be absent. The role will not delete or replace
+      an existing repository or age identity automatically.
+    quiet: true
+
+- name: Dotweave | Assert an age identity is available for initialization
+  ansible.builtin.assert:
+    that:
+      - dotweave_age_identity | default('') | trim | length > 0
+    fail_msg: >-
+      dotweave_age_identity is required for first-time initialization. Store
+      the existing keys.txt contents in the Ansible vault and map it through
+      inventories/group_vars/all/main.yml.
+    quiet: true
+  when: not dotweave_manifest.stat.exists
+
+- name: Dotweave | Report first-time initialization in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Dotweave would clone {{ dotweave_repository_https_url }}, restore the
+      tracked files, and switch origin to {{ dotweave_repository_ssh_url }}.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - not dotweave_manifest.stat.exists
+
+- name: Dotweave | Initialize the repository with the vaulted age identity
+  when:
+    - not ansible_check_mode
+    - not dotweave_manifest.stat.exists
+  block:
+    - name: Dotweave | Create a temporary age identity file
+      ansible.windows.win_tempfile:
+        state: file
+        prefix: dotweave-key-
+        suffix: .txt
+      register: dotweave_temporary_identity
+
+    - name: Dotweave | Write the temporary age identity
+      ansible.windows.win_copy:
+        content: "{{ dotweave_age_identity | trim }}\n"
+        dest: "{{ dotweave_temporary_identity.path }}"
+      no_log: true
+
+    - name: Dotweave | Clone and initialize the dotfiles repository
+      ansible.windows.win_command:
+        argv:
+          - dotweave
+          - init
+          - "{{ dotweave_repository_https_url }}"
+          - --key-file
+          - "{{ dotweave_temporary_identity.path }}"
+      changed_when: true
+
+    - name: Dotweave | Remember that initialization completed
+      ansible.builtin.set_fact:
+        dotweave_initialized_now: true
+
+  always:
+    - name: Dotweave | Delete the temporary age identity
+      ansible.windows.win_file:
+        path: "{{ dotweave_temporary_identity.path }}"
+        state: absent
+      when: dotweave_temporary_identity.path is defined
+
+- name: Dotweave | Converge the initialized repository
+  when:
+    - not ansible_check_mode
+    - dotweave_manifest.stat.exists or dotweave_initialized_now
+  block:
+    - name: Dotweave | Read the configured origin URL
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - remote
+          - get-url
+          - origin
+      register: dotweave_origin
+      changed_when: false
+
+    - name: Dotweave | Read the checked-out branch
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - branch
+          - --show-current
+      register: dotweave_branch
+      changed_when: false
+
+    - name: Dotweave | Assert the existing repository is the managed checkout
+      ansible.builtin.assert:
+        that:
+          - >-
+            dotweave_origin.stdout | trim in
+            [dotweave_repository_https_url, dotweave_repository_ssh_url]
+          - dotweave_branch.stdout | trim == 'main'
+        fail_msg: >-
+          The existing Dotweave checkout does not use the managed dotfiles
+          repository on branch main. It was preserved unchanged for manual
+          inspection.
+        quiet: true
+
+    - name: Dotweave | Read the repository revision before updating
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - rev-parse
+          - HEAD
+      register: dotweave_revision_before
+      changed_when: false
+
+    - name: Dotweave | Fetch the managed main branch over HTTPS
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - fetch
+          - --no-tags
+          - "{{ dotweave_repository_https_url }}"
+          - main
+      changed_when: false
+
+    - name: Dotweave | Fast-forward to the fetched revision
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - merge
+          - --ff-only
+          - FETCH_HEAD
+      changed_when: false
+
+    - name: Dotweave | Read the repository revision after updating
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - rev-parse
+          - HEAD
+      register: dotweave_revision_after
+      changed_when: >-
+        dotweave_revision_before.stdout | trim
+        != dotweave_revision_after.stdout | trim
+
+    - name: Dotweave | Restore the tracked files into the home directory
+      ansible.windows.win_command:
+        argv:
+          - dotweave
+          - pull
+          - --yes
+      register: dotweave_pull
+      changed_when: "'Already up to date' not in dotweave_pull.stdout"
+
+    - name: Dotweave | Switch origin to SSH
+      ansible.windows.win_command:
+        argv:
+          - git
+          - -C
+          - "{{ dotweave_home_directory }}/repository"
+          - remote
+          - set-url
+          - origin
+          - "{{ dotweave_repository_ssh_url }}"
+      when: dotweave_origin.stdout | trim != dotweave_repository_ssh_url
+      changed_when: true

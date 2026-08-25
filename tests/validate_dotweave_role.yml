@@ -1,0 +1,133 @@
+---
+- name: Validate the Dotweave role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/dotweave"
+    group_vars_main_path: >-
+      {{ playbook_dir }}/../inventories/group_vars/all/main.yml
+
+  tasks:
+    - name: Read the Dotweave role files
+      ansible.builtin.set_fact:
+        dotweave_defaults: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}
+        dotweave_brew: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/brew.yml') }}
+        dotweave_debian: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}
+        dotweave_darwin: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}
+        dotweave_windows: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}
+        dotweave_unix_config: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/configure_unix.yml') }}
+        dotweave_windows_config: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/configure_windows.yml') }}
+        group_vars_main: >-
+          {{ lookup('ansible.builtin.file', group_vars_main_path) }}
+
+    - name: Assert the supported package channels remain wired
+      ansible.builtin.assert:
+        that:
+          - "'tinyrack-net/tap/dotweave' in dotweave_brew"
+          - "'state: latest' in dotweave_brew"
+          - "'update_homebrew: true' in dotweave_brew"
+          - "'brew.yml' in dotweave_debian"
+          - "'brew.yml' in dotweave_darwin"
+          - "'tinyrack.dotweave' in dotweave_windows"
+          - "'winget_upgrade_packages' in dotweave_windows"
+          - "'configure_unix.yml' in dotweave_debian"
+          - "'configure_unix.yml' in dotweave_darwin"
+          - "'configure_windows.yml' in dotweave_windows"
+        fail_msg: >-
+          Ubuntu and macOS must keep Dotweave current through the Tinyrack
+          Homebrew tap, Windows must opt into upgrades through the shared
+          winget role, and every OS must configure it after installation.
+
+    - name: Assert the managed repository URLs are explicit
+      ansible.builtin.assert:
+        that:
+          - >-
+            'https://github.com/winetree94/dotfiles.git'
+            in dotweave_defaults
+          - >-
+            'git@github.com:winetree94/dotfiles.git'
+            in dotweave_defaults
+        fail_msg: >-
+          The role defaults must name both the public HTTPS bootstrap URL and
+          the final SSH origin URL.
+
+    - name: Assert the age identity uses vault indirection
+      ansible.builtin.assert:
+        that:
+          - >-
+            group_vars_main is search(
+              'dotweave_age_identity: "\\{\\{ vault_dotweave_age_identity \\}\\}"'
+            )
+          - "'vault_' not in dotweave_unix_config"
+          - "'vault_' not in dotweave_windows_config"
+        fail_msg: >-
+          The inventory must map the vaulted age identity onto the public role
+          variable, and role tasks must never reference vault_* names directly.
+
+    - name: Assert initialization is non-interactive and non-destructive
+      ansible.builtin.assert:
+        that:
+          - "'--key-file' in dotweave_unix_config"
+          - "'--key-file' in dotweave_windows_config"
+          - "'--force' not in dotweave_unix_config"
+          - "'--force' not in dotweave_windows_config"
+          - "'ansible.builtin.tempfile' in dotweave_unix_config"
+          - "'ansible.windows.win_tempfile' in dotweave_windows_config"
+          - "'no_log: true' in dotweave_unix_config"
+          - "'no_log: true' in dotweave_windows_config"
+          - "'always:' in dotweave_unix_config"
+          - "'always:' in dotweave_windows_config"
+          - "'ansible_check_mode' in dotweave_unix_config"
+          - "'ansible_check_mode' in dotweave_windows_config"
+        fail_msg: >-
+          First-time init must consume a protected temporary key file, clean it
+          in an always block, preserve existing state, and avoid mutations in
+          check mode.
+
+    - name: Assert repeated runs converge without SSH bootstrap dependency
+      ansible.builtin.assert:
+        that:
+          - >-
+            dotweave_unix_config is search(
+              'fetch[\\s\\S]*dotweave_repository_https_url[\\s\\S]*merge[\\s\\S]*--ff-only'
+            )
+          - >-
+            dotweave_windows_config is search(
+              'fetch[\\s\\S]*dotweave_repository_https_url[\\s\\S]*merge[\\s\\S]*--ff-only'
+            )
+          - >-
+            dotweave_unix_config is search(
+              'dotweave[\\s\\S]*pull[\\s\\S]*--yes[\\s\\S]*set-url[\\s\\S]*dotweave_repository_ssh_url'
+            )
+          - >-
+            dotweave_windows_config is search(
+              'dotweave[\\s\\S]*pull[\\s\\S]*--yes[\\s\\S]*set-url[\\s\\S]*dotweave_repository_ssh_url'
+            )
+          - "'Already up to date' in dotweave_unix_config"
+          - "'Already up to date' in dotweave_windows_config"
+          - "'dotweave_revision_before.stdout' in dotweave_unix_config"
+          - "'dotweave_revision_before.stdout' in dotweave_windows_config"
+        fail_msg: >-
+          Repeated runs must fetch main over HTTPS, fast-forward only, restore
+          tracked files non-interactively, report no change when converged, and
+          switch origin to SSH only after pull has restored the key.
+
+    - name: Assert inconsistent or unrelated existing setups fail safely
+      ansible.builtin.assert:
+        that:
+          - "'dotweave_manifest.stat.exists == dotweave_identity.stat.exists' in dotweave_unix_config"
+          - "'dotweave_manifest.stat.exists == dotweave_identity.stat.exists' in dotweave_windows_config"
+          - "'dotweave_repository_https_url, dotweave_repository_ssh_url' in dotweave_unix_config"
+          - "'dotweave_repository_https_url, dotweave_repository_ssh_url' in dotweave_windows_config"
+          - "\"dotweave_branch.stdout | trim == 'main'\" in dotweave_unix_config"
+          - "\"dotweave_branch.stdout | trim == 'main'\" in dotweave_windows_config"
+        fail_msg: >-
+          Existing state must be accepted only when both manifest and identity
+          exist and the checkout points at the managed repository's main branch.

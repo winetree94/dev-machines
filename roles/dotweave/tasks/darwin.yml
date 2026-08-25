@@ -1,3 +1,6 @@
 ---
 - name: Dotweave | Install dotweave from Homebrew
   ansible.builtin.include_tasks: brew.yml
+
+- name: Dotweave | Configure dotweave
+  ansible.builtin.include_tasks: configure_unix.yml

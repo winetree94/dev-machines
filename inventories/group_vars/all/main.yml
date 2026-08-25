@@ -35,3 +35,9 @@ homebrew_environment: >-
 # ephemeral ssh-agent for the run - it requires "ssh_agent = auto" under
 # [connection] in ansible.cfg and never writes the key to disk.
 ansible_private_key: "{{ vault_ssh_private_key }}"
+
+# Dotweave reads this age identity only while bootstrapping a host. The role
+# writes it to a mode-0600 temporary file for `dotweave init --key-file` and
+# deletes that file in an always block; the durable copy is Dotweave's own
+# keys.txt outside this repository.
+dotweave_age_identity: "{{ vault_dotweave_age_identity }}"

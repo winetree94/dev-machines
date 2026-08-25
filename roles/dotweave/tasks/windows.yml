@@ -5,3 +5,8 @@
   vars:
     winget_packages:
       - tinyrack.dotweave
+    winget_upgrade_packages:
+      - tinyrack.dotweave
+
+- name: Dotweave | Configure dotweave
+  ansible.builtin.include_tasks: configure_windows.yml

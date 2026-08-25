@@ -10,5 +10,14 @@
   when: "'tinyrack-net/tap/dotweave' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: tinyrack-net/tap/dotweave
-    state: present
+    state: latest
+    update_homebrew: true
+  become: false
+
+- name: Dotweave | Upgrade the installed dotweave formula
+  when: "'tinyrack-net/tap/dotweave' in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: tinyrack-net/tap/dotweave
+    state: latest
+    update_homebrew: true
   become: false
