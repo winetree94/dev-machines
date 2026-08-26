@@ -26,7 +26,9 @@ make install-requirements
 |---|---|---|---|
 | desktop | 10.132.247.31 | windows | Windows 10/11 |
 | ubuntu-dev | 10.132.247.36 | ubuntu | Ubuntu 24.04+ |
-| macmini | 10.132.245.38 | macos | macOS |
+| e14 | 10.132.247.40 | ubuntu | Ubuntu 24.04+ |
+| v16 | 10.132.245.41 | ubuntu | Ubuntu 24.04+ |
+| mbp | 10.8.0.5 | macos | macOS |
 | localhost | – | (런타임 판별) | 컨트롤 머신 (macOS / Ubuntu) |
 
 원격 머신은 `inventories/hosts.yml` 의 정적 OS 그룹에 들어있다. `group_vars/<group>.yml` 의
@@ -45,13 +47,13 @@ make install-requirements
 그룹으로 몰아넣기 때문에, 예컨대 Fedora 를 그냥 두면 apt/snap 태스크를 맞고 실행 도중에
 깨진다. 해당 호스트만 실패하고 나머지 호스트는 계속 진행한다.
 
-`make apply` 를 `--limit` 없이 돌리면 이제 **4대 전부**를 건드린다. 범위를 좁히려면
+`make apply` 를 `--limit` 없이 돌리면 등록된 호스트 전부를 건드린다. 범위를 좁히려면
 `ANSIBLE_ARGS` 를 쓴다.
 
 ```bash
-make ping  ANSIBLE_ARGS="--limit macmini"
+make ping  ANSIBLE_ARGS="--limit mbp"
 make check ANSIBLE_ARGS="--limit ubuntu-dev"
-make apply ANSIBLE_ARGS="--limit ubuntu-dev,macmini"
+make apply ANSIBLE_ARGS="--limit ubuntu-dev,mbp"
 make apply ANSIBLE_ARGS="--limit localhost"
 ```
 
@@ -64,6 +66,8 @@ make apply ANSIBLE_ARGS="--limit localhost"
 - `inventories/group_vars/all/main.yml` — `ansible_private_key`
 
 즉 secret 의 *이름과 용도*는 git 에서 보이고, *값*만 감춰진다.
+각 원격 호스트는 같은 `ansible_user` / `ansible_become_password` 인터페이스를 쓰지만,
+참조하는 `vault_<host>_username` / `vault_<host>_become_password` 키는 서로 공유하지 않는다.
 
 SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_key` 에 들어있다.
 `ansible.cfg` 의 `[connection] ssh_agent = auto` 가 실행 단위 임시 ssh-agent 를 띄우고
