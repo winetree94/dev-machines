@@ -1,7 +1,99 @@
 ---
-- name: Parsec | Install Parsec (Flatpak)
-  when: "'com.parsecgaming.parsec' not in (flatpak_installed_ids | default([]))"
-  become: true
+# Parsec publishes one floating amd64 Debian package and no checksum file or
+# package repository. Unsupported Ubuntu architectures are deliberately a
+# no-op until the vendor adds a matching package to its official download
+# surface.
+- name: Parsec | Install the official amd64 Debian package
+  when: ansible_facts['architecture'] == 'x86_64'
+  vars:
+    parsec_linux_archive: /tmp/parsec-latest-amd64.deb
+  block:
+    - name: Parsec | Read the installed Debian package version
+      ansible.builtin.command:
+        argv:
+          - dpkg-query
+          - --show
+          - --showformat=${Version}
+          - parsec
+      register: parsec_debian_version
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      become: false
+
+    - name: Parsec | Download the official Debian package
+      ansible.builtin.get_url:
+        url: https://builds.parsec.app/package/parsec-linux.deb
+        dest: "{{ parsec_linux_archive }}"
+        mode: "0644"
+        timeout: 600
+      register: parsec_debian_download
+      changed_when: false
+      check_mode: false
+      become: false
+      when:
+        - parsec_debian_version.stdout | trim == ''
+          or dev_machines_update_mode | bool
+
+    - name: Parsec | Read the downloaded package metadata
+      ansible.builtin.command:
+        argv:
+          - dpkg-deb
+          - --field
+          - "{{ parsec_linux_archive }}"
+          - Package
+          - Architecture
+      register: parsec_debian_metadata
+      changed_when: false
+      check_mode: false
+      become: false
+      when: parsec_debian_download is not skipped
+
+    - name: Parsec | Validate the downloaded package metadata
+      ansible.builtin.assert:
+        that:
+          - parsec_debian_metadata.stdout_lines | length == 2
+          - "parsec_debian_metadata.stdout_lines[0] == 'Package: parsec'"
+          - "parsec_debian_metadata.stdout_lines[1] == 'Architecture: amd64'"
+        fail_msg: The official Parsec download is not the expected amd64 Debian package.
+        quiet: true
+      when: parsec_debian_download is not skipped
+
+    - name: Parsec | Install the downloaded Debian package
+      ansible.builtin.apt:
+        deb: "{{ parsec_linux_archive }}"
+        state: present
+        allow_downgrade: false
+      become: true
+      when: parsec_debian_download is not skipped
+
+  always:
+    - name: Parsec | Remove the downloaded Debian package
+      ansible.builtin.file:
+        path: "{{ parsec_linux_archive }}"
+        state: absent
+      changed_when: false
+      check_mode: false
+      become: false
+
+- name: Parsec | Check whether Flatpak is available for migration
+  ansible.builtin.stat:
+    path: /usr/bin/flatpak
+  register: parsec_flatpak_binary
+  changed_when: false
+  check_mode: false
+  when: ansible_facts['architecture'] == 'x86_64'
+
+# Removing only the application leaves the legacy profile under ~/.var/app
+# available for manual migration.
+- name: Parsec | Remove the superseded Flatpak application
   community.general.flatpak:
     name: com.parsecgaming.parsec
-    state: present
+    state: absent
+  become: true
+  when:
+    - ansible_facts['architecture'] == 'x86_64'
+    - parsec_flatpak_binary.stat.exists
+    - >-
+      flatpak_installed_ids is not defined
+      or 'com.parsecgaming.parsec' in flatpak_installed_ids

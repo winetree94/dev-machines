@@ -114,7 +114,9 @@
         darwin: onlyoffice
         windows: ONLYOFFICE.DesktopEditors
       - name: parsec
-        debian: com.parsecgaming.parsec
+        debian: https://builds.parsec.app/package/parsec-linux.deb
+        debian_channel: direct_deb
+        debian_architecture_marker: "ansible_facts['architecture'] == 'x86_64'"
         darwin: parsec
         windows: Parsec.Parsec
         pkg: true
@@ -637,6 +639,19 @@
         label: "{{ item.name }}"
       vars:
         debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
+
+    - name: Assert Parsec migrates away from the superseded Flatpak
+      ansible.builtin.assert:
+        that:
+          - "'com.parsecgaming.parsec' in parsec_debian_content"
+          - "'state: absent' in parsec_debian_content"
+          - "'flatpak_installed_ids' in parsec_debian_content"
+          - "'delete_data:' not in parsec_debian_content"
+        fail_msg: >-
+          The Parsec role must remove the superseded system Flatpak after the
+          official Debian package succeeds, while preserving its user data.
+      vars:
+        parsec_debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/parsec/tasks/debian.yml') }}"
 
     - name: Assert each GUI role installs its Flathub application
       ansible.builtin.assert:
