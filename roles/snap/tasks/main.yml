@@ -4,3 +4,36 @@
   ansible.builtin.apt:
     name: snapd
     state: present
+
+- name: Snap | Check for refreshes
+  ansible.builtin.command: snap refresh --list
+  register: snap_refreshes
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: true
+  when: dev_machines_update_mode | bool
+
+- name: Snap | Report refreshes in check mode
+  ansible.builtin.debug:
+    msg: "Snap would refresh installed packages."
+  changed_when: true
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_check_mode
+    - snap_refreshes.rc == 0
+    - snap_refreshes.stdout_lines | default([]) | length > 1
+
+- name: Snap | Refresh all installed packages
+  ansible.builtin.command: snap refresh
+  register: snap_refresh
+  changed_when: "'All snaps up to date' not in snap_refresh.stdout"
+  become: true
+  when:
+    - dev_machines_update_mode | bool
+    - not ansible_check_mode
+
+- name: Snap | Remember the global update
+  ansible.builtin.set_fact:
+    snap_all_upgraded: true
+  when: dev_machines_update_mode | bool

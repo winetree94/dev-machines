@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+PackageIdentifier: RustDesk.RustDesk
+PackageVersion: {{ rustdesk_latest_version }}
+InstallerType: wix
+Scope: machine
+InstallModes:
+  - silent
+UpgradeBehavior: install
+Installers:
+  - Architecture: x64
+    InstallerUrl: {{ rustdesk_windows_x64_asset.browser_download_url }}
+    InstallerSha256: {{ rustdesk_windows_x64_asset.digest | regex_replace('^sha256:', '') | upper }}
+  - Architecture: arm64
+    InstallerUrl: {{ rustdesk_windows_arm64_asset.browser_download_url }}
+    InstallerSha256: {{ rustdesk_windows_arm64_asset.digest | regex_replace('^sha256:', '') | upper }}
+ManifestType: installer
+ManifestVersion: 1.12.0

@@ -3,12 +3,15 @@
 # architectures below. An unsupported Ubuntu architecture is deliberately a
 # no-op until the vendor adds a matching package to its release surface.
 - name: RustDesk | Install the official Debian package
-  when: ansible_facts['architecture'] in rustdesk_linux_downloads
+  when: ansible_facts['architecture'] in rustdesk_linux_architectures
   vars:
-    rustdesk_linux_download: >-
-      {{ rustdesk_linux_downloads[ansible_facts['architecture']] }}
-    rustdesk_linux_archive: >-
-      {{ '/tmp/' ~ rustdesk_linux_download.filename }}
+    rustdesk_linux_archive: /tmp/rustdesk-latest.deb
+    rustdesk_linux_asset_pattern: >-
+      {{ '^rustdesk-.*-x86_64[.]deb$'
+         if ansible_facts['architecture'] == 'x86_64'
+         else ('^rustdesk-.*-aarch64[.]deb$'
+               if ansible_facts['architecture'] == 'aarch64'
+               else '^rustdesk-.*-armv7-sciter[.]deb$') }}
   block:
     - name: RustDesk | Read the installed Debian package version
       ansible.builtin.command:
@@ -23,26 +26,61 @@
       check_mode: false
       become: false
 
+    - name: RustDesk | Read the latest stable release
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/rustdesk/rustdesk/releases/latest
+        return_content: true
+      register: rustdesk_release
+      check_mode: false
+      when:
+        - rustdesk_debian_version.stdout | trim == ''
+          or dev_machines_update_mode | bool
+
+    - name: RustDesk | Select the latest Debian package
+      ansible.builtin.set_fact:
+        rustdesk_latest_version: >-
+          {{ rustdesk_release.json.tag_name | regex_replace('^v', '') }}
+        rustdesk_latest_asset: >-
+          {{ rustdesk_release.json.assets
+             | selectattr('name', 'match', rustdesk_linux_asset_pattern) | first }}
+      when: rustdesk_release is not skipped
+
+    - name: RustDesk | Validate the latest package metadata
+      ansible.builtin.assert:
+        that:
+          - rustdesk_latest_asset.digest is match('^sha256:[0-9a-f]{64}$')
+        fail_msg: The latest RustDesk Debian package has no SHA-256 digest.
+        quiet: true
+      when: rustdesk_release is not skipped
+
+    - name: RustDesk | Resolve whether installation is needed
+      ansible.builtin.set_fact:
+        rustdesk_needs_install: >-
+          {{ rustdesk_release is not skipped
+             and (rustdesk_debian_version.stdout | trim == ''
+                  or rustdesk_debian_version.stdout | trim
+                     is version(rustdesk_latest_version, '<')) }}
+
     - name: RustDesk | Report the pinned package change in check mode
       ansible.builtin.debug:
         msg: >-
-          RustDesk {{ rustdesk_version }} would be installed from the official
+          RustDesk {{ rustdesk_latest_version }} would be installed from the official
           checksum-pinned Debian package.
       changed_when: true
       when:
         - ansible_check_mode
-        - rustdesk_debian_version.stdout | trim != rustdesk_version
+        - rustdesk_needs_install | bool
 
     - name: RustDesk | Install the pinned Debian package
       when:
         - not ansible_check_mode
-        - rustdesk_debian_version.stdout | trim != rustdesk_version
+        - rustdesk_needs_install | bool
       block:
         - name: RustDesk | Download the official Debian package
           ansible.builtin.get_url:
-            url: "{{ rustdesk_linux_download.url }}"
+            url: "{{ rustdesk_latest_asset.browser_download_url }}"
             dest: "{{ rustdesk_linux_archive }}"
-            checksum: "{{ rustdesk_linux_download.checksum }}"
+            checksum: "{{ rustdesk_latest_asset.digest }}"
             mode: "0644"
             timeout: 600
           become: false
@@ -51,7 +89,7 @@
           ansible.builtin.apt:
             deb: "{{ rustdesk_linux_archive }}"
             state: present
-            allow_downgrade: true
+            allow_downgrade: false
           become: true
 
       always:

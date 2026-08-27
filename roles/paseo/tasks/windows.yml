@@ -1,11 +1,120 @@
 ---
-- name: Paseo | Install Paseo from a local winget manifest
-  ansible.builtin.include_role:
-    name: winget
-  vars:
-    winget_local_packages:
-      - id: GetPaseo.Paseo
-        version: "0.4.0"
-        display_name: "Paseo {{ paseo_version }}"
-        manifest_source: >-
-          {{ playbook_dir }}/../roles/paseo/files/winget/GetPaseo.Paseo/0.4.0
+- name: Paseo | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/getpaseo/paseo/releases/latest
+    return_content: true
+  register: paseo_release
+  check_mode: false
+  delegate_to: localhost
+  become: false
+
+- name: Paseo | Select the latest Windows installers
+  ansible.builtin.set_fact:
+    paseo_latest_version: "{{ paseo_release.json.tag_name | regex_replace('^v', '') }}"
+    paseo_windows_x64_asset: >-
+      {{ paseo_release.json.assets
+         | selectattr('name', 'match', '^Paseo-Setup-.*-x64[.]exe$') | first }}
+    paseo_windows_arm64_asset: >-
+      {{ paseo_release.json.assets
+         | selectattr('name', 'match', '^Paseo-Setup-.*-arm64[.]exe$') | first }}
+
+- name: Paseo | Validate the Windows release metadata
+  ansible.builtin.assert:
+    that:
+      - paseo_windows_x64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+      - paseo_windows_arm64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: The latest Paseo Windows release has incomplete SHA-256 metadata.
+    quiet: true
+
+- name: Paseo | Read the installed Windows package
+  ansible.windows.win_shell: |
+    $roots = @(
+      'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+      'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+      'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+      Where-Object DisplayName -Match '^Paseo(?: .*)?$' |
+      Select-Object -First 1 DisplayName, DisplayVersion |
+      ConvertTo-Json -Compress
+  register: paseo_windows_installed_raw
+  check_mode: false
+  changed_when: false
+
+- name: Paseo | Resolve the installed Windows package
+  ansible.builtin.set_fact:
+    paseo_windows_installed: >-
+      {{ paseo_windows_installed_raw.stdout | trim | default('{}', true) | from_json }}
+
+- name: Paseo | Resolve whether Windows installation is needed
+  ansible.builtin.set_fact:
+    paseo_windows_needs_install: >-
+      {{ paseo_windows_installed.DisplayVersion | default('') != paseo_latest_version }}
+
+- name: Paseo | Report the latest Windows package change
+  ansible.builtin.debug:
+    msg: Paseo {{ paseo_latest_version }} would be installed from the verified official installer.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - paseo_windows_needs_install | bool
+
+- name: Paseo | Install the latest Windows package
+  when:
+    - not ansible_check_mode
+    - paseo_windows_needs_install | bool
+  block:
+    - name: Paseo | Remove the superseded Windows package through winget
+      ansible.windows.win_shell: >-
+        winget uninstall --name "{{ paseo_windows_installed.DisplayName }}"
+        --exact --silent --disable-interactivity
+      when: paseo_windows_installed.DisplayName is defined
+
+    - name: Paseo | Create a temporary installer file
+      ansible.windows.win_tempfile:
+        state: file
+        suffix: -paseo.exe
+      register: paseo_windows_installer
+
+    - name: Paseo | Download the verified official installer
+      ansible.windows.win_get_url:
+        url: "{{ paseo_windows_x64_asset.browser_download_url }}"
+        dest: "{{ paseo_windows_installer.path }}"
+        checksum: "{{ paseo_windows_x64_asset.digest | regex_replace('^sha256:', '') }}"
+        checksum_algorithm: sha256
+
+    - name: Paseo | Install in the interactive user session
+      ansible.windows.win_shell: |
+        $ErrorActionPreference = 'Stop'
+        $taskName = 'Ansible-Paseo-Install'
+        Unblock-File '{{ paseo_windows_installer.path }}'
+        $action = New-ScheduledTaskAction -Execute '{{ paseo_windows_installer.path }}' -Argument '/S /currentuser'
+        $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
+        try {
+          Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
+          Start-ScheduledTask -TaskName $taskName
+          $deadline = (Get-Date).AddMinutes(10)
+          do {
+            Start-Sleep -Seconds 2
+            $task = Get-ScheduledTask -TaskName $taskName
+          } while ($task.State -eq 'Running' -and (Get-Date) -lt $deadline)
+          if ($task.State -eq 'Running') { throw 'Paseo installation timed out.' }
+          $result = Get-ScheduledTaskInfo -TaskName $taskName
+          if ($result.LastTaskResult -ne 0) { throw "Paseo installation failed: $($result.LastTaskResult)" }
+        } finally {
+          Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        }
+
+    - name: Paseo | Verify the installed Windows version
+      ansible.windows.win_shell: |
+        $version = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+          Where-Object DisplayName -Match '^Paseo(?: .*)?$' |
+          Select-Object -First 1 -ExpandProperty DisplayVersion
+        if ($version -ne '{{ paseo_latest_version }}') { throw "Installed Paseo version is $version" }
+      changed_when: false
+  always:
+    - name: Paseo | Remove the temporary installer
+      ansible.windows.win_file:
+        path: "{{ paseo_windows_installer.path }}"
+        state: absent
+      when: paseo_windows_installer.path is defined

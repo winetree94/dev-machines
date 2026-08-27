@@ -1,20 +1,10 @@
 ---
-- name: JetBrains Toolbox | Check whether Toolbox is installed
-  ansible.builtin.stat:
-    path: "{{ jetbrains_toolbox_linux_binary }}"
-  register: jetbrains_toolbox_linux_installed
-  become: false
-
 - name: JetBrains Toolbox | Assert the Ubuntu architecture is supported
   ansible.builtin.assert:
     that:
-      - ansible_facts['architecture'] in jetbrains_toolbox_linux_downloads
-    fail_msg: >-
-      JetBrains Toolbox has no configured Linux archive for
-      {{ ansible_facts['architecture'] }}. Supported architectures are x86_64
-      and aarch64.
+      - ansible_facts['architecture'] in ['x86_64', 'aarch64']
+    fail_msg: JetBrains Toolbox supports x86_64 and aarch64 Ubuntu hosts.
     quiet: true
-  when: not jetbrains_toolbox_linux_installed.stat.exists
 
 - name: JetBrains Toolbox | Install the Ubuntu runtime dependencies
   ansible.builtin.apt:
@@ -22,63 +12,128 @@
     state: present
   become: true
 
-- name: JetBrains Toolbox | Bootstrap the official Linux distribution
-  when: not jetbrains_toolbox_linux_installed.stat.exists
+- name: JetBrains Toolbox | Inspect the stable command link
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/jetbrains-toolbox"
+  register: jetbrains_toolbox_command
+  become: false
+
+- name: JetBrains Toolbox | Read the installed build marker
+  ansible.builtin.slurp:
+    src: "{{ jetbrains_toolbox_linux_install_dir }}/.ansible-version"
+  register: jetbrains_toolbox_marker
+  failed_when: false
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: JetBrains Toolbox | Read the latest stable release
+  ansible.builtin.uri:
+    url: >-
+      https://data.services.jetbrains.com/products/releases?code=TBA&latest=true&type=release
+    return_content: true
+  register: jetbrains_toolbox_release
+  check_mode: false
+  when:
+    - not jetbrains_toolbox_command.stat.exists
+      or dev_machines_update_mode | bool
+
+- name: JetBrains Toolbox | Select the architecture download
+  ansible.builtin.set_fact:
+    jetbrains_toolbox_latest_build: "{{ jetbrains_toolbox_release.json.TBA[0].build }}"
+    jetbrains_toolbox_latest_download: >-
+      {{ jetbrains_toolbox_release.json.TBA[0].downloads[
+           'linuxARM64' if ansible_facts['architecture'] == 'aarch64' else 'linux'
+         ] }}
+  when: jetbrains_toolbox_release is not skipped
+
+- name: JetBrains Toolbox | Read the official archive checksum
+  ansible.builtin.uri:
+    url: "{{ jetbrains_toolbox_latest_download.checksumLink }}"
+    return_content: true
+  register: jetbrains_toolbox_checksum
+  check_mode: false
+  when: jetbrains_toolbox_release is not skipped
+
+- name: JetBrains Toolbox | Resolve whether installation is needed
+  ansible.builtin.set_fact:
+    jetbrains_toolbox_needs_install: >-
+      {{ jetbrains_toolbox_release is not skipped
+         and (not jetbrains_toolbox_command.stat.exists
+              or jetbrains_toolbox_marker.content | default('') | b64decode | trim == ''
+              or jetbrains_toolbox_marker.content | default('') | b64decode | trim
+                 is version(jetbrains_toolbox_latest_build, '<')) }}
+
+- name: JetBrains Toolbox | Report the update in check mode
+  ansible.builtin.debug:
+    msg: >-
+      JetBrains Toolbox {{ jetbrains_toolbox_latest_build }} would be installed
+      from the official checksum-pinned stable archive.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - jetbrains_toolbox_needs_install | bool
+
+- name: JetBrains Toolbox | Install the latest stable archive
   vars:
-    jetbrains_toolbox_linux_download: >-
-      {{ jetbrains_toolbox_linux_downloads[ansible_facts['architecture']] }}
-    jetbrains_toolbox_linux_archive: >-
-      {{ ansible_facts['env']['HOME'] ~ '/.cache/jetbrains-toolbox-'
-         ~ jetbrains_toolbox_linux_build ~ '.tar.gz' }}
+    jetbrains_toolbox_archive: >-
+      {{ ansible_facts['env']['HOME'] ~ '/.cache/jetbrains-toolbox-latest.tar.gz' }}
+    jetbrains_toolbox_binary: >-
+      {{ jetbrains_toolbox_linux_install_dir ~ '/jetbrains-toolbox-'
+         ~ jetbrains_toolbox_latest_build ~ '/bin/jetbrains-toolbox' }}
+  when:
+    - not ansible_check_mode
+    - jetbrains_toolbox_needs_install | bool
   block:
-    - name: JetBrains Toolbox | Create the user installation directories
+    - name: JetBrains Toolbox | Create installation directories
       ansible.builtin.file:
-        path: "{{ jetbrains_toolbox_linux_directory }}"
+        path: "{{ item }}"
         state: directory
         mode: "0755"
       loop:
         - "{{ ansible_facts['env']['HOME'] }}/.cache"
         - "{{ ansible_facts['env']['HOME'] }}/.local/bin"
         - "{{ jetbrains_toolbox_linux_install_dir }}"
-      loop_control:
-        loop_var: jetbrains_toolbox_linux_directory
       become: false
 
-    - name: JetBrains Toolbox | Download the official Linux archive
+    - name: JetBrains Toolbox | Download the official archive
       ansible.builtin.get_url:
-        url: "{{ jetbrains_toolbox_linux_download.url }}"
-        dest: "{{ jetbrains_toolbox_linux_archive }}"
-        checksum: "{{ jetbrains_toolbox_linux_download.checksum }}"
+        url: "{{ jetbrains_toolbox_latest_download.link }}"
+        dest: "{{ jetbrains_toolbox_archive }}"
+        checksum: >-
+          sha256:{{ jetbrains_toolbox_checksum.content.split()[0] }}
         mode: "0600"
         timeout: 600
       become: false
 
-    # JetBrains documents extracting the archive directly into the selected
-    # installation directory; its root contains bin/jetbrains-toolbox.
-    - name: JetBrains Toolbox | Extract the official Linux archive
+    - name: JetBrains Toolbox | Extract the official archive
       ansible.builtin.command:
         argv:
           - tar
           - -xzf
-          - "{{ jetbrains_toolbox_linux_archive }}"
+          - "{{ jetbrains_toolbox_archive }}"
           - -C
           - "{{ jetbrains_toolbox_linux_install_dir }}"
-        creates: "{{ jetbrains_toolbox_linux_binary }}"
+        creates: "{{ jetbrains_toolbox_binary }}"
       become: false
 
-  always:
-    - name: JetBrains Toolbox | Remove the downloaded Linux archive
+    - name: JetBrains Toolbox | Link the command into the user PATH
       ansible.builtin.file:
-        path: "{{ jetbrains_toolbox_linux_archive }}"
+        src: "{{ jetbrains_toolbox_binary }}"
+        dest: "{{ ansible_facts['env']['HOME'] }}/.local/bin/jetbrains-toolbox"
+        state: link
+        force: true
+      become: false
+
+    - name: JetBrains Toolbox | Record the installed build
+      ansible.builtin.copy:
+        content: "{{ jetbrains_toolbox_latest_build }}\n"
+        dest: "{{ jetbrains_toolbox_linux_install_dir }}/.ansible-version"
+        mode: "0644"
+      become: false
+  always:
+    - name: JetBrains Toolbox | Remove the downloaded archive
+      ansible.builtin.file:
+        path: "{{ jetbrains_toolbox_archive }}"
         state: absent
       become: false
-
-# Toolbox creates and owns its desktop launcher on first GUI launch. Only keep
-# a stable shell entry point here; do not pre-create or manage a .desktop file.
-- name: JetBrains Toolbox | Link the command into the user PATH
-  ansible.builtin.file:
-    src: "{{ jetbrains_toolbox_linux_binary }}"
-    dest: "{{ ansible_facts['env']['HOME'] }}/.local/bin/jetbrains-toolbox"
-    state: link
-    force: true
-  become: false

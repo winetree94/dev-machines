@@ -1,0 +1,34 @@
+---
+- name: Validate update orchestration
+  hosts: localhost
+  gather_facts: false
+  vars:
+    update_playbook: "{{ lookup('ansible.builtin.file', '../playbooks/update.yml') }}"
+    makefile: "{{ lookup('ansible.builtin.file', '../Makefile') }}"
+    apt_tasks: "{{ lookup('ansible.builtin.file', '../roles/apt_update/tasks/main.yml') }}"
+    android_defaults: "{{ lookup('ansible.builtin.file', '../roles/android/defaults/main.yml') }}"
+    android_unix: "{{ lookup('ansible.builtin.file', '../roles/android/tasks/unix.yml') }}"
+  tasks:
+    - name: Update | Assert the update playbook reuses setup in update mode
+      ansible.builtin.assert:
+        that:
+          - "'import_playbook: setup.yml' in update_playbook"
+          - "'dev_machines_update_mode: true' in update_playbook"
+          - "'update-check:' in makefile"
+          - "'update:' in makefile"
+
+    - name: Update | Assert APT performs a full managed-host upgrade
+      ansible.builtin.assert:
+        that:
+          - "'upgrade: dist' in apt_tasks"
+          - "'autoremove: true' in apt_tasks"
+          - "'dev_machines_update_mode | bool' in apt_tasks"
+
+    - name: Update | Assert Android build inputs remain fixed
+      ansible.builtin.assert:
+        that:
+          - "'  - \"36\"' in android_defaults"
+          - "'  - \"35.0.0\"' in android_defaults"
+          - "'  - \"36.0.0\"' in android_defaults"
+          - "'  - platform-tools' in android_defaults"
+          - "'      - --update' in android_unix"

@@ -1,0 +1,44 @@
+---
+- name: Android | Read the official SDK repository metadata
+  ansible.builtin.uri:
+    url: https://dl.google.com/android/repository/repository2-3.xml
+    return_content: true
+  register: android_repository_metadata
+  check_mode: false
+  delegate_to: localhost
+  become: false
+
+- name: Android | Select the latest stable Command-line Tools filename
+  ansible.builtin.set_fact:
+    android_cmdline_tools_filename: >-
+      {{ (android_repository_metadata.content
+          | regex_findall(
+              '<url>(commandlinetools-' ~ android_cmdline_tools_platform
+              ~ '-[0-9]+_latest[.]zip)</url>'
+            )) | first }}
+
+- name: Android | Select the latest stable Command-line Tools digest
+  ansible.builtin.set_fact:
+    android_cmdline_tools_checksum_effective: >-
+      {{ (android_repository_metadata.content
+          | regex_findall(
+              '<checksum type="sha1">([0-9a-f]{40})</checksum>[ \r\n\t]*'
+              ~ '<url>' ~ android_cmdline_tools_filename ~ '</url>'
+            )) | first }}
+    android_cmdline_tools_version_effective: >-
+      {{ (android_cmdline_tools_filename
+          | regex_findall('-([0-9]+)_latest[.]zip$')) | first }}
+
+- name: Android | Validate the Command-line Tools metadata
+  ansible.builtin.assert:
+    that:
+      - android_cmdline_tools_checksum_effective is match('^[0-9a-f]{40}$')
+      - android_cmdline_tools_version_effective is match('^[0-9]+$')
+    fail_msg: Google SDK metadata has no matching stable Command-line Tools archive.
+    quiet: true
+
+- name: Android | Define the latest Command-line Tools release
+  ansible.builtin.set_fact:
+    android_cmdline_tools_url: >-
+      https://dl.google.com/android/repository/{{ android_cmdline_tools_filename }}
+    android_cmdline_tools_checksum: "{{ android_cmdline_tools_checksum_effective }}"

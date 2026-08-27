@@ -1,20 +1,6 @@
 ---
-# Nerd Fonts publishes one checksum file for every release. Pin both the
-# version and the vendor-provided archive digests so every platform installs
-# the same known font payload.
-agave_nerd_font_version: "3.5.1"
-agave_nerd_font_archives:
-  unix:
-    url: >-
-      https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/Agave.tar.xz
-    checksum: >-
-      sha256:0b29420ed47a4cc9bc2743d454ef17ea645ae31e6c348e86154d994b6ccc756e
-  windows:
-    url: >-
-      https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/Agave.zip
-    checksum: >-
-      sha256:f53c8052bd117aded74055fedf41351f1cb61f0b26bccb8b901a170385170837
-
+# Direct-download platforms resolve the current stable GitHub release and use
+# its vendor-published digest. macOS uses the Homebrew font cask instead.
 agave_nerd_font_files:
   - AgaveNerdFont-Bold.ttf
   - AgaveNerdFont-Regular.ttf

@@ -1,6 +1,24 @@
 ---
-- name: Agave Nerd Font | Install the official font archive
-  ansible.builtin.include_tasks: unix.yml
-  vars:
-    agave_nerd_font_install_dir: >-
-      {{ ansible_facts['env']['HOME'] }}/Library/Fonts
+- name: Agave Nerd Font | Inspect the legacy installation marker
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/Library/Fonts/.agave-nerd-font.version"
+  register: agave_nerd_font_legacy_marker
+  become: false
+
+- name: Agave Nerd Font | Remove role-managed legacy files
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/Library/Fonts/{{ item }}"
+    state: absent
+  loop: "{{ agave_nerd_font_files + ['.agave-nerd-font.version'] }}"
+  when: agave_nerd_font_legacy_marker.stat.exists
+  become: false
+
+- name: Agave Nerd Font | Install from Homebrew Cask
+  community.general.homebrew_cask:
+    name: font-agave-nerd-font
+    state: "{{ 'latest' if dev_machines_update_mode | bool else 'present' }}"
+  when: >-
+    'font-agave-nerd-font' not in (brew_installed_casks | default([]))
+    or (dev_machines_update_mode | bool
+        and not (brew_all_upgraded | default(false)))
+  become: false

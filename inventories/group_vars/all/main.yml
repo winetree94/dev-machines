@@ -6,6 +6,11 @@
 # still have a defined value during the first play.
 gui: false
 
+# setup.yml only installs missing software. playbooks/update.yml overrides this
+# to make package-manager and direct-download roles converge installed software
+# to the latest available release as well.
+dev_machines_update_mode: false
+
 # VPN default. Set to false for WSL guests by the "Group hosts by OS" play,
 # which is why it is a plain var here rather than a set_fact: an `-e vpn=true`
 # on the command line still wins over that runtime override.

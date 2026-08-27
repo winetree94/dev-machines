@@ -1,11 +1,40 @@
 ---
-- name: Agave Nerd Font | Install from a local winget font manifest
+- name: Agave Nerd Font | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest
+    return_content: true
+  register: agave_nerd_font_release
+  check_mode: false
+  delegate_to: localhost
+  become: false
+
+- name: Agave Nerd Font | Select the Windows archive
+  ansible.builtin.set_fact:
+    agave_nerd_font_latest_version: >-
+      {{ agave_nerd_font_release.json.tag_name | regex_replace('^v', '') }}
+    agave_nerd_font_latest_asset: >-
+      {{ agave_nerd_font_release.json.assets
+         | selectattr('name', 'equalto', 'Agave.zip') | first }}
+
+- name: Agave Nerd Font | Validate the Windows release metadata
+  ansible.builtin.assert:
+    that:
+      - agave_nerd_font_latest_asset.digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: The latest Agave Nerd Font archive has no SHA-256 digest.
+    quiet: true
+
+- name: Agave Nerd Font | Install from a dynamic local winget manifest
   ansible.builtin.include_role:
     name: winget
   vars:
     winget_local_packages:
       - id: NerdFonts.Agave
-        version: "{{ agave_nerd_font_version }}"
+        version: "{{ agave_nerd_font_latest_version }}"
         display_name: NerdFonts.Agave
-        manifest_source: >-
-          {{ playbook_dir }}/../roles/agave_nerd_font/files/winget/NerdFonts.Agave/3.5.1
+        manifest_templates:
+          - src: winget/NerdFonts.Agave.installer.yaml.j2
+            dest: NerdFonts.Agave.installer.yaml
+          - src: winget/NerdFonts.Agave.locale.en-US.yaml.j2
+            dest: NerdFonts.Agave.locale.en-US.yaml
+          - src: winget/NerdFonts.Agave.yaml.j2
+            dest: NerdFonts.Agave.yaml

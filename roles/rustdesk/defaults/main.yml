@@ -1,21 +1,8 @@
 ---
-# RustDesk publishes versioned Debian packages and their SHA-256 digests on
-# each GitHub release. Pin both so a replaced upstream asset cannot silently
-# change what this role installs.
-rustdesk_version: "1.4.9"
-rustdesk_linux_downloads:
-  x86_64:
-    filename: "rustdesk-1.4.9-x86_64.deb"
-    url: >-
-      https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-x86_64.deb
-    checksum: sha256:7244ba47c40e804172044bfbe659467c54ce46554c98e78c8c0406f1d612fda3
-  aarch64:
-    filename: "rustdesk-1.4.9-aarch64.deb"
-    url: >-
-      https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-aarch64.deb
-    checksum: sha256:ce62c996f14d33f3bbe3a330e953644a44bace7f05885a7953f7395d69fb49c0
-  armv7l:
-    filename: "rustdesk-1.4.9-armv7-sciter.deb"
-    url: >-
-      https://github.com/rustdesk/rustdesk/releases/download/1.4.9/rustdesk-1.4.9-armv7-sciter.deb
-    checksum: sha256:7c5f602f2978963fe00d75d69ec141261f27ad27920740d7c37313c402c486c8
+# RustDesk keeps the official Debian package because its service integration
+# differs from sandboxed alternatives. The release and digest are resolved at
+# run time for these vendor-supported architectures.
+rustdesk_linux_architectures:
+  - x86_64
+  - aarch64
+  - armv7l

@@ -5,8 +5,7 @@
 - name: Paseo | Install the official amd64 Debian package
   when: ansible_facts['architecture'] == 'x86_64'
   vars:
-    paseo_linux_download: "{{ paseo_linux_downloads[ansible_facts['architecture']] }}"
-    paseo_linux_archive: "/tmp/paseo-{{ paseo_version }}-amd64.deb"
+    paseo_linux_archive: /tmp/paseo-latest-amd64.deb
   block:
     - name: Paseo | Read the installed Debian package version
       ansible.builtin.command:
@@ -21,26 +20,61 @@
       check_mode: false
       become: false
 
+    - name: Paseo | Read the latest stable release
+      ansible.builtin.uri:
+        url: https://api.github.com/repos/getpaseo/paseo/releases/latest
+        return_content: true
+      register: paseo_release
+      check_mode: false
+      when:
+        - paseo_debian_version.stdout | trim == ''
+          or dev_machines_update_mode | bool
+
+    - name: Paseo | Select the latest Debian package
+      ansible.builtin.set_fact:
+        paseo_latest_version: >-
+          {{ paseo_release.json.tag_name | regex_replace('^v', '') }}
+        paseo_latest_asset: >-
+          {{ paseo_release.json.assets
+             | selectattr('name', 'match', '^Paseo-.*-amd64[.]deb$') | first }}
+      when: paseo_release is not skipped
+
+    - name: Paseo | Validate the latest package metadata
+      ansible.builtin.assert:
+        that:
+          - paseo_latest_asset.digest is match('^sha256:[0-9a-f]{64}$')
+        fail_msg: The latest Paseo Debian package has no SHA-256 digest.
+        quiet: true
+      when: paseo_release is not skipped
+
+    - name: Paseo | Resolve whether installation is needed
+      ansible.builtin.set_fact:
+        paseo_needs_install: >-
+          {{ paseo_release is not skipped
+             and (paseo_debian_version.stdout | trim == ''
+                  or paseo_debian_version.stdout | trim
+                     is version(paseo_latest_version, '<')) }}
+
     - name: Paseo | Report the pinned package change in check mode
       ansible.builtin.debug:
         msg: >-
-          Paseo {{ paseo_version }} would be installed from the official
+          Paseo {{ paseo_latest_version }} would be installed from the official
           checksum-pinned Debian package.
       changed_when: true
       when:
         - ansible_check_mode
-        - paseo_debian_version.stdout | trim != paseo_version
+        - paseo_needs_install | bool
 
     - name: Paseo | Install the pinned Debian package
       when:
         - not ansible_check_mode
-        - paseo_debian_version.stdout | trim != paseo_version
+        - paseo_needs_install | bool
       block:
         - name: Paseo | Download the official Debian package
           ansible.builtin.get_url:
-            url: "{{ paseo_linux_download.url }}"
+            url: "{{ paseo_latest_asset.browser_download_url }}"
             dest: "{{ paseo_linux_archive }}"
-            checksum: "{{ paseo_linux_download.checksum }}"
+            checksum: "{{ paseo_latest_asset.digest }}"
             mode: "0644"
             timeout: 600
           become: false
@@ -48,7 +82,7 @@
           ansible.builtin.apt:
             deb: "{{ paseo_linux_archive }}"
             state: present
-            allow_downgrade: true
+            allow_downgrade: false
           become: true
 
       always:

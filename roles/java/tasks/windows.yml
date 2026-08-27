@@ -15,6 +15,7 @@
   register: java_home_result
   changed_when: false
   failed_when: false
+  check_mode: false
 
 - name: Java | Assert the JDK installation was found
   ansible.builtin.assert:

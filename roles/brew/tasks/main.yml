@@ -17,6 +17,31 @@
 # consuming role falls through to its own module call exactly as before -
 # slower, never wrong.
 
+- name: Brew | Update Homebrew and all formulae
+  community.general.homebrew:
+    update_homebrew: true
+    upgrade_all: true
+  register: brew_formula_upgrade
+  become: false
+  when: dev_machines_update_mode | bool
+
+- name: Brew | Upgrade all casks
+  community.general.homebrew_cask:
+    upgrade_all: true
+    greedy: true
+    sudo_password: "{{ ansible_become_password }}"
+  register: brew_cask_upgrade
+  no_log: true
+  become: false
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_facts['os_family'] == 'Darwin'
+
+- name: Brew | Remember the global update
+  ansible.builtin.set_fact:
+    brew_all_upgraded: true
+  when: dev_machines_update_mode | bool
+
 - name: Brew | List the installed formulae
   ansible.builtin.command: brew list --formula -1
   register: brew_formula_list

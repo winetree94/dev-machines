@@ -37,12 +37,12 @@
     android_cmdline_tools_install_required: >-
       {{ not android_cmdline_build_marker.stat.exists or
          (android_cmdline_build_content.content | default('') | b64decode | trim)
-         != android_cmdline_tools_version }}
+         != android_cmdline_tools_version_effective }}
 
 - name: Android | Report the planned Command-line Tools installation
   ansible.builtin.debug:
     msg: >-
-      Android Command-line Tools build {{ android_cmdline_tools_version }}
+      Android Command-line Tools build {{ android_cmdline_tools_version_effective }}
       would be installed in {{ android_sdk_root_effective }}.
   changed_when: true
   when:
@@ -57,8 +57,8 @@
     - name: Android | Download pinned Command-line Tools
       ansible.builtin.get_url:
         url: "{{ android_cmdline_tools_url }}"
-        dest: "/tmp/android-commandlinetools-{{ android_cmdline_tools_version }}.zip"
-        checksum: "{{ android_cmdline_tools_checksum }}"
+        dest: "/tmp/android-commandlinetools-{{ android_cmdline_tools_version_effective }}.zip"
+        checksum: "sha1:{{ android_cmdline_tools_checksum }}"
         mode: "0644"
       become: false
 
@@ -71,7 +71,7 @@
 
     - name: Android | Extract Command-line Tools
       ansible.builtin.unarchive:
-        src: "/tmp/android-commandlinetools-{{ android_cmdline_tools_version }}.zip"
+        src: "/tmp/android-commandlinetools-{{ android_cmdline_tools_version_effective }}.zip"
         dest: "{{ android_cmdline_extract_dir.path }}"
         remote_src: true
       become: false
@@ -100,7 +100,7 @@
 
     - name: Android | Record the installed source build
       ansible.builtin.copy:
-        content: "{{ android_cmdline_tools_version }}\n"
+        content: "{{ android_cmdline_tools_version_effective }}\n"
         dest: "{{ android_sdk_root_effective }}/cmdline-tools/latest/.ansible-source-build"
         mode: "0644"
       become: false
@@ -133,6 +133,22 @@
     JAVA_HOME: "{{ java_home }}"
   changed_when: false
   when: android_cmdline_tools_ready | bool
+  become: false
+
+- name: Android | Update all installed SDK packages
+  ansible.builtin.command:
+    argv:
+      - "{{ android_sdk_root_effective }}/cmdline-tools/latest/bin/sdkmanager"
+      - "--sdk_root={{ android_sdk_root_effective }}"
+      - --update
+  environment:
+    ANDROID_HOME: "{{ android_sdk_root_effective }}"
+    JAVA_HOME: "{{ java_home }}"
+  register: android_sdk_update
+  changed_when: "'No updates available' not in android_sdk_update.stdout"
+  when:
+    - android_cmdline_tools_ready | bool
+    - dev_machines_update_mode | bool
   become: false
 
 - name: Android | Inspect requested SDK packages

@@ -1,6 +1,24 @@
 ---
-- name: D2Coding | Install the official font archive
-  ansible.builtin.include_tasks: unix.yml
-  vars:
-    d2coding_install_dir: >-
-      {{ ansible_facts['env']['HOME'] }}/Library/Fonts
+- name: D2Coding | Inspect the legacy installation marker
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/Library/Fonts/.d2coding.version"
+  register: d2coding_legacy_marker
+  become: false
+
+- name: D2Coding | Remove role-managed legacy files
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/Library/Fonts/{{ item }}"
+    state: absent
+  loop: "{{ d2coding_font_files + ['.d2coding.version'] }}"
+  when: d2coding_legacy_marker.stat.exists
+  become: false
+
+- name: D2Coding | Install from Homebrew Cask
+  community.general.homebrew_cask:
+    name: font-d2coding
+    state: "{{ 'latest' if dev_machines_update_mode | bool else 'present' }}"
+  when: >-
+    'font-d2coding' not in (brew_installed_casks | default([]))
+    or (dev_machines_update_mode | bool
+        and not (brew_all_upgraded | default(false)))
+  become: false

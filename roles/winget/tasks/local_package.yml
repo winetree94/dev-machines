@@ -3,15 +3,27 @@
   ansible.builtin.set_fact:
     winget_local_matching_packages: >-
       {{ winget_arp_installed_packages
-         | selectattr('display_name', 'equalto', winget_local_package.display_name)
-         | list }}
-    winget_local_exact_packages: >-
-      {{ winget_arp_installed_packages
-         | selectattr('display_name', 'equalto', winget_local_package.display_name)
          | selectattr(
-             'display_version',
-             'equalto',
-             winget_local_package.arp_version | default(winget_local_package.version)
+             'display_name', 'match',
+             winget_local_package.display_name_regex
+             | default('^' ~ winget_local_package.display_name | regex_escape ~ '$')
+           )
+         | list }}
+
+- name: Winget | Resolve exact local manifest package state
+  ansible.builtin.set_fact:
+    winget_local_exact_packages: >-
+      {{ winget_local_matching_packages
+         | selectattr(
+             'display_version', 'match',
+             winget_local_package.arp_version_regex
+             | default(
+                 '^'
+                 ~ (winget_local_package.arp_version
+                    | default(winget_local_package.version) | string
+                    | regex_escape)
+                 ~ '$'
+               )
            )
          | list }}
 
@@ -41,6 +53,17 @@
       ansible.windows.win_copy:
         src: "{{ winget_local_package.manifest_source }}/"
         dest: "{{ winget_local_manifest_temp.path }}\\"
+      when: winget_local_package.manifest_source is defined
+
+    - name: Winget | Render the dynamic local manifest
+      ansible.windows.win_template:
+        src: "{{ winget_manifest_template.src }}"
+        dest: >-
+          {{ winget_local_manifest_temp.path }}\{{ winget_manifest_template.dest }}
+      loop: "{{ winget_local_package.manifest_templates | default([]) }}"
+      loop_control:
+        loop_var: winget_manifest_template
+        label: "{{ winget_manifest_template.dest }}"
 
     - name: Winget | Validate the local package manifest
       ansible.windows.win_shell: >-
@@ -57,12 +80,42 @@
       until: >-
         winget_local_install.rc == 0
         or 'Font already installed.' in winget_local_install.stdout
+        or 'No installed package found matching input criteria.'
+           in winget_local_install.stdout
       retries: 2
       delay: 10
       failed_when:
         - winget_local_install.rc != 0
         - "'Font already installed.' not in winget_local_install.stdout"
+        - "'No installed package found matching input criteria.' not in winget_local_install.stdout"
       changed_when: winget_local_install.rc == 0
+
+    - name: Winget | Remove an existing ARP package that winget cannot upgrade
+      ansible.windows.win_shell: >-
+        winget uninstall --name
+        "{{ winget_local_matching_packages[0].display_name }}" --exact --silent
+        --disable-interactivity
+      when:
+        - winget_local_install.rc != 0
+        - "'No installed package found matching input criteria.' in winget_local_install.stdout"
+
+    - name: Winget | Reinstall when the existing ARP entry was not linked to winget
+      ansible.windows.win_shell: >-
+        winget install --manifest "{{ winget_local_manifest_temp.path }}" --silent
+        --disable-interactivity --accept-package-agreements
+      register: winget_local_fallback_install
+      until: >-
+        winget_local_fallback_install.rc == 0
+        or 'Font already installed.' in winget_local_fallback_install.stdout
+      retries: 2
+      delay: 10
+      failed_when:
+        - winget_local_fallback_install.rc != 0
+        - "'Font already installed.' not in winget_local_fallback_install.stdout"
+      changed_when: winget_local_fallback_install.rc == 0
+      when:
+        - winget_local_install.rc != 0
+        - "'No installed package found matching input criteria.' in winget_local_install.stdout"
 
     - name: Winget | Add the applied package to the in-memory ARP snapshot
       ansible.builtin.set_fact:

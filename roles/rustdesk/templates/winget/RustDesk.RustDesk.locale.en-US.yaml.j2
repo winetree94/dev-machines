@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
 PackageIdentifier: RustDesk.RustDesk
-PackageVersion: 1.4.9
+PackageVersion: {{ rustdesk_latest_version }}
 PackageLocale: en-US
 Publisher: Purslane Tech Pte. Ltd.
 PublisherUrl: https://rustdesk.com/
@@ -8,7 +8,7 @@ PublisherSupportUrl: https://github.com/rustdesk/rustdesk/issues
 PackageName: RustDesk
 PackageUrl: https://rustdesk.com/
 License: AGPL-3.0
-LicenseUrl: https://github.com/rustdesk/rustdesk/blob/1.4.9/LICENCE
+LicenseUrl: https://github.com/rustdesk/rustdesk/blob/{{ rustdesk_latest_version }}/LICENCE
 ShortDescription: Open-source remote desktop application
 ManifestType: defaultLocale
-ManifestVersion: 1.10.0
+ManifestVersion: 1.12.0

@@ -55,6 +55,74 @@
   ansible.builtin.set_fact:
     winget_available: true
 
+- name: Winget | List community-source upgrades
+  ansible.windows.win_shell: >-
+    winget upgrade --source winget --accept-source-agreements
+  register: winget_all_community_available
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - dev_machines_update_mode | bool
+    - winget_global_update | bool
+    - not (winget_all_upgraded | default(false))
+
+- name: Winget | List Microsoft Store upgrades
+  ansible.windows.win_shell: >-
+    winget upgrade --source msstore --accept-source-agreements
+  register: winget_all_store_available
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when:
+    - dev_machines_update_mode | bool
+    - winget_global_update | bool
+    - not (winget_all_upgraded | default(false))
+
+- name: Winget | Report global upgrades in check mode
+  ansible.builtin.debug:
+    msg: Winget would upgrade all packages with available source manifests.
+  changed_when: true
+  when:
+    - dev_machines_update_mode | bool
+    - winget_global_update | bool
+    - ansible_check_mode
+    - not (winget_all_upgraded | default(false))
+    - >-
+      winget_all_community_available.stdout_lines | default([]) | length > 2
+      or winget_all_store_available.stdout_lines | default([]) | length > 2
+
+- name: Winget | Upgrade all community-source packages
+  ansible.windows.win_shell: >-
+    winget upgrade --all --source winget --silent --disable-interactivity
+    --accept-source-agreements --accept-package-agreements
+  register: winget_all_community_upgrade
+  changed_when: true
+  when:
+    - dev_machines_update_mode | bool
+    - winget_global_update | bool
+    - not ansible_check_mode
+    - not (winget_all_upgraded | default(false))
+
+- name: Winget | Upgrade all Microsoft Store packages
+  ansible.windows.win_shell: >-
+    winget upgrade --all --source msstore --silent --disable-interactivity
+    --accept-source-agreements --accept-package-agreements
+  register: winget_all_store_upgrade
+  changed_when: true
+  when:
+    - dev_machines_update_mode | bool
+    - winget_global_update | bool
+    - not ansible_check_mode
+    - not (winget_all_upgraded | default(false))
+
+- name: Winget | Remember the global update
+  ansible.builtin.set_fact:
+    winget_all_upgraded: true
+  when:
+    - dev_machines_update_mode | bool
+    - winget_global_update | bool
+
 # Installed state is answered from a single per-host export rather than one
 # "winget list" per package - see snapshot.yml for why that round trip is the
 # dominant cost of a Windows run. Guarded the same way as winget_available
@@ -128,7 +196,12 @@
     --source winget
     --accept-source-agreements
   register: winget_upgrade_available
-  loop: "{{ winget_upgrade_packages }}"
+  loop: >-
+    {{ winget_upgrade_packages
+       + (winget_packages
+          if dev_machines_update_mode | bool
+             and not (winget_all_upgraded | default(false))
+          else []) }}
   loop_control:
     loop_var: winget_upgrade_package
   changed_when: false

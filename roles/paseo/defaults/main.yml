@@ -1,10 +1,3 @@
 ---
-# Paseo does not publish a stable unversioned Debian URL. Pin the release and
-# vendor-provided checksum so an upstream replacement cannot silently change
-# what this role installs.
-paseo_version: "0.4.0"
-paseo_linux_downloads:
-  x86_64:
-    url: >-
-      https://github.com/getpaseo/paseo/releases/download/v0.4.0/Paseo-0.4.0-amd64.deb
-    checksum: sha256:422b6b15e07698c3f706e6662b08c73993a19943d2d4c8a9cb71e22bf50ce626
+# Ubuntu and Windows resolve the latest stable release at run time. macOS uses
+# Homebrew Cask, so this role has no fixed package metadata.

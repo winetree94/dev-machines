@@ -1,0 +1,7 @@
+---
+# Reuse the complete setup graph so an update also repairs missing packages and
+# preserves all OS/GUI grouping and role ordering guarantees.
+- name: Update all managed development machines
+  import_playbook: setup.yml
+  vars:
+    dev_machines_update_mode: true

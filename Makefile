@@ -1,4 +1,5 @@
-.PHONY: install-tools install-requirements syntax validate lint ping check verify apply
+.PHONY: install-tools install-requirements syntax validate lint ping check \
+	update-check verify apply update
 
 ANSIBLE_PLAYBOOK ?= ansible-playbook
 ANSIBLE_GALAXY ?= ansible-galaxy
@@ -9,6 +10,7 @@ ANSIBLE_ARGS ?=
 
 PLAYBOOK ?= ./playbooks/setup.yml
 PING_PLAYBOOK := ./playbooks/ping.yml
+UPDATE_PLAYBOOK := ./playbooks/update.yml
 VALIDATE_PLAYBOOKS := $(sort $(wildcard tests/validate_*.yml))
 
 install-tools:
@@ -20,6 +22,7 @@ install-requirements:
 
 syntax:
 	$(ANSIBLE_PLAYBOOK) --syntax-check $(PLAYBOOK) $(ANSIBLE_ARGS)
+	$(ANSIBLE_PLAYBOOK) --syntax-check $(UPDATE_PLAYBOOK) $(ANSIBLE_ARGS)
 	$(ANSIBLE_PLAYBOOK) --syntax-check $(PING_PLAYBOOK) $(ANSIBLE_ARGS)
 
 validate:
@@ -44,7 +47,13 @@ ping:
 check:
 	$(ANSIBLE_PLAYBOOK) --check --diff $(PLAYBOOK) $(ANSIBLE_ARGS)
 
+update-check:
+	$(ANSIBLE_PLAYBOOK) --check --diff $(UPDATE_PLAYBOOK) $(ANSIBLE_ARGS)
+
 verify: syntax validate lint
 
 apply:
 	$(ANSIBLE_PLAYBOOK) $(PLAYBOOK) $(ANSIBLE_ARGS)
+
+update:
+	$(ANSIBLE_PLAYBOOK) $(UPDATE_PLAYBOOK) $(ANSIBLE_ARGS)

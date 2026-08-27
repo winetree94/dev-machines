@@ -14,8 +14,9 @@
     # so debian.yml runs the vendor installer and the marker is its URL.
     ai_roles:
       - name: claude_code
-        debian: https://claude.ai/install.sh
-        darwin: claude-code
+        debian: https://downloads.claude.ai/claude-code/apt/latest
+        debian_channel: apt_repository
+        darwin: claude-code@latest
         windows: Anthropic.ClaudeCode
       - name: codex
         debian: https://chatgpt.com/codex/install.sh
@@ -55,9 +56,7 @@
         windows: Google.Chrome
       - name: opencode_desktop
         cli_tag: opencode
-        debian: https://opencode.ai/download/stable/linux-x64-deb
-        debian_channel: direct_deb
-        debian_architecture_marker: "ansible_facts['architecture'] == 'x86_64'"
+        debian: ai.opencode.opencode
         darwin: opencode-desktop
         windows: SST.OpenCodeDesktop
       - name: bitwarden_desktop
@@ -91,7 +90,7 @@
         debian_channel: apt
         darwin: kitty
       - name: jetbrains_toolbox
-        debian: https://download.jetbrains.com/toolbox/
+        debian: https://data.services.jetbrains.com/products/releases
         debian_channel: direct_archive
         darwin: jetbrains-toolbox
         windows: JetBrains.Toolbox
@@ -120,12 +119,12 @@
         windows: Parsec.Parsec
         pkg: true
       - name: paseo
-        debian: paseo_linux_download.url
+        debian: paseo_latest_asset.browser_download_url
         debian_channel: direct_deb
         debian_architecture_marker: "ansible_facts['architecture'] == 'x86_64'"
         darwin: paseo
-        windows: GetPaseo.Paseo
-        windows_source: local_manifest
+        windows: paseo_windows_x64_asset.browser_download_url
+        windows_source: direct_installer
       - name: pinta
         debian: com.github.PintaProject.Pinta
         darwin: pinta
@@ -137,10 +136,10 @@
       - name: remmina
         debian: org.remmina.Remmina
       - name: rustdesk
-        debian: rustdesk_linux_download.url
+        debian: rustdesk_latest_asset.browser_download_url
         debian_channel: direct_deb
         debian_architecture_marker: >-
-          ansible_facts['architecture'] in rustdesk_linux_downloads
+          ansible_facts['architecture'] in rustdesk_linux_architectures
         darwin: rustdesk
         windows: RustDesk.RustDesk
         windows_source: local_manifest
@@ -189,13 +188,13 @@
     # family has a community-source package with the requested file set.
     font_roles:
       - name: agave_nerd_font
-        debian: Agave.tar.xz
-        darwin: Agave.tar.xz
+        debian: agave_nerd_font_latest_asset
+        darwin: font-agave-nerd-font
         windows: NerdFonts.Agave
         windows_source: local_manifest
       - name: d2coding
-        debian: D2Coding-Ver1.3.3-20260725.zip
-        darwin: D2Coding-Ver1.3.3-20260725.zip
+        debian: d2coding_latest_asset
+        darwin: font-d2coding
         windows: NAVER.D2Coding
         windows_source: local_manifest
 
@@ -405,6 +404,9 @@
     local_manifest_windows_roles: >-
       {{ windows_roles | selectattr('windows_source', 'defined')
          | selectattr('windows_source', 'equalto', 'local_manifest') | list }}
+    direct_installer_windows_roles: >-
+      {{ windows_roles | selectattr('windows_source', 'defined')
+         | selectattr('windows_source', 'equalto', 'direct_installer') | list }}
 
   tasks:
     - name: Read the setup playbook
@@ -726,13 +728,13 @@
       ansible.builtin.assert:
         that:
           - "'ansible.builtin.get_url' in debian_content"
-          - item.debian in defaults_content
-          - "'checksum:' in defaults_content"
+          - item.debian in debian_content
+          - "'checksumLink' in debian_content"
           - "'architecture' in debian_content"
           - "'creates:' in debian_content"
           - "'state: link' in debian_content"
           - "'.local/share/applications' not in debian_content"
-          - "'ansible.builtin.copy' not in debian_content"
+          - "'content:' in debian_content"
           - "'ansible.builtin.template' not in debian_content"
           - "'become: false' in debian_content"
         fail_msg: >-
@@ -771,7 +773,9 @@
           installer with get_url and run it as a separate task, guarded by a
           stat check so the role stays idempotent. Never pipe a download
           straight into a shell.
-      loop: "{{ ai_roles | rejectattr('shared', 'defined') | list }}"
+      loop: >-
+        {{ ai_roles | rejectattr('shared', 'defined')
+           | rejectattr('debian_channel', 'defined') | list }}
       loop_control:
         label: "{{ item.name }}"
       vars:
@@ -1010,7 +1014,9 @@
           - "'name: winget' in windows_content"
           - "'winget_local_packages' in windows_content"
           - item.windows in windows_content
-          - "'manifest_source' in windows_content"
+          - >-
+            'manifest_source' in windows_content
+            or 'manifest_templates' in windows_content
           - "'win_chocolatey' not in windows_content"
           - "'win_scoop' not in windows_content"
         fail_msg: >-
@@ -1018,6 +1024,26 @@
           local manifest to the shared winget role. A role must never download
           or execute a Windows installer directly.
       loop: "{{ local_manifest_windows_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        windows_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/windows.yml') }}"
+
+    - name: Assert exceptional Windows installers are verified and headless
+      ansible.builtin.assert:
+        that:
+          - item.windows in windows_content
+          - "'win_get_url' in windows_content"
+          - "'checksum_algorithm: sha256' in windows_content"
+          - "'New-ScheduledTaskPrincipal' in windows_content"
+          - "'-LogonType Interactive' in windows_content"
+          - "'winget uninstall' in windows_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/windows.yml must verify the vendor digest,
+          run the installer in the interactive user session, and remove an old
+          package through winget. This exception is only for an official
+          installer that winget cannot launch headlessly.
+      loop: "{{ direct_installer_windows_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:

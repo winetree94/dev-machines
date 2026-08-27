@@ -1,20 +1,4 @@
 ---
-# Pin the official Linux archive and its vendor-published checksums. Toolbox
-# updates itself after first launch; this pin makes only the initial bootstrap
-# reproducible and prevents an Ansible run from following a moving URL.
-jetbrains_toolbox_linux_build: "3.7.2.87231"
-jetbrains_toolbox_linux_downloads:
-  x86_64:
-    url: >-
-      https://download.jetbrains.com/toolbox/jetbrains-toolbox-3.7.2.87231.tar.gz
-    checksum: >-
-      sha256:f5a01f0b23843120c5137ae98b701c424761f813d8cfcd7965dad5c3c84bd396
-  aarch64:
-    url: >-
-      https://download.jetbrains.com/toolbox/jetbrains-toolbox-3.7.2.87231-arm64.tar.gz
-    checksum: >-
-      sha256:9f09f74f86f996a628c7ba43779b0f854a48b94b09538fa98704aaf4dae95df3
-
 # https://www.jetbrains.com/help/toolbox-app/installation.html lists
 # "libfontconfig" generically; the corresponding Ubuntu runtime package is
 # libfontconfig1.
@@ -31,6 +15,3 @@ jetbrains_toolbox_ubuntu_packages:
 
 jetbrains_toolbox_linux_install_dir: >-
   {{ ansible_facts['env']['HOME'] }}/.local/share/JetBrains/Toolbox
-jetbrains_toolbox_linux_binary: >-
-  {{ jetbrains_toolbox_linux_install_dir ~ '/jetbrains-toolbox-'
-     ~ jetbrains_toolbox_linux_build ~ '/bin/jetbrains-toolbox' }}

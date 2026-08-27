@@ -3,6 +3,10 @@
 # the availability assert in tasks/main.yml.
 winget_packages: []
 
+# Enabled only by the Windows bootstrap include. Package roles leave this off
+# so an update filtered by an application tag upgrades only that application.
+winget_global_update: false
+
 # Most roles only ensure that a package is installed. Callers that require a
 # current file or repository format can opt specific community packages into
 # an exact-source upgrade check on every run.

@@ -5,3 +5,11 @@
   vars:
     winget_packages:
       - jdx.mise
+
+- name: Mise | Upgrade managed runtimes
+  ansible.windows.win_command: mise upgrade
+  register: mise_runtime_upgrade
+  changed_when: >-
+    'already installed' not in mise_runtime_upgrade.stdout
+    and 'nothing to upgrade' not in mise_runtime_upgrade.stdout | lower
+  when: dev_machines_update_mode | bool

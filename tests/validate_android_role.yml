@@ -13,6 +13,8 @@
     android_windows: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/windows.yml') }}"
     android_unix: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/unix.yml') }}"
     android_packages: "{{ lookup('ansible.builtin.file', android_dir ~ '/tasks/resolve_packages.yml') }}"
+    android_cmdline_resolution: >-
+      {{ lookup('ansible.builtin.file', android_dir ~ '/tasks/resolve_cmdline_tools.yml') }}
     java_debian: "{{ lookup('ansible.builtin.file', java_dir ~ '/tasks/debian.yml') }}"
     java_darwin: "{{ lookup('ansible.builtin.file', java_dir ~ '/tasks/darwin.yml') }}"
     java_windows: "{{ lookup('ansible.builtin.file', java_dir ~ '/tasks/windows.yml') }}"
@@ -46,14 +48,13 @@
           Java must install JDK 21 through apt, Homebrew and the shared winget
           role, then register JAVA_HOME without editing user dotfiles.
 
-    - name: Assert Command-line Tools and SDK packages are reproducibly pinned
+    - name: Assert Command-line Tools float while SDK version lists stay pinned
       ansible.builtin.assert:
         that:
-          - "'android_cmdline_tools_version: \"15859902\"' in android_defaults"
-          - "'linux_x86_64:' in android_defaults"
-          - "'darwin_x86_64:' in android_defaults"
-          - "'darwin_arm64:' in android_defaults"
-          - "'windows_x86_64:' in android_defaults"
+          - "'android_cmdline_tools_version:' not in android_defaults"
+          - "'repository2-3.xml' in android_cmdline_resolution"
+          - "'channel' not in android_cmdline_resolution"
+          - "'checksum type=\"sha1\"' in android_cmdline_resolution"
           - "'android_sdk_core_packages:' in android_defaults"
           - "'platform-tools' in android_defaults"
           - "'android_sdk_platform_versions:' in android_defaults"
@@ -67,11 +68,12 @@
           - "'android_sdk_packages_effective' in android_windows"
           - "'android_sdk_packages is defined' in android_packages"
           - "'checksum:' in android_unix"
-          - "'checksum_algorithm: sha256' in android_windows"
+          - "'checksum_algorithm: sha1' in android_windows"
+          - "'--update' in android_unix"
+          - "'--update' in android_windows"
         fail_msg: >-
-          Android must pin Command-line Tools build 15859902 with a checksum
-          per supported platform, compose versioned SDK packages from lists,
-          and install Build Tools 35.0.0 and 36.0.0 side by side.
+          Android must resolve the newest checksummed Command-line Tools while
+          keeping requested Platform and Build Tools versions explicit.
 
     - name: Resolve a multi-version SDK package selection
       ansible.builtin.include_tasks: >-

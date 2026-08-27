@@ -14,16 +14,9 @@
       {{ android_sdk_root | default(ansible_facts['env']['HOME'] ~ '/Library/Android/sdk', true) }}
     android_cmdline_tools_platform: >-
       {{ 'mac_arm64' if ansible_facts['architecture'] == 'arm64' else 'mac_x86_64' }}
-    android_cmdline_tools_checksum_key: >-
-      {{ 'darwin_arm64' if ansible_facts['architecture'] == 'arm64' else 'darwin_x86_64' }}
 
-- name: Android | Define the macOS Command-line Tools artifact
-  ansible.builtin.set_fact:
-    android_cmdline_tools_url: >-
-      https://dl.google.com/android/repository/commandlinetools-{{
-      android_cmdline_tools_platform }}-{{ android_cmdline_tools_version }}_latest.zip
-    android_cmdline_tools_checksum: >-
-      sha256:{{ android_cmdline_tools_checksums[android_cmdline_tools_checksum_key] }}
+- name: Android | Resolve the latest Command-line Tools
+  ansible.builtin.include_tasks: resolve_cmdline_tools.yml
 
 - name: Android | Install the SDK
   ansible.builtin.include_tasks: unix.yml

@@ -5,10 +5,12 @@
       - winget_local_declaration.id is defined
       - winget_local_declaration.version is defined
       - winget_local_declaration.display_name is defined
-      - winget_local_declaration.manifest_source is defined
+      - >-
+        winget_local_declaration.manifest_source is defined
+        or winget_local_declaration.manifest_templates is defined
     fail_msg: >-
       Every winget_local_packages item needs id, version, display_name and
-      manifest_source.
+      either manifest_source or manifest_templates.
     quiet: true
   loop: "{{ winget_local_packages }}"
   loop_control:

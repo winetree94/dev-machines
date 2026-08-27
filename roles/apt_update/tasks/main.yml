@@ -1,9 +1,15 @@
 ---
-- name: Update Apt
+- name: Apt | Refresh the package cache
   become: true
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
+
+- name: Apt | Upgrade all registered packages
+  become: true
+  ansible.builtin.apt:
+    update_cache: true
     upgrade: dist
     autoremove: true
     autoclean: true
+  when: dev_machines_update_mode | bool

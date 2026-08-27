@@ -1,7 +1,22 @@
 ---
 - name: Mise | Install mise (brew)
-  when: "'mise' not in (brew_installed_formulae | default([]))"
+  when: >-
+    'mise' not in (brew_installed_formulae | default([]))
+    or (dev_machines_update_mode | bool
+        and not (brew_all_upgraded | default(false)))
   community.general.homebrew:
     name: mise
-    state: present
+    state: "{{ 'latest' if dev_machines_update_mode | bool else 'present' }}"
+  become: false
+
+- name: Mise | Upgrade managed runtimes
+  ansible.builtin.command:
+    argv:
+      - mise
+      - upgrade
+  register: mise_runtime_upgrade
+  changed_when: >-
+    'already installed' not in mise_runtime_upgrade.stdout
+    and 'nothing to upgrade' not in mise_runtime_upgrade.stdout | lower
+  when: dev_machines_update_mode | bool
   become: false

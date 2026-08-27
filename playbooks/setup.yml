@@ -138,6 +138,8 @@
     # without it fails once, up front, with a clear message.
     - role: winget
       tags: [winget]
+      vars:
+        winget_global_update: true
     # No windows.yml yet. Future Windows prerequisites must use the shared
     # winget role from that file rather than invoking a package manager here.
     - role: platform_prerequisites

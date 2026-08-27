@@ -22,18 +22,52 @@
   register: agave_nerd_font_file_stats
   become: false
 
+- name: Agave Nerd Font | Resolve whether release metadata is needed
+  ansible.builtin.set_fact:
+    agave_nerd_font_release_needed: >-
+      {{ dev_machines_update_mode | bool
+         or agave_nerd_font_marker.content | default('') | length == 0
+         or agave_nerd_font_file_stats.results
+            | rejectattr('stat.exists') | list | length > 0 }}
+
+- name: Agave Nerd Font | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/ryanoasis/nerd-fonts/releases/latest
+    return_content: true
+  register: agave_nerd_font_release
+  check_mode: false
+  when: agave_nerd_font_release_needed | bool
+
+- name: Agave Nerd Font | Select the latest Unix archive
+  ansible.builtin.set_fact:
+    agave_nerd_font_latest_version: >-
+      {{ agave_nerd_font_release.json.tag_name | regex_replace('^v', '') }}
+    agave_nerd_font_latest_asset: >-
+      {{ agave_nerd_font_release.json.assets
+         | selectattr('name', 'equalto', 'Agave.tar.xz') | first }}
+  when: agave_nerd_font_release_needed | bool
+
+- name: Agave Nerd Font | Validate the latest release metadata
+  ansible.builtin.assert:
+    that:
+      - agave_nerd_font_latest_asset.digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: The latest Agave Nerd Font release has no SHA-256 asset digest.
+    quiet: true
+  when: agave_nerd_font_release_needed | bool
+
 - name: Agave Nerd Font | Resolve whether installation is needed
   ansible.builtin.set_fact:
     agave_nerd_font_needs_install: >-
-      {{ agave_nerd_font_marker.content | default('') | b64decode | trim
-         != agave_nerd_font_version
-         or agave_nerd_font_file_stats.results
-            | rejectattr('stat.exists') | list | length > 0 }}
+      {{ agave_nerd_font_release_needed | bool
+         and (agave_nerd_font_marker.content | default('') | b64decode | trim
+              != agave_nerd_font_latest_version
+              or agave_nerd_font_file_stats.results
+                 | rejectattr('stat.exists') | list | length > 0) }}
 
 - name: Agave Nerd Font | Report the pinned font change in check mode
   ansible.builtin.debug:
     msg: >-
-      Agave Nerd Font {{ agave_nerd_font_version }} would be installed from
+      Agave Nerd Font {{ agave_nerd_font_latest_version }} would be installed from
       the official checksum-pinned archive.
   changed_when: true
   when:
@@ -54,9 +88,9 @@
 
     - name: Agave Nerd Font | Download the official archive
       ansible.builtin.get_url:
-        url: "{{ agave_nerd_font_archives.unix.url }}"
+        url: "{{ agave_nerd_font_latest_asset.browser_download_url }}"
         dest: "{{ agave_nerd_font_temp.path }}/Agave.tar.xz"
-        checksum: "{{ agave_nerd_font_archives.unix.checksum }}"
+        checksum: "{{ agave_nerd_font_latest_asset.digest }}"
         mode: "0600"
         timeout: 600
       become: false
@@ -83,7 +117,7 @@
 
     - name: Agave Nerd Font | Record the installed version
       ansible.builtin.copy:
-        content: "{{ agave_nerd_font_version }}\n"
+        content: "{{ agave_nerd_font_latest_version }}\n"
         dest: "{{ agave_nerd_font_install_dir }}/.agave-nerd-font.version"
         mode: "0644"
       become: false

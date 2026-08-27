@@ -27,3 +27,16 @@
 - name: Mas | Remember that mas was installed on this host
   ansible.builtin.set_fact:
     mas_installed: true
+
+- name: Mas | Upgrade all Mac App Store applications
+  community.general.mas:
+    upgrade_all: true
+  become: true
+  when:
+    - dev_machines_update_mode | bool
+    - not (mas_all_upgraded | default(false))
+
+- name: Mas | Remember the global application update
+  ansible.builtin.set_fact:
+    mas_all_upgraded: true
+  when: dev_machines_update_mode | bool

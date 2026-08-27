@@ -17,25 +17,88 @@
 
 - name: D2Coding | Check the installed font files
   ansible.builtin.stat:
-    path: "{{ d2coding_install_dir }}/{{ item.target }}"
+    path: "{{ d2coding_install_dir }}/{{ item }}"
   loop: "{{ d2coding_font_files }}"
   loop_control:
-    label: "{{ item.target }}"
+    label: "{{ item }}"
   register: d2coding_file_stats
   become: false
+
+- name: D2Coding | Resolve whether release metadata is needed
+  ansible.builtin.set_fact:
+    d2coding_release_needed: >-
+      {{ dev_machines_update_mode | bool
+         or d2coding_marker.content | default('') | length == 0
+         or d2coding_file_stats.results
+            | rejectattr('stat.exists') | list | length > 0 }}
+
+- name: D2Coding | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/naver/d2-coding-font/releases/latest
+    return_content: true
+  register: d2coding_release
+  check_mode: false
+  when: d2coding_release_needed | bool
+
+- name: D2Coding | Select the latest archive
+  ansible.builtin.set_fact:
+    d2coding_latest_version: >-
+      {{ d2coding_release.json.tag_name | regex_replace('^VER', '') }}
+    d2coding_latest_asset: >-
+      {{ d2coding_release.json.assets
+         | selectattr('name', 'match', '^D2Coding-.*[.]zip$') | first }}
+  when: d2coding_release_needed | bool
+
+- name: D2Coding | Read the latest archive build
+  ansible.builtin.set_fact:
+    d2coding_latest_build: >-
+      {{ d2coding_latest_asset.name
+         | regex_findall('-([0-9]{8})[.]zip$') | first }}
+  when: d2coding_release_needed | bool
+
+- name: D2Coding | Define the latest font payload
+  ansible.builtin.set_fact:
+    d2coding_latest_font_files:
+      - source: >-
+          D2Coding/D2Coding-Ver{{ d2coding_latest_version }}-{{
+          d2coding_latest_build }}.ttf
+        target: D2Coding-Regular.ttf
+      - source: >-
+          D2Coding/D2CodingBold-Ver{{ d2coding_latest_version }}-{{
+          d2coding_latest_build }}.ttf
+        target: D2Coding-Bold.ttf
+      - source: >-
+          D2CodingLigature/D2Coding-Ver{{ d2coding_latest_version }}-{{
+          d2coding_latest_build }}-ligature.ttf
+        target: D2CodingLigature-Regular.ttf
+      - source: >-
+          D2CodingLigature/D2CodingBold-Ver{{ d2coding_latest_version }}-{{
+          d2coding_latest_build }}-ligature.ttf
+        target: D2CodingLigature-Bold.ttf
+  when: d2coding_release_needed | bool
+
+- name: D2Coding | Validate the latest release metadata
+  ansible.builtin.assert:
+    that:
+      - d2coding_latest_asset.digest is match('^sha256:[0-9a-f]{64}$')
+      - d2coding_latest_build is match('^[0-9]{8}$')
+    fail_msg: The latest D2Coding release metadata is incomplete.
+    quiet: true
+  when: d2coding_release_needed | bool
 
 - name: D2Coding | Resolve whether installation is needed
   ansible.builtin.set_fact:
     d2coding_needs_install: >-
-      {{ d2coding_marker.content | default('') | b64decode | trim
-         != (d2coding_version ~ '-' ~ d2coding_build)
-         or d2coding_file_stats.results
-            | rejectattr('stat.exists') | list | length > 0 }}
+      {{ d2coding_release_needed | bool
+         and (d2coding_marker.content | default('') | b64decode | trim
+              != (d2coding_latest_version ~ '-' ~ d2coding_latest_build)
+              or d2coding_file_stats.results
+                 | rejectattr('stat.exists') | list | length > 0) }}
 
 - name: D2Coding | Report the pinned font change in check mode
   ansible.builtin.debug:
     msg: >-
-      D2Coding {{ d2coding_version }} ({{ d2coding_build }}) would be installed
+      D2Coding {{ d2coding_latest_version }} ({{ d2coding_latest_build }}) would be installed
       from the official checksum-pinned archive.
   changed_when: true
   when:
@@ -56,9 +119,9 @@
 
     - name: D2Coding | Download the official archive
       ansible.builtin.get_url:
-        url: "{{ d2coding_archive.url }}"
+        url: "{{ d2coding_latest_asset.browser_download_url }}"
         dest: "{{ d2coding_temp.path }}/D2Coding.zip"
-        checksum: "{{ d2coding_archive.checksum }}"
+        checksum: "{{ d2coding_latest_asset.digest }}"
         mode: "0600"
         timeout: 600
       become: false
@@ -67,7 +130,7 @@
       ansible.builtin.unarchive:
         src: "{{ d2coding_temp.path }}/D2Coding.zip"
         dest: "{{ d2coding_temp.path }}"
-        include: "{{ d2coding_font_files | map(attribute='source') | list }}"
+        include: "{{ d2coding_latest_font_files | map(attribute='source') | list }}"
         remote_src: true
       become: false
 
@@ -77,7 +140,7 @@
         dest: "{{ d2coding_install_dir }}/{{ item.target }}"
         mode: "0644"
         remote_src: true
-      loop: "{{ d2coding_font_files }}"
+      loop: "{{ d2coding_latest_font_files }}"
       loop_control:
         label: "{{ item.target }}"
       notify: Refresh the user font cache
@@ -85,7 +148,7 @@
 
     - name: D2Coding | Record the installed version
       ansible.builtin.copy:
-        content: "{{ d2coding_version }}-{{ d2coding_build }}\n"
+        content: "{{ d2coding_latest_version }}-{{ d2coding_latest_build }}\n"
         dest: "{{ d2coding_install_dir }}/.d2coding.version"
         mode: "0644"
       become: false

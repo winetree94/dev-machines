@@ -55,7 +55,19 @@ make ping  ANSIBLE_ARGS="--limit mbp"
 make check ANSIBLE_ARGS="--limit ubuntu-dev"
 make apply ANSIBLE_ARGS="--limit ubuntu-dev,mbp"
 make apply ANSIBLE_ARGS="--limit localhost"
+make update-check ANSIBLE_ARGS="--limit ubuntu-dev"
+make update ANSIBLE_ARGS="--limit ubuntu-dev,mbp"
 ```
+
+`make apply` 는 빠른 멱등 설치 경로이고, `make update` 는 설치 누락을 보완하면서 각
+패키지 관리자의 전체 업그레이드와 수동 다운로드 롤의 최신 안정 버전 확인까지 수행한다.
+Ubuntu의 APT, Snap, Flatpak과 Homebrew, macOS의 Homebrew/MAS/softwareupdate,
+Windows의 winget 소스가 각각 전체 업데이트 대상이다. `mise`가 관리하는 런타임도
+`mise upgrade`로 갱신된다. `make update-check`로 같은 흐름을 check mode에서 미리 본다.
+
+Android SDK만 예외적으로 프로젝트 빌드 재현성을 우선한다. platform `android-36`과
+build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-tools는
+업데이트 실행 시 최신 버전으로 갱신한다.
 
 # Secret 구조
 
@@ -169,8 +181,6 @@ Each role's `tasks/main.yml` is a dispatcher that includes the first matching fi
 - `debian.yml` — Ubuntu (apt/snap/flatpak/homebrew)
 - `darwin.yml` — macOS (homebrew)
 - `windows.yml` — Windows (winget)
-- `default.yml` — fallback shared by Ubuntu/macOS (homebrew-only roles)
-
 If no file matches, the role is a no-op for that OS.
 
 앱 하나당 롤 하나가 원칙이다. `default.yml` 은 **Windows 를 포함한 모든 OS 의 폴백**
@@ -478,10 +488,10 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `claude_desktop` | 공식 APT `claude-desktop` | cask `claude` | `Anthropic.Claude` |
 | `chatgpt_desktop` | 미지원 | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
 | `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
-| `opencode_desktop` | 공식 x64 `.deb` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
+| `opencode_desktop` | Flathub `ai.opencode.opencode` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
 | `kitty` | Ubuntu archive `kitty` | cask `kitty` | 미지원 |
-| `jetbrains_toolbox` | 공식 checksum-pinned archive | cask `jetbrains-toolbox` | `JetBrains.Toolbox` |
-| `paseo` | 공식 checksum-pinned amd64 `.deb` | cask `paseo` | local winget manifest |
+| `jetbrains_toolbox` | 공식 최신 안정 checksum archive | cask `jetbrains-toolbox` | `JetBrains.Toolbox` |
+| `paseo` | 공식 최신 안정 amd64 `.deb` | cask `paseo` | 동적 local winget manifest |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
 폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다.
@@ -536,6 +546,7 @@ make verify
 This runs:
 
 - `ansible-playbook --syntax-check ./playbooks/setup.yml`
+- `ansible-playbook --syntax-check ./playbooks/update.yml`
 - all static validation playbooks matching `tests/validate_*.yml`
 - `yamllint .`
 - `ansible-lint`

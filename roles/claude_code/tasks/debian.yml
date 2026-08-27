@@ -1,36 +1,89 @@
 ---
-# The Homebrew package for Claude Code is a cask, and casks are macOS-only, so
-# Linux has to go through the vendor installer. Anthropic also publishes an APT
-# repository, which this repository deliberately does not add: third-party apt
-# sources are avoided here, and the installer needs no root at all.
-#
-# The script is downloaded and then executed rather than piped into a shell, so
-# the fetch and the run are separate, inspectable steps.
-- name: Claude code | Check whether Claude Code is installed
+- name: Claude code | Install repository prerequisites
+  ansible.builtin.apt:
+    name: [ca-certificates, gnupg]
+    state: present
+  become: true
+
+- name: Claude code | Download the official APT signing key
+  ansible.builtin.get_url:
+    url: https://downloads.claude.ai/keys/claude-code.asc
+    dest: /usr/share/keyrings/claude-code.asc
+    mode: "0644"
+    force: true
+  become: true
+
+- name: Claude code | Read the signing-key fingerprint
+  ansible.builtin.command:
+    argv: [gpg, --show-keys, --with-colons, /usr/share/keyrings/claude-code.asc]
+  register: claude_code_key
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: Claude code | Verify the official signing key
+  ansible.builtin.assert:
+    that:
+      - "'31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE' in claude_code_key.stdout"
+    fail_msg: The Claude Code APT signing key has an unexpected fingerprint.
+    quiet: true
+  when: not ansible_check_mode
+
+- name: Claude code | Register the official latest APT channel
+  ansible.builtin.deb822_repository:
+    name: claude-code
+    types: [deb]
+    uris: https://downloads.claude.ai/claude-code/apt/latest
+    suites: [latest]
+    components: [main]
+    signed_by: /usr/share/keyrings/claude-code.asc
+    state: present
+  register: claude_code_repository
+  become: true
+
+- name: Claude code | Inspect the native-installer launcher
   ansible.builtin.stat:
     path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude"
-  register: claude_code_installed
+    follow: false
+  register: claude_code_native_launcher
   become: false
 
-- name: Claude code | Download the official installer
-  when: not claude_code_installed.stat.exists
-  ansible.builtin.get_url:
-    url: https://claude.ai/install.sh
-    dest: /tmp/claude-code-install.sh
-    mode: "0755"
-    force: true
-  become: false
-
-# "setsid --wait" for the same reason as roles/codex and roles/copilot_cli. This
-# installer has no prompt today, but it is the same kind of vendor script fetched
-# fresh on every run, and a prompt added upstream would hang the play forever
-# rather than fail it. "--wait" preserves the exit status.
-- name: Claude code | Install Claude Code
-  when: not claude_code_installed.stat.exists
+- name: Claude code | Resolve the native-installer launcher target
   ansible.builtin.command:
     argv:
-      - setsid
-      - --wait
-      - /tmp/claude-code-install.sh
+      - readlink
+      - -f
+      - "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude"
+  register: claude_code_native_target
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: claude_code_native_launcher.stat.islnk | default(false)
+  become: false
+
+- name: Claude code | Install from the official APT repository
+  ansible.builtin.apt:
+    name: claude-code
+    state: "{{ 'latest' if dev_machines_update_mode | bool else 'present' }}"
+    update_cache: "{{ claude_code_repository.changed }}"
+  become: true
+  when: not (ansible_check_mode and claude_code_repository.changed)
+
+- name: Claude code | Report installation from the new APT repository
+  ansible.builtin.debug:
+    msg: Claude Code would be installed from the official latest APT channel.
   changed_when: true
+  when:
+    - ansible_check_mode
+    - claude_code_repository.changed
+
+- name: Claude code | Remove the superseded native launcher
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude"
+    state: absent
+  when:
+    - claude_code_native_launcher.stat.islnk | default(false)
+    - >-
+      (ansible_facts['env']['HOME'] ~ '/.local/share/claude/versions/')
+      in (claude_code_native_target.stdout | default(''))
   become: false

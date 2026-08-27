@@ -9,7 +9,7 @@
   become: false
 
 - name: Codex | Download the official installer
-  when: not codex_installed.stat.exists
+  when: not codex_installed.stat.exists or dev_machines_update_mode | bool
   ansible.builtin.get_url:
     url: https://chatgpt.com/codex/install.sh
     dest: /tmp/codex-install.sh
@@ -28,8 +28,8 @@
 # still fails the task. CODEX_NON_INTERACTIVE is the vendor's documented switch
 # and is set as well, belt and braces, since it also covers the "Start Codex
 # now?" prompt.
-- name: Codex | Install the Codex CLI
-  when: not codex_installed.stat.exists
+- name: Codex | Install or update the Codex CLI
+  when: not codex_installed.stat.exists or dev_machines_update_mode | bool
   ansible.builtin.command:
     argv:
       - setsid

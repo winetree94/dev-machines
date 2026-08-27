@@ -1,14 +1,45 @@
 ---
-- name: RustDesk | Install RustDesk from a local winget manifest
+- name: RustDesk | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/rustdesk/rustdesk/releases/latest
+    return_content: true
+  register: rustdesk_release
+  check_mode: false
+  delegate_to: localhost
+  become: false
+
+- name: RustDesk | Select the latest Windows installers
+  ansible.builtin.set_fact:
+    rustdesk_latest_version: "{{ rustdesk_release.json.tag_name | regex_replace('^v', '') }}"
+    rustdesk_windows_x64_asset: >-
+      {{ rustdesk_release.json.assets
+         | selectattr('name', 'match', '^rustdesk-.*-x86_64[.]msi$') | first }}
+    rustdesk_windows_arm64_asset: >-
+      {{ rustdesk_release.json.assets
+         | selectattr('name', 'match', '^rustdesk-.*-aarch64[.]msi$') | first }}
+
+- name: RustDesk | Validate the Windows release metadata
+  ansible.builtin.assert:
+    that:
+      - rustdesk_windows_x64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+      - rustdesk_windows_arm64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: The latest RustDesk Windows release has incomplete SHA-256 metadata.
+    quiet: true
+
+- name: RustDesk | Install from a dynamic local winget manifest
   ansible.builtin.include_role:
     name: winget
   vars:
     winget_local_packages:
       - id: RustDesk.RustDesk
-        version: "{{ rustdesk_version }}"
+        version: "{{ rustdesk_latest_version }}"
         display_name: RustDesk
-        # RustDesk's MSI registers its numeric build suffix in ARP even though
-        # the public release and winget package version are 1.4.9.
-        arp_version: 1.4.9.29722256
-        manifest_source: >-
-          {{ playbook_dir }}/../roles/rustdesk/files/winget/RustDesk.RustDesk/1.4.9
+        arp_version_regex: >-
+          ^{{ rustdesk_latest_version | regex_escape }}(?:\..*)?$
+        manifest_templates:
+          - src: winget/RustDesk.RustDesk.installer.yaml.j2
+            dest: RustDesk.RustDesk.installer.yaml
+          - src: winget/RustDesk.RustDesk.locale.en-US.yaml.j2
+            dest: RustDesk.RustDesk.locale.en-US.yaml
+          - src: winget/RustDesk.RustDesk.yaml.j2
+            dest: RustDesk.RustDesk.yaml

@@ -9,7 +9,7 @@
   become: false
 
 - name: Copilot cli | Download the official installer
-  when: not copilot_cli_installed.stat.exists
+  when: not copilot_cli_installed.stat.exists or dev_machines_update_mode | bool
   ansible.builtin.get_url:
     url: https://gh.io/copilot-install
     dest: /tmp/copilot-cli-install.sh
@@ -24,8 +24,8 @@
 # all, so removing the controlling terminal is the only lever - its `[ -t 0 ] ||
 # [ -e /dev/tty ]` guard then fails and it prints the PATH line instead of
 # waiting. "--wait" preserves the exit status.
-- name: Copilot cli | Install the Copilot CLI
-  when: not copilot_cli_installed.stat.exists
+- name: Copilot cli | Install or update the Copilot CLI
+  when: not copilot_cli_installed.stat.exists or dev_machines_update_mode | bool
   ansible.builtin.command:
     argv:
       - setsid

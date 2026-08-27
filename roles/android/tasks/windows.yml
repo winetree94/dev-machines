@@ -21,15 +21,17 @@
 - name: Android | Resolve requested SDK packages
   ansible.builtin.include_tasks: resolve_packages.yml
 
+- name: Android | Define the Windows Command-line Tools platform
+  ansible.builtin.set_fact:
+    android_cmdline_tools_platform: win
+
+- name: Android | Resolve the latest Command-line Tools
+  ansible.builtin.include_tasks: resolve_cmdline_tools.yml
+
 - name: Android | Define the Windows SDK installation
   ansible.builtin.set_fact:
     android_sdk_root_effective: >-
       {{ android_sdk_root | default(ansible_facts['env']['LOCALAPPDATA'] ~ '\\Android\\Sdk', true) }}
-    android_cmdline_tools_url: >-
-      https://dl.google.com/android/repository/commandlinetools-win-{{
-      android_cmdline_tools_version }}_latest.zip
-    android_cmdline_tools_checksum: >-
-      {{ android_cmdline_tools_checksums['windows_x86_64'] }}
 
 - name: Android | Ensure the SDK root exists
   ansible.windows.win_file:
@@ -52,12 +54,12 @@
     android_cmdline_tools_install_required: >-
       {{ not android_cmdline_build_marker.stat.exists or
          (android_cmdline_build_content.content | default('') | b64decode | trim)
-         != android_cmdline_tools_version }}
+         != android_cmdline_tools_version_effective }}
 
 - name: Android | Report the planned Command-line Tools installation
   ansible.builtin.debug:
     msg: >-
-      Android Command-line Tools build {{ android_cmdline_tools_version }}
+      Android Command-line Tools build {{ android_cmdline_tools_version_effective }}
       would be installed in {{ android_sdk_root_effective }}.
   changed_when: true
   when:
@@ -74,9 +76,9 @@
         url: "{{ android_cmdline_tools_url }}"
         dest: >-
           {{ ansible_facts['env']['TEMP'] }}\android-commandlinetools-{{
-          android_cmdline_tools_version }}.zip
+          android_cmdline_tools_version_effective }}.zip
         checksum: "{{ android_cmdline_tools_checksum }}"
-        checksum_algorithm: sha256
+        checksum_algorithm: sha1
 
     - name: Android | Create a temporary extraction directory
       ansible.windows.win_tempfile:
@@ -88,7 +90,7 @@
       ansible.windows.win_shell: >-
         Expand-Archive -LiteralPath
         '{{ ansible_facts['env']['TEMP'] }}\android-commandlinetools-{{
-        android_cmdline_tools_version }}.zip'
+        android_cmdline_tools_version_effective }}.zip'
         -DestinationPath '{{ android_cmdline_extract_dir.path }}' -Force
       changed_when: true
 
@@ -111,7 +113,7 @@
 
     - name: Android | Record the installed source build
       ansible.windows.win_copy:
-        content: "{{ android_cmdline_tools_version }}\r\n"
+        content: "{{ android_cmdline_tools_version_effective }}\r\n"
         dest: "{{ android_sdk_root_effective }}\\cmdline-tools\\latest\\.ansible-source-build"
   always:
     - name: Android | Remove the temporary extraction directory
@@ -138,6 +140,20 @@
     JAVA_HOME: "{{ java_home }}"
   changed_when: false
   when: android_cmdline_tools_ready | bool
+
+- name: Android | Update all installed SDK packages
+  ansible.windows.win_shell: >-
+    & '{{ android_sdk_root_effective }}\cmdline-tools\latest\bin\sdkmanager.bat'
+    '--sdk_root={{ android_sdk_root_effective }}' --update;
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  environment:
+    ANDROID_HOME: "{{ android_sdk_root_effective }}"
+    JAVA_HOME: "{{ java_home }}"
+  register: android_sdk_update
+  changed_when: "'No updates available' not in android_sdk_update.stdout"
+  when:
+    - android_cmdline_tools_ready | bool
+    - dev_machines_update_mode | bool
 
 - name: Android | Inspect requested SDK packages
   ansible.windows.win_stat:

@@ -31,3 +31,15 @@
       - -y
   changed_when: true
   become: false
+
+- name: Rust | Update rustup and all installed toolchains
+  ansible.builtin.command:
+    argv:
+      - "{{ ansible_facts['env']['HOME'] }}/.cargo/bin/rustup"
+      - update
+  register: rust_rustup_update
+  changed_when: "'unchanged' not in rust_rustup_update.stdout"
+  become: false
+  when:
+    - dev_machines_update_mode | bool
+    - rust_cargo_installed.stat.exists

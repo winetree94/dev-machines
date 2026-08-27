@@ -105,6 +105,36 @@
     quiet: true
   when: not ansible_check_mode
 
+- name: Xcode | List available macOS updates
+  ansible.builtin.command: softwareupdate --list
+  register: xcode_macos_updates
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: dev_machines_update_mode | bool
+
+- name: Xcode | Report available macOS updates in check mode
+  ansible.builtin.debug:
+    msg: macOS softwareupdate would install all recommended updates.
+  changed_when: true
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_check_mode
+    - "'* Label:' in xcode_macos_updates.stdout or '\n* ' in xcode_macos_updates.stdout"
+
+- name: Xcode | Install all recommended macOS updates
+  ansible.builtin.command:
+    argv:
+      - softwareupdate
+      - --install
+      - --all
+      - --verbose
+  become: true
+  changed_when: true
+  when:
+    - dev_machines_update_mode | bool
+    - not ansible_check_mode
+
 - name: Xcode | Install mas
   ansible.builtin.include_role:
     name: mas

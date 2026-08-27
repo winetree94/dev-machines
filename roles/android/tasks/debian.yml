@@ -18,11 +18,10 @@
   ansible.builtin.set_fact:
     android_sdk_root_effective: >-
       {{ android_sdk_root | default(ansible_facts['env']['HOME'] ~ '/Android/Sdk', true) }}
-    android_cmdline_tools_url: >-
-      https://dl.google.com/android/repository/commandlinetools-linux-{{
-      android_cmdline_tools_version }}_latest.zip
-    android_cmdline_tools_checksum: >-
-      sha256:{{ android_cmdline_tools_checksums['linux_x86_64'] }}
+    android_cmdline_tools_platform: linux
+
+- name: Android | Resolve the latest Command-line Tools
+  ansible.builtin.include_tasks: resolve_cmdline_tools.yml
 
 - name: Android | Install the SDK
   ansible.builtin.include_tasks: unix.yml
