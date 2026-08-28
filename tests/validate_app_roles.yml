@@ -907,6 +907,22 @@
         git_lfs_windows: >-
           {{ lookup('ansible.builtin.file', roles_dir ~ '/git_lfs/tasks/windows.yml') }}
 
+    - name: Assert Parsec configures XWayland input grabs on Ubuntu
+      ansible.builtin.assert:
+        that:
+          - "'/org/gnome/mutter/wayland/xwayland-allow-grabs' in parsec_debian"
+          - "'/org/gnome/mutter/wayland/xwayland-grab-access-rules' in parsec_debian"
+          - "'value: \"true\"' in parsec_debian"
+          - "'parsecd' in parsec_debian"
+          - "parsec_debian.count('community.general.dconf') == 2"
+          - "parsec_debian.count('become: false') == 2"
+        fail_msg: >-
+          Parsec on Ubuntu must enable Mutter's XWayland grab support and allow
+          parsecd to grab input in the target user's dconf database.
+      vars:
+        parsec_debian: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/parsec/tasks/debian.yml') }}
+
     - name: Assert each CLI role's macOS file names the expected package
       ansible.builtin.assert:
         that:

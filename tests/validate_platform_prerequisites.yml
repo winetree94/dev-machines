@@ -43,6 +43,7 @@
           - "'gnome-browser-connector' in defaults"
           - "'gir1.2-gtop-2.0' in defaults"
           - "'gnome-tweaks' in defaults"
+          - "'libfuse2t64' in defaults"
           - "'nethogs' in defaults"
           - "'iotop-c' in defaults"
           - "'\n  - iotop\n' not in defaults"

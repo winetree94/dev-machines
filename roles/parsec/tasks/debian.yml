@@ -5,3 +5,17 @@
   community.general.flatpak:
     name: com.parsecgaming.parsec
     state: present
+
+- name: Parsec | Allow XWayland applications to grab input
+  become: false
+  community.general.dconf:
+    key: /org/gnome/mutter/wayland/xwayland-allow-grabs
+    value: "true"
+    state: present
+
+- name: Parsec | Allow Parsec daemon to grab XWayland input
+  become: false
+  community.general.dconf:
+    key: /org/gnome/mutter/wayland/xwayland-grab-access-rules
+    value: "['parsecd']"
+    state: present
