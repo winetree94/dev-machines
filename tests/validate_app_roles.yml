@@ -81,6 +81,11 @@
         debian: org.gimp.GIMP
         darwin: gimp
         windows: GIMP.GIMP
+      - name: ghostty
+        debian: "name: ghostty"
+        debian_channel: apt
+        debian_architecture_marker: "ansible_facts['architecture'] in ['x86_64', 'aarch64']"
+        darwin: ghostty
       - name: headlamp
         debian: io.kinvolk.Headlamp
         darwin: headlamp
@@ -683,6 +688,10 @@
           - "'become: true' in debian_content"
           - "'deb822_repository' not in debian_content"
           - "'community.general.flatpak' not in debian_content"
+          - "'community.general.snap' not in debian_content"
+          - >-
+            item.debian_architecture_marker is not defined
+            or item.debian_architecture_marker in debian_content
         fail_msg: >-
           roles/{{ item.name }}/tasks/debian.yml must install {{ item.debian }}
           directly from the official Ubuntu archive with apt.

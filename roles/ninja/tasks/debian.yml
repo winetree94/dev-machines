@@ -1,7 +1,7 @@
 ---
 # The Ubuntu archive carries ninja, so apt is the install path here. The
 # package is named ninja-build, not ninja - which is what Homebrew and winget
-# call it, and there is no "ninja" package on noble at all.
+# call it.
 - name: Ninja | Install ninja (apt)
   become: true
   ansible.builtin.apt:

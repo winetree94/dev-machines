@@ -25,9 +25,9 @@ make install-requirements
 | host | IP | group | OS |
 |---|---|---|---|
 | desktop | 10.132.247.31 | windows | Windows 10/11 |
-| ubuntu-dev | 10.132.247.36 | ubuntu | Ubuntu 24.04+ |
-| e14 | 10.132.247.40 | ubuntu | Ubuntu 24.04+ |
-| v16 | 10.132.245.41 | ubuntu | Ubuntu 24.04+ |
+| ubuntu-dev | 10.132.247.36 | ubuntu | Ubuntu 26.04+ |
+| e14 | 10.132.247.40 | ubuntu | Ubuntu 26.04+ |
+| v16 | 10.132.245.41 | ubuntu | Ubuntu 26.04+ |
 | mbp | 10.8.0.5 | macos | macOS |
 | localhost | – | (런타임 판별) | 컨트롤 머신 (macOS / Ubuntu) |
 
@@ -42,10 +42,10 @@ make install-requirements
 한다.
 
 지원하지 않는 OS 는 롤이 하나라도 돌기 전에 걸러진다. `Group hosts by OS` 플레이의
-`Assert the host runs a supported OS` 가 Windows / macOS / **Ubuntu** 가 아닌 호스트를
-즉시 실패시킨다. 그 아래 `group_by` 가 Windows·macOS 가 아닌 모든 호스트를 `ubuntu`
-그룹으로 몰아넣기 때문에, 예컨대 Fedora 를 그냥 두면 apt/snap 태스크를 맞고 실행 도중에
-깨진다. 해당 호스트만 실패하고 나머지 호스트는 계속 진행한다.
+`Assert the host runs a supported OS` 가 Windows / macOS / **Ubuntu 26.04+** 가 아닌
+호스트를 즉시 실패시킨다. 그 아래 `group_by` 가 Windows·macOS 가 아닌 모든 호스트를
+`ubuntu` 그룹으로 몰아넣기 때문에, 예컨대 더 오래된 Ubuntu나 Fedora를 그냥 두면 apt/snap
+태스크를 맞고 실행 도중에 깨진다. 해당 호스트만 실패하고 나머지 호스트는 계속 진행한다.
 
 `make apply` 를 `--limit` 없이 돌리면 등록된 호스트 전부를 건드린다. 범위를 좁히려면
 `ANSIBLE_ARGS` 를 쓴다.
@@ -170,7 +170,7 @@ icacls $k /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
 
 # Supported Targets
 
-- Ubuntu 24.04+ (Homebrew is bootstrapped automatically on Ubuntu)
+- Ubuntu 26.04+ (Homebrew is bootstrapped automatically on Ubuntu)
 - macOS (Homebrew must be installed beforehand; the Xcode Command Line Tools are handled by `xcode`)
 - Windows 10/11 (via winget, over OpenSSH)
 

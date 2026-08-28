@@ -1,0 +1,44 @@
+---
+- name: Validate supported operating systems
+  hosts: localhost
+  gather_facts: false
+  vars:
+    setup_playbook: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}
+    readme: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../readme.md') }}
+    agent_instructions: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../AGENTS.md') }}
+    ansible_config: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../ansible.cfg') }}
+    cmake_debian: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/cmake/tasks/debian.yml') }}
+    ninja_debian: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/ninja/tasks/debian.yml') }}
+
+  tasks:
+    - name: Assert Ubuntu 26.04 is the minimum supported release
+      ansible.builtin.assert:
+        that:
+          - "\"ansible_facts['distribution'] == 'Ubuntu'\" in setup_playbook"
+          - "\"ansible_facts['distribution_version'] is version('26.04', '>=')\" in setup_playbook"
+          - "'Supported targets are Ubuntu 26.04+' in setup_playbook"
+          - "'Ubuntu 26.04+' in readme"
+          - "'Ubuntu 26.04+' in agent_instructions"
+        fail_msg: >-
+          The setup preflight and project documentation must consistently
+          require Ubuntu 26.04 or newer.
+        quiet: true
+
+    - name: Assert Ubuntu 24.04 compatibility remnants are gone
+      ansible.builtin.assert:
+        that:
+          - "'Ubuntu 24.04' not in readme"
+          - "'Ubuntu 24.04' not in agent_instructions"
+          - "'sudo.ws' not in ansible_config"
+          - "'noble' not in cmake_debian | lower"
+          - "'noble' not in ninja_debian | lower"
+        fail_msg: >-
+          Ubuntu 24.04 documentation, Noble-specific package rationale, and
+          the retired sudo.ws compatibility setting must not return.
+        quiet: true

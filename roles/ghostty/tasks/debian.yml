@@ -1,0 +1,15 @@
+---
+- name: Ghostty | Assert the Ubuntu architecture is supported
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] in ['x86_64', 'aarch64']
+    fail_msg: >-
+      Ubuntu's Ghostty package supports x86_64 and aarch64 only;
+      {{ ansible_facts['architecture'] }} cannot be managed by this role.
+    quiet: true
+
+- name: Ghostty | Install Ghostty from apt
+  become: true
+  ansible.builtin.apt:
+    name: ghostty
+    state: present

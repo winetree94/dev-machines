@@ -1,0 +1,7 @@
+---
+- name: Ghostty | Install Ghostty (Homebrew cask)
+  when: "'ghostty' not in (brew_installed_casks | default([]))"
+  community.general.homebrew_cask:
+    name: ghostty
+    state: present
+  become: false

@@ -7,19 +7,23 @@
   tags: always
   tasks:
     # Fail before any role runs: the group_by below funnels every non-Windows,
-    # non-macOS host into `ubuntu`, so an unsupported Linux would otherwise get
-    # apt/snap tasks aimed at it and break halfway through the run.
+    # non-macOS host into `ubuntu`, so an unsupported Linux or Ubuntu release
+    # would otherwise get apt/snap tasks aimed at it and break halfway through
+    # the run.
     - name: Assert the host runs a supported OS
       ansible.builtin.assert:
         that:
           - >-
             ansible_facts['os_family'] in ['Windows', 'Darwin']
-            or ansible_facts['distribution'] == 'Ubuntu'
+            or (
+              ansible_facts['distribution'] == 'Ubuntu'
+              and ansible_facts['distribution_version'] is version('26.04', '>=')
+            )
         fail_msg: >-
           Unsupported OS: {{ ansible_facts['distribution'] }}
           {{ ansible_facts['distribution_version'] }}
           ({{ ansible_facts['os_family'] }} family).
-          Supported targets are Ubuntu, macOS and Windows.
+          Supported targets are Ubuntu 26.04+, macOS and Windows.
         quiet: true
 
     - name: Determine the host OS group
@@ -317,6 +321,8 @@
       tags: [gear_lever]
     - role: gimp
       tags: [gimp]
+    - role: ghostty
+      tags: [ghostty]
     - role: headlamp
       tags: [headlamp]
     - role: karabiner_elements
