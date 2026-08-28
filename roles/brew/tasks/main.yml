@@ -9,26 +9,96 @@
 # cask takes 0.03s - a single query is 16x faster than one lookup, before the
 # per-task connection overhead is counted at all.
 #
-# This role is a snapshot only; it never installs anything. It runs in the
-# Ubuntu and macOS bootstrap plays, before any role that consumes the facts.
+# This role also performs the package-manager-wide update in update mode. It
+# runs in the Ubuntu and macOS bootstrap plays, before any role that consumes
+# the facts.
 #
 # Both lookups tolerate failure. A host with no Homebrew at all (or a Linux
 # host, where there are no casks) simply yields an empty list, and every
 # consuming role falls through to its own module call exactly as before -
 # slower, never wrong.
 
+- name: Brew | Read trusted third-party packages
+  ansible.builtin.command: brew trust --json=v1
+  register: brew_trust
+  environment: &brew_path
+    PATH: >-
+      /opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:{{
+      ansible_facts['env']['PATH'] }}
+  changed_when: false
+  check_mode: false
+  become: false
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_facts['os_family'] == 'Darwin'
+
+# `crush` predates Homebrew 6's mandatory third-party tap trust on this host.
+# Trust only the installed formula rather than every current and future item in
+# charmbracelet/tap.
+- name: Brew | Trust the installed Crush formula
+  ansible.builtin.command: brew trust --formula charmbracelet/tap/crush
+  environment: *brew_path
+  changed_when: true
+  become: false
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_facts['os_family'] == 'Darwin'
+    - >-
+      'charmbracelet/tap/crush'
+      not in ((brew_trust.stdout | from_json).formulae | default([]))
+
 - name: Brew | Update Homebrew and all formulae
   community.general.homebrew:
     update_homebrew: true
     upgrade_all: true
+    # Homebrew 6's bare `brew upgrade` includes casks. Keep those in the next
+    # task, whose sudo_password supplies a non-interactive SUDO_ASKPASS helper.
+    upgrade_options: [formula]
   register: brew_formula_upgrade
   become: false
   when: dev_machines_update_mode | bool
 
-- name: Brew | Upgrade all casks
+- name: Brew | List outdated casks
+  ansible.builtin.command: brew outdated --cask --greedy --json=v2
+  register: brew_outdated_casks
+  environment: *brew_path
+  changed_when: false
+  check_mode: false
+  become: false
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_facts['os_family'] == 'Darwin'
+
+- name: Brew | Select casks safe to upgrade
+  ansible.builtin.set_fact:
+    brew_upgrade_casks: >-
+      {{ (brew_outdated_casks.stdout | from_json).casks
+         | map(attribute='name')
+         | reject('equalto', 'nomachine') | list }}
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_facts['os_family'] == 'Darwin'
+
+# NoMachine's 9.8.2_1 vendor DMG currently differs from homebrew-cask's pinned
+# SHA-256. It is not managed by this repository and declares auto_updates, so
+# leave it to its own updater until upstream corrects the cask or artifact. Do
+# not bypass Homebrew's checksum verification for it.
+- name: Brew | Report deferred NoMachine update
+  ansible.builtin.debug:
+    msg: >-
+      Skipping the NoMachine cask because its vendor download does not match
+      homebrew-cask's checksum; its built-in updater remains available.
+  when:
+    - dev_machines_update_mode | bool
+    - ansible_facts['os_family'] == 'Darwin'
+    - >-
+      'nomachine' in ((brew_outdated_casks.stdout | from_json).casks
+      | map(attribute='name') | list)
+
+- name: Brew | Upgrade all safe casks
   community.general.homebrew_cask:
-    upgrade_all: true
-    greedy: true
+    name: "{{ brew_upgrade_casks }}"
+    state: latest
     sudo_password: "{{ ansible_become_password }}"
   register: brew_cask_upgrade
   no_log: true
@@ -36,6 +106,7 @@
   when:
     - dev_machines_update_mode | bool
     - ansible_facts['os_family'] == 'Darwin'
+    - brew_upgrade_casks | length > 0
 
 - name: Brew | Remember the global update
   ansible.builtin.set_fact:
@@ -47,10 +118,7 @@
   register: brew_formula_list
   # brew is not on the default non-interactive PATH: Apple Silicon puts it in
   # /opt/homebrew, Intel in /usr/local, Linuxbrew in /home/linuxbrew.
-  environment: &brew_path
-    PATH: >-
-      /opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:{{
-      ansible_facts['env']['PATH'] }}
+  environment: *brew_path
   changed_when: false
   failed_when: false
   check_mode: false

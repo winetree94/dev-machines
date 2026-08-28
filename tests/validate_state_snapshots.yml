@@ -42,6 +42,21 @@
           The Ubuntu homebrew role must install the official Linux Homebrew prefix
           non-interactively as the target user.
 
+    - name: Assert the brew update separates formulae from privileged casks
+      ansible.builtin.assert:
+        that:
+          - "'upgrade_options: [formula]' in brew_snapshot"
+          - "'community.general.homebrew_cask:' in brew_snapshot"
+          - "'sudo_password:' in brew_snapshot"
+          - "'brew trust --formula charmbracelet/tap/crush' in brew_snapshot"
+          - "'brew outdated --cask --greedy --json=v2' in brew_snapshot"
+          - "\"map(attribute='name')\" in brew_snapshot"
+          - "\"reject('equalto', 'nomachine')\" in brew_snapshot"
+        fail_msg: >-
+          The global Homebrew update must restrict its first upgrade to formulae,
+          trust only the installed Crush formula, and update casks separately with
+          sudo_password so pkg and privileged app casks work without a terminal.
+
     - name: Assert the brew snapshot publishes both facts and never installs
       ansible.builtin.assert:
         that:
