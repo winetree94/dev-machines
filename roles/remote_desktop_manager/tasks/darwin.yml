@@ -1,0 +1,23 @@
+---
+- name: Remote Desktop Manager | Install Remote Desktop Manager (Homebrew cask)
+  when: "'remote-desktop-manager' not in (brew_installed_casks | default([]))"
+  block:
+    - name: Remote Desktop Manager | Install the cask normally
+      community.general.homebrew_cask:
+        name: remote-desktop-manager
+        state: present
+      become: false
+  rescue:
+    - name: Remote Desktop Manager | Confirm an external app caused the conflict
+      ansible.builtin.assert:
+        that:
+          - "'already an App at' in ansible_failed_result.msg"
+        fail_msg: "{{ ansible_failed_result.msg }}"
+
+    - name: Remote Desktop Manager | Adopt the external app into Homebrew
+      community.general.homebrew_cask:
+        name: remote-desktop-manager
+        state: present
+        install_options:
+          - force
+      become: false

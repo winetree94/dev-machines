@@ -1,0 +1,38 @@
+---
+# Official Devolutions Remote Desktop Manager APT repository:
+# https://docs.devolutions.net/rdm/getting-started/installation/client
+- name: Remote Desktop Manager | Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Remote Desktop Manager | Download the APT signing key
+  ansible.builtin.get_url:
+    url: https://dl.cloudsmith.io/public/devolutions/rdm/gpg.FE7407ECB26FD2FE.key
+    dest: /usr/share/keyrings/devolutions-rdm-archive-keyring.asc
+    mode: "0644"
+  become: true
+
+- name: Remote Desktop Manager | Add the official APT repository
+  ansible.builtin.deb822_repository:
+    name: devolutions-rdm
+    types:
+      - deb
+    uris:
+      - https://dl.cloudsmith.io/public/devolutions/rdm/deb/ubuntu
+    suites:
+      - "{{ ansible_facts['distribution_release'] }}"
+    components:
+      - main
+    signed_by: /usr/share/keyrings/devolutions-rdm-archive-keyring.asc
+    state: present
+  become: true
+
+- name: Remote Desktop Manager | Install Remote Desktop Manager
+  ansible.builtin.apt:
+    name: remotedesktopmanager
+    state: present
+    update_cache: true
+  become: true

@@ -1,0 +1,7 @@
+---
+- name: Remote Desktop Manager | Install Remote Desktop Manager (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Devolutions.RemoteDesktopManager

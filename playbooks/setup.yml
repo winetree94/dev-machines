@@ -359,6 +359,8 @@
       tags: [pinta]
     - role: redisinsight
       tags: [redisinsight]
+    - role: remote_desktop_manager
+      tags: [remote_desktop_manager]
     - role: remmina
       tags: [remmina]
     - role: rustdesk

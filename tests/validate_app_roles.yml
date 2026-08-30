@@ -142,6 +142,15 @@
         debian: com.redis.RedisInsight
         darwin: redis-insight
         windows: RedisInsight.RedisInsight
+      - name: remote_desktop_manager
+        debian: "name: remotedesktopmanager"
+        debian_channel: apt_repository
+        debian_repository: https://dl.cloudsmith.io/public/devolutions/rdm/deb/ubuntu
+        debian_signing_key: gpg.FE7407ECB26FD2FE.key
+        debian_suite_marker: "ansible_facts['distribution_release']"
+        darwin: remote-desktop-manager
+        darwin_install_option: force
+        windows: Devolutions.RemoteDesktopManager
       - name: remmina
         debian: org.remmina.Remmina
       - name: rustdesk
@@ -670,6 +679,12 @@
           - "'ansible.builtin.deb822_repository' in debian_content"
           - "'signed_by:' in debian_content"
           - item.debian_repository in debian_content
+          - >-
+            item.debian_signing_key is not defined
+            or item.debian_signing_key in debian_content
+          - >-
+            item.debian_suite_marker is not defined
+            or item.debian_suite_marker in debian_content
           - "'ansible.builtin.apt' in debian_content"
           - item.debian in debian_content
           - "'become: true' in debian_content"
@@ -882,6 +897,9 @@
         that:
           - "'community.general.homebrew_cask' in darwin_content"
           - "'name: ' ~ item.darwin in darwin_content"
+          - >-
+            item.darwin_install_option is not defined
+            or item.darwin_install_option in darwin_content
           - "'become: false' in darwin_content"
         fail_msg: >-
           roles/{{ item.name }}/tasks/darwin.yml must install the
