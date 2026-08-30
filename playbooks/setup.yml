@@ -1,6 +1,14 @@
 ---
 - name: Group hosts by OS
   hosts: all
+  # Windows hosts use OpenSSH, so their WinRM listener facts are unused. The
+  # default collector waits ten seconds and warns when WinRM is disabled. The
+  # smart gather action resolves through ansible.builtin.setup on every target;
+  # POSIX setup treats an unknown negative subset as a harmless exclusion.
+  module_defaults:
+    ansible.builtin.setup:
+      gather_subset:
+        - "!winrm"
   # `always` because every later play targets a group built here. Without it a
   # tag-filtered run (`--tags docker`) would skip this play, leave ubuntu/macos/
   # windows empty and silently do nothing at all.
@@ -305,6 +313,8 @@
       tags: [chatgpt_desktop, codex]
     - role: opencode_desktop
       tags: [opencode_desktop, opencode]
+    - role: alacritty
+      tags: [alacritty]
     - role: bitwarden_desktop
       tags: [bitwarden_desktop]
     - role: bottles

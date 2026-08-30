@@ -1,10 +1,12 @@
 ---
 - name: Install Python3 (Brew)
-  when: item not in (brew_installed_formulae | default([]))
+  when: python_brew_package not in (brew_installed_formulae | default([]))
   become: false
   community.general.homebrew:
-    name: "{{ item }}"
+    name: "{{ python_brew_package }}"
     state: present
-  with_items:
+  loop:
     - python
     - pipx
+  loop_control:
+    loop_var: python_brew_package

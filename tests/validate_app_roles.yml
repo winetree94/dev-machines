@@ -59,6 +59,10 @@
         debian: ai.opencode.opencode
         darwin: opencode-desktop
         windows: SST.OpenCodeDesktop
+      - name: alacritty
+        debian: "name: alacritty"
+        debian_channel: apt
+        windows: Alacritty.Alacritty
       - name: bitwarden_desktop
         debian: com.bitwarden.desktop
         darwin: bitwarden
@@ -1112,6 +1116,19 @@
           targets the gui_enabled group. Gating by play targeting is what keeps
           a `when: gui | bool` off every one of them.
       loop: "{{ gui_roles + macos_only_roles + font_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Assert every standalone GUI role carries its own tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("- role: " ~ item.name
+            ~ "[\\s\\S]{0,80}tags: \\[" ~ item.name ~ "\\]")
+        fail_msg: >-
+          Role {{ item.name }} must carry its own tag so it can be managed with
+          `--tags {{ item.name }}` without running the complete GUI play.
+      loop: "{{ gui_roles | rejectattr('cli_tag', 'defined') | list }}"
       loop_control:
         label: "{{ item.name }}"
 

@@ -1,0 +1,7 @@
+---
+- name: Alacritty | Install Alacritty (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Alacritty.Alacritty

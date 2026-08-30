@@ -42,3 +42,14 @@
           Ubuntu 24.04 documentation, Noble-specific package rationale, and
           the retired sudo.ws compatibility setting must not return.
         quiet: true
+
+    - name: Assert OpenSSH-managed Windows hosts skip the WinRM fact probe
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.setup:' in setup_playbook"
+          - "'gather_subset:' in setup_playbook"
+          - "'!winrm' in setup_playbook"
+        fail_msg: >-
+          Windows fact gathering must skip the unused WinRM collector so an
+          OpenSSH apply does not pause and warn when WinRM is disabled.
+        quiet: true

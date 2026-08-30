@@ -2,9 +2,11 @@
 - name: Install Python3 (Apt)
   become: true
   ansible.builtin.apt:
-    name: "{{ item }}"
+    name: "{{ python_apt_package }}"
     state: present
-  with_items:
+  loop:
     - python3
     - pipx
     - build-essential
+  loop_control:
+    loop_var: python_apt_package

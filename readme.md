@@ -466,7 +466,7 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 
 ## GUI 앱
 
-데스크톱 앱 30개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 35개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
@@ -485,6 +485,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 
 | GUI 롤 | Ubuntu | macOS | Windows |
 | --- | --- | --- | --- |
+| `alacritty` | Ubuntu archive `alacritty` | 미지원 | `Alacritty.Alacritty` |
 | `claude_desktop` | 공식 APT `claude-desktop` | cask `claude` | `Anthropic.Claude` |
 | `chatgpt_desktop` | 미지원 | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
 | `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
