@@ -69,6 +69,19 @@ Android SDK만 예외적으로 프로젝트 빌드 재현성을 우선한다. pl
 build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-tools는
 업데이트 실행 시 최신 버전으로 갱신한다.
 
+## PostgreSQL 클라이언트
+
+`postgresql_client` 롤은 데이터베이스 서버 없이 `psql`, `pg_dump`, `pg_restore` 등
+클라이언트 명령만 설치한다. `--tags postgresql_client`로 따로 실행할 수 있다.
+
+| OS | 설치 경로 |
+|---|---|
+| Ubuntu | 공식 archive의 `postgresql-client` |
+| macOS | Homebrew `libpq` formula (keg-only 명령을 Homebrew PATH에 링크) |
+| Windows | checksum 고정 EDB PostgreSQL 18 local winget manifest (`commandlinetools`만 활성화) |
+
+서버 서비스, 데이터 디렉터리, 접속 정보와 `.pgpass`는 이 롤이 관리하지 않는다.
+
 # Secret 구조
 
 모든 secret 은 `inventories/group_vars/all/vault.yml` **한 파일**에만 있고, 그 안에는

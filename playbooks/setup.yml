@@ -281,6 +281,8 @@
       tags: [rclone]
     - role: syncthing
       tags: [syncthing]
+    - role: postgresql_client
+      tags: [postgresql_client]
     # mobile
     - role: android
       tags: [android]

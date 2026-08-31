@@ -1,0 +1,97 @@
+---
+- name: Validate PostgreSQL client role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/postgresql_client"
+    setup_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+  tasks:
+    - name: Check the role task files
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/tasks/{{ item }}"
+      loop:
+        - main.yml
+        - debian.yml
+        - darwin.yml
+        - windows.yml
+      register: postgresql_client_task_files
+
+    - name: Assert the role supports all three operating systems without a fallback
+      ansible.builtin.assert:
+        that:
+          - >-
+            postgresql_client_task_files.results
+            | rejectattr('stat.exists') | list | length == 0
+          - not postgresql_client_default
+        fail_msg: >-
+          postgresql_client must have the standard three-OS dispatcher files
+          and no default.yml fallback.
+      vars:
+        postgresql_client_default: >-
+          {{ lookup('ansible.builtin.fileglob', role_dir ~ '/tasks/default.yml',
+                    wantlist=true) | length > 0 }}
+
+    - name: Read the role and playbook sources
+      ansible.builtin.set_fact:
+        postgresql_client_main: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}
+        postgresql_client_debian: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}
+        postgresql_client_darwin: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}
+        postgresql_client_windows: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}
+        postgresql_client_defaults: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}
+        postgresql_client_installer_manifest: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/templates/winget/PostgreSQL.PostgreSQL.18.installer.yaml.j2') }}
+        setup_content: "{{ lookup('ansible.builtin.file', setup_path) }}"
+
+    - name: Assert Ubuntu installs only the archive client package
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.apt' in postgresql_client_debian"
+          - "'name: postgresql-client' in postgresql_client_debian"
+          - "'state: present' in postgresql_client_debian"
+          - "'become: true' in postgresql_client_debian"
+          - "'postgresql-client-' not in postgresql_client_debian"
+          - "'postgresql-server' not in postgresql_client_debian"
+          - "'deb822_repository' not in postgresql_client_debian"
+          - "'apt_repository' not in postgresql_client_debian"
+
+    - name: Assert macOS installs and safely exposes keg-only libpq
+      ansible.builtin.assert:
+        that:
+          - "'brew_installed_formulae | default([])' in postgresql_client_darwin"
+          - "'community.general.homebrew' in postgresql_client_darwin"
+          - "'name: libpq' in postgresql_client_darwin"
+          - "'brew link --force libpq' in postgresql_client_darwin"
+          - "'postgresql_client_psql_link.stat.exists' in postgresql_client_darwin"
+          - "'--overwrite' not in postgresql_client_darwin"
+
+    - name: Assert Windows uses a checksum-pinned client-only manifest
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in postgresql_client_windows"
+          - "'winget_local_packages' in postgresql_client_windows"
+          - "'PostgreSQL.PostgreSQL.18' in postgresql_client_windows"
+          - "'display_name_regex' in postgresql_client_windows"
+          - "'force_upgrade: true' in postgresql_client_windows"
+          - "'ansible.windows.win_path' in postgresql_client_windows"
+          - "'scope: machine' in postgresql_client_windows"
+          - "'winget pin add' in postgresql_client_windows"
+          - "'--blocking' in postgresql_client_windows"
+          - "'postgresql-18.6-1-windows-x64.exe' in postgresql_client_defaults"
+          - "'CAE561E98D09F3F4A1A95759249240F86F66D71DCF33D14B6F7BE894078401D1' in postgresql_client_defaults"
+          - "'--enable-components commandlinetools' in postgresql_client_installer_manifest"
+          - "'--disable-components server,pgAdmin,stackbuilder' in postgresql_client_installer_manifest"
+          - "'InstallerSha256' in postgresql_client_installer_manifest"
+
+    - name: Assert the common tooling play exposes the role tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_content is search("Common tooling[\\s\\S]*- role: postgresql_client[\\s\\S]{0,80}tags: \\[postgresql_client\\]")
+          - >-
+            setup_content is search("- role: postgresql_client[\\s\\S]*GUI applications")

@@ -349,6 +349,11 @@
         debian: "name: syncthing"
         darwin: syncthing
         windows: BillStewart.SyncthingWindowsSetup
+      - name: postgresql_client
+        debian: "name: postgresql-client"
+        darwin: libpq
+        windows: PostgreSQL.PostgreSQL.18
+        windows_source: local_manifest
       - name: dotweave
         debian: brew.yml
         darwin: brew.yml

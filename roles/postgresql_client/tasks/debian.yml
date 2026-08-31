@@ -1,0 +1,6 @@
+---
+- name: PostgreSQL client | Install the supported client tools (apt)
+  become: true
+  ansible.builtin.apt:
+    name: postgresql-client
+    state: present

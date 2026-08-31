@@ -1,0 +1,47 @@
+---
+- name: PostgreSQL client | Install from the client-only local winget manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: PostgreSQL.PostgreSQL.18
+        version: "{{ postgresql_client_windows_version }}"
+        display_name: PostgreSQL 18
+        display_name_regex: '^PostgreSQL 18\s*$'
+        force_upgrade: true
+        manifest_templates:
+          - src: winget/PostgreSQL.PostgreSQL.18.installer.yaml.j2
+            dest: PostgreSQL.PostgreSQL.18.installer.yaml
+          - src: winget/PostgreSQL.PostgreSQL.18.locale.en-US.yaml.j2
+            dest: PostgreSQL.PostgreSQL.18.locale.en-US.yaml
+          - src: winget/PostgreSQL.PostgreSQL.18.yaml.j2
+            dest: PostgreSQL.PostgreSQL.18.yaml
+
+- name: PostgreSQL client | Add the client commands to the machine PATH
+  ansible.windows.win_path:
+    elements:
+      - "{{ postgresql_client_windows_install_dir }}\\bin"
+    scope: machine
+    state: present
+  become: true
+
+- name: PostgreSQL client | Read the community-package pin
+  ansible.windows.win_shell: >-
+    winget pin list --id PostgreSQL.PostgreSQL.18 --exact --source winget
+    --accept-source-agreements --disable-interactivity
+  register: postgresql_client_windows_pin
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+# The public winget manifest uses the EDB installer's default component set,
+# which includes the server. Keep global `winget upgrade --all` away from this
+# package; the checksum-pinned local manifest upgrades it with --force instead.
+- name: PostgreSQL client | Block community-source upgrades
+  ansible.windows.win_shell: >-
+    winget pin add --id PostgreSQL.PostgreSQL.18 --exact --source winget
+    --blocking --accept-source-agreements --disable-interactivity
+  when:
+    - not ansible_check_mode
+    - "'PostgreSQL.PostgreSQL.18' not in postgresql_client_windows_pin.stdout"
+  changed_when: true

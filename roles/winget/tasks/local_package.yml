@@ -43,6 +43,14 @@
     - not ansible_check_mode
     - winget_local_exact_packages | length == 0
   block:
+    - name: Winget | Resolve local manifest upgrade options
+      ansible.builtin.set_fact:
+        winget_local_force_upgrade_option: >-
+          {{ '--force'
+             if (winget_local_matching_packages | length > 0
+                 and winget_local_package.force_upgrade | default(false) | bool)
+             else '' }}
+
     - name: Winget | Create a temporary local manifest directory
       ansible.windows.win_tempfile:
         state: directory
@@ -75,6 +83,7 @@
       ansible.windows.win_shell: >-
         winget {{ 'install' if winget_local_matching_packages | length == 0 else 'upgrade' }}
         --manifest "{{ winget_local_manifest_temp.path }}" --silent
+        {{ winget_local_force_upgrade_option }}
         --disable-interactivity --accept-package-agreements
       register: winget_local_install
       until: >-

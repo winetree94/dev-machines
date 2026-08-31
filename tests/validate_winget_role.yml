@@ -119,9 +119,14 @@
           - "'WOW6432Node' in winget_local_snapshot"
           - "'winget_arp_installed_packages' in winget_local_snapshot"
           - "'winget_local_package.arp_version' in winget_local_package"
+          - "'winget_local_package.force_upgrade' in winget_local_package"
+          - "'winget_local_force_upgrade_option' in winget_local_package"
+          - "'--force' in winget_local_package"
         fail_msg: >-
           Packages without a public source must share one cached snapshot of
-          the per-user and machine Add/Remove Programs registry views.
+          the per-user and machine Add/Remove Programs registry views. A local
+          manifest may explicitly force its own upgrade when a blocking source
+          pin protects it from the global community-package upgrade.
 
     - name: Assert local manifests stay inside the shared winget workflow
       ansible.builtin.assert:

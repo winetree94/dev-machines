@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+PackageIdentifier: PostgreSQL.PostgreSQL.18
+PackageVersion: {{ postgresql_client_windows_version }}
+InstallerType: exe
+Scope: machine
+InstallModes:
+  - silent
+InstallerSwitches:
+  Silent: >-
+    --mode unattended --unattendedmodeui none
+    --enable-components commandlinetools
+    --disable-components server,pgAdmin,stackbuilder
+  SilentWithProgress: >-
+    --mode unattended --unattendedmodeui minimal
+    --enable-components commandlinetools
+    --disable-components server,pgAdmin,stackbuilder
+  InstallLocation: --prefix "<INSTALLPATH>"
+UpgradeBehavior: install
+ProductCode: PostgreSQL 18
+Installers:
+  - Architecture: x64
+    InstallerUrl: {{ postgresql_client_windows_installer_url }}
+    InstallerSha256: {{ postgresql_client_windows_installer_sha256 }}
+ManifestType: installer
+ManifestVersion: 1.12.0

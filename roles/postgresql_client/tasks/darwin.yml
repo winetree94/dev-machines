@@ -1,0 +1,30 @@
+---
+- name: PostgreSQL client | Install libpq (brew)
+  when: "'libpq' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: libpq
+    state: present
+  become: false
+
+- name: PostgreSQL client | Read the Homebrew prefix
+  ansible.builtin.command: brew --prefix
+  register: postgresql_client_brew_prefix
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: PostgreSQL client | Check whether psql is linked into Homebrew's PATH
+  ansible.builtin.stat:
+    path: "{{ postgresql_client_brew_prefix.stdout | trim }}/bin/psql"
+  register: postgresql_client_psql_link
+
+# libpq is keg-only because it conflicts with the full PostgreSQL formula.
+# Plain --force permits linking a keg-only formula but still refuses to
+# overwrite a command managed by another formula.
+- name: PostgreSQL client | Link the keg-only client commands
+  ansible.builtin.command: brew link --force libpq
+  when:
+    - not ansible_check_mode
+    - not postgresql_client_psql_link.stat.exists
+  changed_when: true
+  become: false
