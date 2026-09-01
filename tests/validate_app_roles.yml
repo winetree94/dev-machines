@@ -354,6 +354,10 @@
         darwin: libpq
         windows: PostgreSQL.PostgreSQL.18
         windows_source: local_manifest
+      - name: beszel_agent
+        debian: api.github.com/repos/henrygd/beszel/releases/latest
+        darwin: beszel-agent
+        windows: henrygd.beszel-agent
       - name: dotweave
         debian: brew.yml
         darwin: brew.yml

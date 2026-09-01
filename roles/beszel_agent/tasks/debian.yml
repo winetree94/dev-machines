@@ -1,0 +1,166 @@
+---
+- name: Beszel Agent | Validate the Linux architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] in beszel_agent_linux_architectures
+    fail_msg: >-
+      Beszel Agent publishes Debian packages only for x86_64 and aarch64;
+      this host reports {{ ansible_facts['architecture'] }}.
+    quiet: true
+
+- name: Beszel Agent | Read the installed Debian package version
+  ansible.builtin.command:
+    argv:
+      - dpkg-query
+      - --show
+      - --showformat=${Version}
+      - beszel-agent
+  register: beszel_agent_dpkg_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Beszel Agent | Query the latest stable GitHub release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/henrygd/beszel/releases/latest
+    headers:
+      Accept: application/vnd.github+json
+    return_content: true
+  register: beszel_agent_latest_release
+  check_mode: false
+  when:
+    - beszel_agent_dpkg_version.rc != 0 or dev_machines_update_mode | bool
+
+- name: Beszel Agent | Select the official Debian release asset
+  ansible.builtin.set_fact:
+    beszel_agent_linux_release_version: >-
+      {{ beszel_agent_latest_release.json.tag_name | regex_replace('^v', '') }}
+    beszel_agent_linux_asset: >-
+      {{
+        beszel_agent_latest_release.json.assets
+        | selectattr(
+            'name', 'equalto',
+            'beszel-agent_'
+            ~ (beszel_agent_latest_release.json.tag_name | regex_replace('^v', ''))
+            ~ '_linux_'
+            ~ beszel_agent_linux_architectures[ansible_facts['architecture']]
+            ~ '.deb'
+          )
+        | first
+      }}
+  when: beszel_agent_latest_release is not skipped
+
+- name: Beszel Agent | Validate the Debian release metadata
+  ansible.builtin.assert:
+    that:
+      - beszel_agent_linux_asset.browser_download_url is match('^https://github[.]com/henrygd/beszel/releases/download/')
+      - beszel_agent_linux_asset.digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: The latest Beszel release does not contain the expected signed-digest Debian asset.
+    quiet: true
+  when: beszel_agent_latest_release is not skipped
+
+- name: Beszel Agent | Determine whether the Debian package needs installing
+  ansible.builtin.set_fact:
+    beszel_agent_linux_install_required: >-
+      {{
+        beszel_agent_dpkg_version.rc != 0
+        or (
+          dev_machines_update_mode | bool
+          and beszel_agent_dpkg_version.stdout
+              is version(beszel_agent_linux_release_version, '<')
+        )
+      }}
+
+- name: Beszel Agent | Report the Debian package change in check mode
+  ansible.builtin.debug:
+    msg: Beszel Agent would be installed from its checksum-verified official Debian package.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - beszel_agent_linux_install_required | bool
+
+- name: Beszel Agent | Install the official Debian package
+  when:
+    - not ansible_check_mode
+    - beszel_agent_linux_install_required | bool
+  become: true
+  block:
+    - name: Beszel Agent | Download the checksum-verified Debian package
+      ansible.builtin.get_url:
+        url: "{{ beszel_agent_linux_asset.browser_download_url }}"
+        dest: /tmp/beszel-agent-latest.deb
+        checksum: "{{ beszel_agent_linux_asset.digest }}"
+        mode: "0600"
+
+    - name: Beszel Agent | Install the Debian package
+      ansible.builtin.apt:
+        deb: /tmp/beszel-agent-latest.deb
+        state: present
+      register: beszel_agent_linux_package
+  always:
+    - name: Beszel Agent | Remove the temporary Debian package
+      ansible.builtin.file:
+        path: /tmp/beszel-agent-latest.deb
+        state: absent
+
+- name: Beszel Agent | Store the Universal Token in a protected file
+  ansible.builtin.copy:
+    content: "{{ beszel_agent_universal_token }}\n"
+    dest: /etc/beszel-agent.token
+    owner: beszel
+    group: beszel
+    mode: "0400"
+  register: beszel_agent_linux_token
+  become: true
+  no_log: true
+  diff: false
+  when: not ansible_check_mode or beszel_agent_dpkg_version.rc == 0
+
+- name: Beszel Agent | Configure outbound Hub registration
+  ansible.builtin.copy:
+    dest: /etc/beszel-agent.conf
+    owner: root
+    group: beszel
+    mode: "0640"
+    content: |
+      KEY="{{ beszel_agent_public_key }}"
+      TOKEN_FILE="/etc/beszel-agent.token"
+      HUB_URL="{{ beszel_agent_hub_url }}"
+      SYSTEM_NAME="{{ beszel_agent_system_name }}"
+      LISTEN="{{ beszel_agent_listen }}"
+  register: beszel_agent_linux_config
+  become: true
+  when: not ansible_check_mode or beszel_agent_dpkg_version.rc == 0
+
+- name: Beszel Agent | Clear the package installer's systemd start limit
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - reset-failed
+      - beszel-agent
+  changed_when: false
+  failed_when: false
+  become: true
+  when:
+    - not ansible_check_mode
+    - >-
+      beszel_agent_linux_token.changed
+      or beszel_agent_linux_config.changed
+      or beszel_agent_linux_package.changed | default(false)
+
+- name: Beszel Agent | Enable and start the systemd service
+  ansible.builtin.systemd_service:
+    name: beszel-agent
+    enabled: true
+    state: >-
+      {{
+        'restarted'
+        if (
+          beszel_agent_linux_token.changed
+          or beszel_agent_linux_config.changed
+          or beszel_agent_linux_package.changed | default(false)
+        )
+        else 'started'
+      }}
+  become: true
+  when: not ansible_check_mode or beszel_agent_dpkg_version.rc == 0

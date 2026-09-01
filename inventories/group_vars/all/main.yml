@@ -46,3 +46,9 @@ ansible_private_key: "{{ vault_ssh_private_key }}"
 # deletes that file in an always block; the durable copy is Dotweave's own
 # keys.txt outside this repository.
 dotweave_age_identity: "{{ vault_dotweave_age_identity }}"
+
+# Beszel's public key is not secret and comes from the Hub's
+# Settings -> Tokens & Fingerprints page. Keep the Permanent Universal Token
+# in vault.yml; the role writes it only to an OS-protected token file.
+beszel_agent_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOdy7SA6TPsyioGbKyD69c45t8dYt5YrH0DdJcI/0wwm"
+beszel_agent_universal_token: "{{ vault_beszel_universal_token }}"

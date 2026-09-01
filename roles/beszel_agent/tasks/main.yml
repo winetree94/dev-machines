@@ -1,0 +1,25 @@
+---
+- name: Beszel Agent | Validate registration credentials
+  ansible.builtin.assert:
+    that:
+      - beszel_agent_universal_token | default('') | length > 0
+      - (beszel_agent_public_key | default('')) is match('^ssh-ed25519 [A-Za-z0-9+/]+={0,3}( .*)?$')
+      - beszel_agent_hub_url is match('^https://[^/]+(?:/.*)?$')
+      - beszel_agent_system_name | length > 0
+      - beszel_agent_listen is match('^(127[.]0[.]0[.]1|localhost):[0-9]+$')
+    fail_msg: >-
+      Beszel requires a Permanent Universal Token and the Hub's ssh-ed25519
+      public key. Configure the vault-backed token and plaintext public key
+      before applying this role.
+    quiet: true
+  no_log: true
+
+- name: Beszel Agent | Select OS-specific tasks
+  ansible.builtin.include_tasks: "{{ beszel_agent_task_file }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true
+  loop_control:
+    loop_var: beszel_agent_task_file

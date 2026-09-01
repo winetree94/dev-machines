@@ -1,0 +1,63 @@
+---
+- name: Beszel Agent | Tap and trust the official Homebrew repository
+  community.general.homebrew_tap:
+    name: henrygd/beszel
+    trust: true
+    state: present
+  become: false
+
+- name: Beszel Agent | Install the Homebrew formula
+  community.general.homebrew:
+    name: henrygd/beszel/beszel-agent
+    state: present
+  register: beszel_agent_macos_package
+  become: false
+  when: "'beszel-agent' not in (brew_installed_formulae | default([]))"
+
+- name: Beszel Agent | Create protected configuration directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ ansible_facts['user_id'] }}"
+    mode: "0700"
+  loop:
+    - "{{ ansible_facts['env']['HOME'] }}/.config/beszel"
+    - "{{ ansible_facts['env']['HOME'] }}/.cache/beszel"
+
+- name: Beszel Agent | Store the Universal Token in a protected file
+  ansible.builtin.copy:
+    content: "{{ beszel_agent_universal_token }}\n"
+    dest: "{{ ansible_facts['env']['HOME'] }}/.config/beszel/token"
+    owner: "{{ ansible_facts['user_id'] }}"
+    mode: "0600"
+  register: beszel_agent_macos_token
+  no_log: true
+  diff: false
+
+- name: Beszel Agent | Configure outbound Hub registration
+  ansible.builtin.copy:
+    dest: "{{ ansible_facts['env']['HOME'] }}/.config/beszel/beszel-agent.env"
+    owner: "{{ ansible_facts['user_id'] }}"
+    mode: "0600"
+    content: |
+      KEY="{{ beszel_agent_public_key }}"
+      TOKEN_FILE="{{ ansible_facts['env']['HOME'] }}/.config/beszel/token"
+      HUB_URL="{{ beszel_agent_hub_url }}"
+      SYSTEM_NAME="{{ beszel_agent_system_name }}"
+      LISTEN="{{ beszel_agent_listen }}"
+  register: beszel_agent_macos_config
+
+- name: Beszel Agent | Enable and start the launchd service
+  community.general.homebrew_services:
+    name: beszel-agent
+    state: >-
+      {{
+        'restarted'
+        if (
+          beszel_agent_macos_token.changed
+          or beszel_agent_macos_config.changed
+          or beszel_agent_macos_package.changed | default(false)
+        )
+        else 'present'
+      }}
+  become: false

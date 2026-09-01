@@ -1,0 +1,150 @@
+---
+- name: Beszel Agent | Install the agent and NSSM (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - henrygd.beszel-agent
+      - NSSM.NSSM
+
+- name: Beszel Agent | Create the protected service directories
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - C:\ProgramData\beszel-agent
+    - C:\ProgramData\beszel-agent\logs
+  become: true
+
+- name: Beszel Agent | Store the Universal Token in a protected file
+  ansible.windows.win_copy:
+    content: "{{ beszel_agent_universal_token }}\r\n"
+    dest: C:\ProgramData\beszel-agent\token
+  register: beszel_agent_windows_token
+  become: true
+  no_log: true
+  diff: false
+
+- name: Beszel Agent | Disable inherited token-file permissions
+  ansible.windows.win_acl_inheritance:
+    path: C:\ProgramData\beszel-agent\token
+    state: absent
+  become: true
+
+- name: Beszel Agent | Grant SYSTEM access to the token file
+  ansible.windows.win_acl:
+    path: C:\ProgramData\beszel-agent\token
+    user: SYSTEM
+    rights: FullControl
+    type: allow
+    state: present
+  become: true
+
+- name: Beszel Agent | Grant Administrators access to the token file
+  ansible.windows.win_acl:
+    path: C:\ProgramData\beszel-agent\token
+    user: BUILTIN\Administrators
+    rights: FullControl
+    type: allow
+    state: present
+  become: true
+
+- name: Beszel Agent | Configure the NSSM service
+  ansible.windows.win_powershell:
+    script: |
+      param(
+        [string] $PublicKey,
+        [string] $HubUrl,
+        [string] $SystemName,
+        [string] $Listen
+      )
+      $ErrorActionPreference = 'Stop'
+      $Ansible.Changed = $false
+      $serviceName = 'beszel-agent'
+      $programData = 'C:\ProgramData\beszel-agent'
+
+      function Resolve-Executable([string] $Name, [string] $PackagePattern) {
+        $command = Get-Command $Name -ErrorAction SilentlyContinue
+        if ($command) { return $command.Source }
+        $packageRoot = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages'
+        $match = Get-ChildItem $packageRoot -Directory -Filter $PackagePattern |
+          Sort-Object LastWriteTime -Descending |
+          ForEach-Object {
+            Get-ChildItem $_.FullName -Recurse -File -Filter $Name -ErrorAction SilentlyContinue
+          } | Select-Object -First 1
+        if (-not $match) { throw "Could not resolve $Name from winget" }
+        return $match.FullName
+      }
+
+      $agent = Resolve-Executable 'beszel-agent.exe' 'henrygd.beszel-agent*'
+      $nssm = Resolve-Executable 'nssm.exe' 'NSSM.NSSM*'
+      $desiredEnvironment = @(
+        "KEY=$PublicKey",
+        'TOKEN_FILE=C:\ProgramData\beszel-agent\token',
+        "HUB_URL=$HubUrl",
+        "SYSTEM_NAME=$SystemName",
+        "LISTEN=$Listen"
+      )
+      $stdoutLog = Join-Path $programData 'logs\beszel-agent.log'
+      $stderrLog = Join-Path $programData 'logs\beszel-agent-error.log'
+      $service = Get-Service $serviceName -ErrorAction SilentlyContinue
+
+      if (-not $service) {
+        & $nssm install $serviceName $agent | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'NSSM failed to install the service' }
+        $Ansible.Changed = $true
+      }
+
+      $settings = @{
+        Application = $agent
+        AppDirectory = Split-Path $agent
+        AppStdout = $stdoutLog
+        AppStderr = $stderrLog
+        Start = 'SERVICE_AUTO_START'
+      }
+      foreach ($entry in $settings.GetEnumerator()) {
+        $current = (& $nssm get $serviceName $entry.Key | Out-String).Trim()
+        if ($current.Trim('"') -ne $entry.Value) {
+          & $nssm set $serviceName $entry.Key $entry.Value | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "NSSM failed to set $($entry.Key)" }
+          $Ansible.Changed = $true
+        }
+      }
+
+      # NSSM prints REG_MULTI_SZ through the console as a null-separated
+      # scalar on some builds. Read the native registry array instead so the
+      # comparison is stable across NSSM versions and console encodings.
+      $serviceParameters = Get-ItemProperty (
+        "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName\Parameters"
+      )
+      $currentEnvironment = @(
+        $serviceParameters.AppEnvironmentExtra |
+          Where-Object { $_ } | Sort-Object
+      )
+      if (Compare-Object $currentEnvironment ($desiredEnvironment | Sort-Object)) {
+        & $nssm set $serviceName AppEnvironmentExtra @desiredEnvironment | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'NSSM failed to set the service environment' }
+        $Ansible.Changed = $true
+      }
+    parameters:
+      PublicKey: "{{ beszel_agent_public_key }}"
+      HubUrl: "{{ beszel_agent_hub_url }}"
+      SystemName: "{{ beszel_agent_system_name }}"
+      Listen: "{{ beszel_agent_listen }}"
+  register: beszel_agent_windows_service_config
+  become: true
+
+- name: Beszel Agent | Enable and start the Windows service
+  ansible.windows.win_service:
+    name: beszel-agent
+    start_mode: auto
+    state: >-
+      {{
+        'restarted'
+        if (
+          beszel_agent_windows_token.changed
+          or beszel_agent_windows_service_config.changed
+        )
+        else 'started'
+      }}
+  become: true

@@ -88,7 +88,8 @@ build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-t
 `vault_` 접두사가 붙은 변수만 둔다. 실제 이름으로의 연결은 평문 파일에서 한다.
 
 - `inventories/hosts.yml` — 호스트별 `ansible_user`, `ansible_become_password`
-- `inventories/group_vars/all/main.yml` — `ansible_private_key`
+- `inventories/group_vars/all/main.yml` — `ansible_private_key`,
+  `dotweave_age_identity`, `beszel_agent_universal_token`
 
 즉 secret 의 *이름과 용도*는 git 에서 보이고, *값*만 감춰진다.
 각 원격 호스트는 같은 `ansible_user` / `ansible_become_password` 인터페이스를 쓰지만,
@@ -374,6 +375,35 @@ GUI 인증과 방화벽 규칙은 각 머신에서 별도로 설정한다.
   `homebrew_services`로 사용자 launchd 서비스를 시작한다.
 - `windows.yml` — 현재 `desktop`에서 사용하는 winget 패키지
   `BillStewart.SyncthingWindowsSetup`을 공유 `winget` 롤로 관리한다.
+
+## Beszel Agent
+
+`beszel_agent` 롤은 inventory의 각 장치를 `https://monitor.winetree94.com`에
+`inventory_hostname` 이름으로 자동 등록한다. Agent가 Hub의 HTTPS endpoint로 outbound
+WebSocket 연결을 만들기 때문에 `45876` 포트를 외부에 열거나 방화벽 규칙을 추가하지
+않는다. 로컬 listener도 `127.0.0.1:45876`으로 제한한다.
+
+| OS | 설치 및 서비스 경로 |
+|---|---|
+| Ubuntu | 공식 GitHub release의 SHA-256 검증 `.deb` + systemd |
+| macOS | 신뢰된 `henrygd/beszel` tap의 `beszel-agent` formula + Homebrew services |
+| Windows | 공유 winget role의 `henrygd.beszel-agent`, `NSSM.NSSM` + Automatic NSSM service |
+
+Hub의 `Settings → Tokens & Fingerprints`에서 Universal Token을 **Permanent**로 만든 뒤
+값은 기존 vault의 `vault_beszel_universal_token`에만 넣는다. 같은 화면의
+`ssh-ed25519` 공개 키는 비밀이 아니므로
+`inventories/group_vars/all/main.yml`의 `beszel_agent_public_key`에 기록한다.
+role은 token을 명령행이나 서비스 환경 변수에 넣지 않고 OS별 보호 파일에 기록한 후
+`TOKEN_FILE`만 서비스에 전달한다. Ubuntu는 `/etc`, macOS는
+`~/.config/beszel`, Windows는 `C:\ProgramData\beszel-agent` 아래에 저장한다.
+
+```bash
+ansible-vault edit inventories/group_vars/all/vault.yml
+make apply ANSIBLE_ARGS="--tags beszel_agent"
+```
+
+기본 호스트 지표와 Agent가 접근할 수 있는 컨테이너 지표만 수집한다. 추가 디스크,
+SMART, systemd 패턴은 이 role이 구성하지 않는다.
 
 ## winget (Windows 패키지 관리)
 

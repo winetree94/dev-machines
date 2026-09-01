@@ -1,0 +1,132 @@
+---
+- name: Validate Beszel Agent role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/beszel_agent"
+    setup_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+
+  tasks:
+    - name: Check the role task files
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/tasks/{{ item }}"
+      loop:
+        - main.yml
+        - debian.yml
+        - darwin.yml
+        - windows.yml
+      register: beszel_agent_task_files
+
+    - name: Assert the role supports all three operating systems without a fallback
+      ansible.builtin.assert:
+        that:
+          - >-
+            beszel_agent_task_files.results
+            | rejectattr('stat.exists') | list | length == 0
+          - not beszel_agent_default
+        fail_msg: >-
+          beszel_agent must have the standard three-OS dispatcher files and
+          no default.yml fallback.
+      vars:
+        beszel_agent_default: >-
+          {{ lookup('ansible.builtin.fileglob', role_dir ~ '/tasks/default.yml',
+                    wantlist=true) | length > 0 }}
+
+    - name: Read the role and playbook sources
+      ansible.builtin.set_fact:
+        beszel_agent_main: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}
+        beszel_agent_debian: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}
+        beszel_agent_darwin: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}
+        beszel_agent_windows: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}
+        beszel_agent_defaults: >-
+          {{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}
+        setup_content: "{{ lookup('ansible.builtin.file', setup_path) }}"
+
+    - name: Assert registration input is validated before dispatch
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.assert' in beszel_agent_main"
+          - "'beszel_agent_universal_token' in beszel_agent_main"
+          - "'ssh-ed25519' in beszel_agent_main"
+          - "'no_log: true' in beszel_agent_main"
+          - "'with_first_found' in beszel_agent_main"
+          - "'vault_' not in beszel_agent_main"
+
+    - name: Assert Ubuntu uses an official checksum-verified Debian package
+      ansible.builtin.assert:
+        that:
+          - "'api.github.com/repos/henrygd/beszel/releases/latest' in beszel_agent_debian"
+          - "'beszel_agent_linux_architectures' in beszel_agent_debian"
+          - "'digest' in beszel_agent_debian"
+          - "'checksum:' in beszel_agent_debian"
+          - "'ansible.builtin.apt' in beszel_agent_debian"
+          - "'deb:' in beszel_agent_debian"
+          - "'always:' in beszel_agent_debian"
+          - "'ansible.builtin.systemd_service' in beszel_agent_debian"
+          - "'enabled: true' in beszel_agent_debian"
+          - "'TOKEN_FILE=' in beszel_agent_debian"
+          - "'/etc/beszel-agent.token' in beszel_agent_debian"
+          - "'mode: \"0400\"' in beszel_agent_debian"
+          - "'no_log: true' in beszel_agent_debian"
+          - "'diff: false' in beszel_agent_debian"
+          - "'deb822_repository' not in beszel_agent_debian"
+
+    - name: Assert macOS uses the trusted formula and snapshot gate
+      ansible.builtin.assert:
+        that:
+          - "'name: henrygd/beszel' in beszel_agent_darwin"
+          - "'trust: true' in beszel_agent_darwin"
+          - "'name: henrygd/beszel/beszel-agent' in beszel_agent_darwin"
+          - "'brew_installed_formulae | default([])' in beszel_agent_darwin"
+          - "'community.general.homebrew_services' in beszel_agent_darwin"
+          - "'TOKEN_FILE=' in beszel_agent_darwin"
+          - "'mode: \"0600\"' in beszel_agent_darwin"
+          - "'no_log: true' in beszel_agent_darwin"
+          - "'diff: false' in beszel_agent_darwin"
+
+    - name: Assert Windows uses winget and a protected NSSM service
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in beszel_agent_windows"
+          - "'- henrygd.beszel-agent' in beszel_agent_windows"
+          - "'- NSSM.NSSM' in beszel_agent_windows"
+          - "'win_acl_inheritance' in beszel_agent_windows"
+          - "'user: SYSTEM' in beszel_agent_windows"
+          - "'user: BUILTIN\\Administrators' in beszel_agent_windows"
+          - "'TOKEN_FILE=' in beszel_agent_windows"
+          - "'ProgramData' in beszel_agent_windows"
+          - "'AppEnvironmentExtra' in beszel_agent_windows"
+          - "'SERVICE_AUTO_START' in beszel_agent_windows"
+          - "'ansible.windows.win_service' in beszel_agent_windows"
+          - "'start_mode: auto' in beszel_agent_windows"
+          - "'no_log: true' in beszel_agent_windows"
+          - "'diff: false' in beszel_agent_windows"
+
+    - name: Assert the shared outbound-only identity contract
+      ansible.builtin.assert:
+        that:
+          - "'https://monitor.winetree94.com' in beszel_agent_defaults"
+          - "'inventory_hostname' in beszel_agent_defaults"
+          - "'127.0.0.1:45876' in beszel_agent_defaults"
+          - "'TOKEN=' not in beszel_agent_debian"
+          - "'TOKEN=' not in beszel_agent_darwin"
+          - "'TOKEN=' not in beszel_agent_windows"
+          - "'win_firewall_rule' not in beszel_agent_windows"
+          - "'ufw' not in beszel_agent_debian"
+          - "'vault_' not in beszel_agent_debian"
+          - "'vault_' not in beszel_agent_darwin"
+          - "'vault_' not in beszel_agent_windows"
+
+    - name: Assert the common tooling play exposes the role tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_content is search(
+              "Common tooling[\\s\\S]*- role: beszel_agent[\\s\\S]{0,80}tags: \\[beszel_agent\\]"
+            )
+          - >-
+            setup_content is search("- role: beszel_agent[\\s\\S]*GUI applications")

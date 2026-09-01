@@ -1,0 +1,9 @@
+---
+beszel_agent_hub_url: https://monitor.winetree94.com
+beszel_agent_public_key: ""
+beszel_agent_system_name: "{{ inventory_hostname }}"
+beszel_agent_listen: 127.0.0.1:45876
+
+beszel_agent_linux_architectures:
+  x86_64: amd64
+  aarch64: arm64
