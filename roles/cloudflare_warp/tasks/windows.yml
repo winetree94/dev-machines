@@ -1,0 +1,7 @@
+---
+- name: Cloudflare WARP | Install the Windows client
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Cloudflare.Warp

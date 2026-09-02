@@ -1,0 +1,83 @@
+---
+# Official Cloudflare WARP repository: https://pkg.cloudflareclient.com/
+# Cloudflare publishes an ASCII-armored key but its package expects the
+# dearmored copy at this exact path, so keep the downloaded source and refresh
+# the binary keyring whenever that source changes.
+- name: Cloudflare WARP | Install the key conversion dependency
+  ansible.builtin.apt:
+    name: gpg
+    state: present
+    update_cache: true
+  become: true
+
+- name: Cloudflare WARP | Ensure the keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Cloudflare WARP | Check the binary signing key
+  ansible.builtin.stat:
+    path: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+  register: cloudflare_warp_binary_key
+
+- name: Cloudflare WARP | Download the current signing key
+  ansible.builtin.get_url:
+    url: https://pkg.cloudflareclient.com/pubkey.gpg
+    dest: /usr/share/keyrings/cloudflare-warp-archive-keyring.asc
+    mode: "0644"
+  register: cloudflare_warp_armored_key
+  become: true
+
+- name: Cloudflare WARP | Convert the signing key to a binary keyring
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --batch
+      - --yes
+      - --dearmor
+      - --output
+      - /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+      - /usr/share/keyrings/cloudflare-warp-archive-keyring.asc
+  when:
+    - cloudflare_warp_armored_key.changed or not cloudflare_warp_binary_key.stat.exists
+  become: true
+
+- name: Cloudflare WARP | Set the binary keyring permissions
+  ansible.builtin.file:
+    path: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+    state: file
+    mode: "0644"
+  when: cloudflare_warp_binary_key.stat.exists or not ansible_check_mode
+  become: true
+
+- name: Cloudflare WARP | Add the official APT repository
+  ansible.builtin.deb822_repository:
+    name: cloudflare-warp
+    types:
+      - deb
+    uris:
+      - https://pkg.cloudflareclient.com/
+    suites:
+      - "{{ ansible_facts['distribution_release'] }}"
+    components:
+      - main
+    signed_by: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+    state: present
+  become: true
+
+- name: Cloudflare WARP | Install the client
+  ansible.builtin.apt:
+    name: cloudflare-warp
+    state: present
+    update_cache: true
+  become: true
+
+- name: Cloudflare WARP | Enable and start the daemon
+  ansible.builtin.systemd_service:
+    name: warp-svc
+    enabled: true
+    state: started
+  when: ansible_facts['service_mgr'] == 'systemd'
+  become: true

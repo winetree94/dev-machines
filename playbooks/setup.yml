@@ -191,6 +191,9 @@
     - role: wireguard
       tags: [wireguard]
       when: vpn | bool
+    - role: cloudflare_warp
+      tags: [cloudflare_warp]
+      when: vpn | bool
     - role: docker
       tags: [docker]
     - role: beszel_agent

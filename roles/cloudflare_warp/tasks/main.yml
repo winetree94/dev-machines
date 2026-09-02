@@ -1,0 +1,10 @@
+---
+- name: Cloudflare WARP | Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ cloudflare_warp_task_file }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+        - default.yml
+      skip: true
+  loop_control:
+    loop_var: cloudflare_warp_task_file

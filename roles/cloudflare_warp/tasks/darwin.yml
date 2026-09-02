@@ -1,0 +1,11 @@
+---
+# cloudflare-warp is a pkg-based cask. Homebrew must stay unprivileged, while
+# sudo_password lets its installer use a temporary SUDO_ASKPASS helper instead
+# of prompting on the terminal that an Ansible SSH run does not have.
+- name: Cloudflare WARP | Install the macOS client
+  community.general.homebrew_cask:
+    name: cloudflare-warp
+    state: present
+    sudo_password: "{{ ansible_become_password }}"
+  when: "'cloudflare-warp' not in (brew_installed_casks | default([]))"
+  become: false

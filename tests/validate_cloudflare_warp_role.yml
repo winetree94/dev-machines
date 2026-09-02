@@ -1,0 +1,167 @@
+---
+- name: Validate Cloudflare WARP role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    cloudflare_warp_tasks_dir: "{{ playbook_dir }}/../roles/cloudflare_warp/tasks"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    cloudflare_warp_task_files:
+      - main.yml
+      - debian.yml
+      - darwin.yml
+      - windows.yml
+
+  tasks:
+    - name: Check the role task files
+      ansible.builtin.stat:
+        path: "{{ cloudflare_warp_tasks_dir }}/{{ item }}"
+      register: cloudflare_warp_task_stats
+      loop: "{{ cloudflare_warp_task_files }}"
+
+    - name: Check that no fallback task file exists
+      ansible.builtin.stat:
+        path: "{{ cloudflare_warp_tasks_dir }}/default.yml"
+      register: cloudflare_warp_default_task
+
+    - name: Assert the role supports all three operating systems without a fallback
+      ansible.builtin.assert:
+        that:
+          - >-
+            cloudflare_warp_task_stats.results
+            | rejectattr('stat.exists') | list | length == 0
+          - not cloudflare_warp_default_task.stat.exists
+        fail_msg: >-
+          cloudflare_warp needs main.yml plus Debian, Darwin and Windows task files,
+          and must not define default.yml.
+
+    - name: Read the role and playbook sources
+      ansible.builtin.set_fact:
+        cloudflare_warp_main: >-
+          {{ lookup('ansible.builtin.file', cloudflare_warp_tasks_dir ~ '/main.yml') }}
+        cloudflare_warp_debian: >-
+          {{ lookup('ansible.builtin.file', cloudflare_warp_tasks_dir ~ '/debian.yml') }}
+        cloudflare_warp_darwin: >-
+          {{ lookup('ansible.builtin.file', cloudflare_warp_tasks_dir ~ '/darwin.yml') }}
+        cloudflare_warp_windows: >-
+          {{ lookup('ansible.builtin.file', cloudflare_warp_tasks_dir ~ '/windows.yml') }}
+        setup_playbook_content: >-
+          {{ lookup('ansible.builtin.file', setup_playbook_path) }}
+
+    - name: Assert the dispatcher contains no installation logic
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in cloudflare_warp_main"
+          - "'with_first_found' in cloudflare_warp_main"
+          - >-
+            cloudflare_warp_main is search(
+              "ansible_facts\\['os_family'\\] \\| lower"
+            )
+          - "'default.yml' in cloudflare_warp_main"
+          - "'ansible.builtin.apt' not in cloudflare_warp_main"
+          - "'community.general.homebrew_cask' not in cloudflare_warp_main"
+          - "'winget_packages' not in cloudflare_warp_main"
+        fail_msg: >-
+          The main task file must only dispatch to OS-specific task files.
+
+    - name: Assert Ubuntu uses the signed official Cloudflare repository
+      ansible.builtin.assert:
+        that:
+          - "'name: gpg' in cloudflare_warp_debian"
+          - "'ansible.builtin.get_url' in cloudflare_warp_debian"
+          - "'https://pkg.cloudflareclient.com/pubkey.gpg' in cloudflare_warp_debian"
+          - "'--dearmor' in cloudflare_warp_debian"
+          - "'cloudflare-warp-archive-keyring.gpg' in cloudflare_warp_debian"
+          - "'ansible.builtin.deb822_repository' in cloudflare_warp_debian"
+          - "'https://pkg.cloudflareclient.com/' in cloudflare_warp_debian"
+          - "'distribution_release' in cloudflare_warp_debian"
+          - >-
+            'signed_by: /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg'
+            in cloudflare_warp_debian
+          - "'name: cloudflare-warp' in cloudflare_warp_debian"
+          - "'apt-key' not in cloudflare_warp_debian"
+          - "'apt_repository' not in cloudflare_warp_debian"
+        fail_msg: >-
+          Ubuntu must dearmor Cloudflare's current key, register the signed official
+          repository with deb822_repository, and install cloudflare-warp with apt.
+
+    - name: Assert Ubuntu enables the WARP daemon without an architecture gate
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.systemd_service' in cloudflare_warp_debian"
+          - "'name: warp-svc' in cloudflare_warp_debian"
+          - "'enabled: true' in cloudflare_warp_debian"
+          - "'state: started' in cloudflare_warp_debian"
+          - >-
+            cloudflare_warp_debian is search(
+              "ansible_facts\\['service_mgr'\\] == 'systemd'"
+            )
+          - "'architecture' not in cloudflare_warp_debian"
+        fail_msg: >-
+          Ubuntu must enable/start warp-svc and allow both supported architectures.
+
+    - name: Assert macOS uses the snapshotted pkg cask non-interactively
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' in cloudflare_warp_darwin"
+          - "'name: cloudflare-warp' in cloudflare_warp_darwin"
+          - "'brew_installed_casks | default([])' in cloudflare_warp_darwin"
+          - "'sudo_password:' in cloudflare_warp_darwin"
+          - "'ansible_become_password' in cloudflare_warp_darwin"
+          - "'become: false' in cloudflare_warp_darwin"
+        fail_msg: >-
+          macOS must gate the pkg-based cloudflare-warp cask on the Homebrew snapshot
+          and supply the vault-backed sudo password without running Homebrew as root.
+
+    - name: Assert Windows uses the shared winget role
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_role' in cloudflare_warp_windows"
+          - "'name: winget' in cloudflare_warp_windows"
+          - "'- Cloudflare.Warp' in cloudflare_warp_windows"
+          - "'win_chocolatey' not in cloudflare_warp_windows"
+          - "'win_package' not in cloudflare_warp_windows"
+        fail_msg: >-
+          Windows must install Cloudflare.Warp exclusively through the shared winget role.
+
+    - name: Assert the role installs only and never registers or connects
+      ansible.builtin.assert:
+        that:
+          - "'registration new' not in item"
+          - "'warp-cli connect' not in item"
+          - "'teams-enroll' not in item"
+          - "'organization' not in (item | lower)"
+          - "'vault_' not in item"
+          - "'curl' not in item"
+          - "'| sh' not in item"
+        fail_msg: >-
+          The role must install only. Consumer registration, connection and Zero Trust
+          enrollment remain manual and no credential belongs in the role.
+      loop:
+        - "{{ cloudflare_warp_main }}"
+        - "{{ cloudflare_warp_debian }}"
+        - "{{ cloudflare_warp_darwin }}"
+        - "{{ cloudflare_warp_windows }}"
+      loop_control:
+        index_var: cloudflare_warp_file_index
+        label: "{{ cloudflare_warp_task_files[cloudflare_warp_file_index] }}"
+
+    - name: Assert the common tooling play exposes the VPN-gated role tag
+      ansible.builtin.assert:
+        that:
+          - "'- role: cloudflare_warp' in setup_playbook_content"
+          - >-
+            setup_playbook_content is search(
+              "Common tooling[\\s\\S]*- role: cloudflare_warp"
+            )
+          - >-
+            setup_playbook_content is search(
+              "- role: cloudflare_warp[\\s\\S]{0,100}tags: \\[cloudflare_warp\\]"
+              "[\\s\\S]{0,80}when: vpn \\| bool"
+            )
+          - >-
+            setup_playbook_content is search(
+              "vpn: false[\\s\\S]{0,40}when: wsl \\| bool"
+            )
+        fail_msg: >-
+          Common tooling must expose --tags cloudflare_warp and gate the role on vpn,
+          while the OS grouping play keeps VPN roles disabled on WSL by default.

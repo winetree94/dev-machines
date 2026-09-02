@@ -132,7 +132,8 @@ per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml
 
 - **GUI 앱** — `gui` 자동 감지에서 제외된다. 게스트에 데스크톱 앱을 깔아 봐야 실제
   화면은 Windows 쪽이고, 그 머신은 `desktop` 호스트로 따로 관리한다.
-- **VPN(`tailscale`, `wireguard`)** — `vpn` 이 false 가 되어 두 롤을 건너뛴다. WSL 은
+- **VPN(`tailscale`, `wireguard`, `cloudflare_warp`)** — `vpn` 이 false 가 되어 세 롤을
+  건너뛴다. WSL 은
   Windows 호스트 뒤에 NAT 되어 있어 VPN 은 호스트가 들고 있어야 하고, 게스트의
   `tailscaled` 는 systemd 와 `/dev/net/tun` 을 요구한 뒤 같은 라우팅을 두고 호스트와
   충돌한다.
@@ -305,6 +306,25 @@ App Store 로그인은 계속 수동이며, Apple ID 자격증명은 리포에�
 
 롤은 절대 `tailscale up` 을 실행하지 않는다. 각 머신의 최초 인증은 수동이다.
 macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한다.
+
+## Cloudflare WARP
+
+`cloudflare_warp` 롤은 소비자용 1.1.1.1 with WARP 클라이언트와 백그라운드
+서비스만 설치한다. 약관 동의, 장치 등록, WARP 연결과 Cloudflare One Zero Trust
+enrollment는 자동화하지 않는다.
+
+- `debian.yml` — 최신 공개 키를 dearmor한 keyring과 공식
+  `https://pkg.cloudflareclient.com/` APT 저장소를 관리하고 `cloudflare-warp`를
+  설치한 뒤 `warp-svc`를 enable/start한다. Ubuntu amd64/arm64 모두 같은 저장소를
+  사용한다.
+- `darwin.yml` — Homebrew pkg cask `cloudflare-warp`. 비대화형 pkg 설치에 필요한
+  sudo 비밀번호는 Homebrew module의 일회용 `SUDO_ASKPASS` 경로로 전달한다.
+- `windows.yml` — 공유 winget 롤의 `Cloudflare.Warp` 패키지.
+
+설치 후 각 장치의 GUI에서 약관에 동의하고 연결한다. Linux에서는
+`warp-cli registration new`와 `warp-cli connect`를 수동으로 실행할 수도 있다.
+Tailscale 및 WireGuard와 함께 설치할 수 있지만 동시에 연결하면 기본 경로와 DNS가
+충돌할 수 있으므로 사용할 VPN 하나만 활성화한다.
 
 ## wireguard
 
