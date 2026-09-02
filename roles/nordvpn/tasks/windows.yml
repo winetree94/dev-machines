@@ -1,0 +1,7 @@
+---
+- name: NordVPN | Install the Windows app
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - NordSecurity.NordVPN

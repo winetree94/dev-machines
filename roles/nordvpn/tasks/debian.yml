@@ -1,0 +1,57 @@
+---
+- name: NordVPN | Ensure the APT keyring directory exists
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: NordVPN | Download the official repository signing key
+  ansible.builtin.get_url:
+    url: https://repo.nordvpn.com/gpg/nordvpn_public.asc
+    dest: /usr/share/keyrings/nordvpn-archive-keyring.asc
+    mode: "0644"
+  become: true
+
+- name: NordVPN | Add the official stable APT repository
+  ansible.builtin.deb822_repository:
+    name: nordvpn
+    types:
+      - deb
+    uris:
+      - https://repo.nordvpn.com/deb/nordvpn/debian
+    suites:
+      - stable
+    components:
+      - main
+    signed_by: /usr/share/keyrings/nordvpn-archive-keyring.asc
+    state: present
+  become: true
+
+- name: NordVPN | Install the Linux GUI app
+  ansible.builtin.apt:
+    name: nordvpn-gui
+    state: present
+    update_cache: true
+  become: true
+
+- name: NordVPN | Allow the target user to control the app
+  ansible.builtin.user:
+    name: "{{ ansible_facts['user_id'] }}"
+    groups:
+      - nordvpn
+    append: true
+  become: true
+
+- name: NordVPN | Enable and start the daemon socket and service
+  ansible.builtin.systemd_service:
+    name: "{{ nordvpn_systemd_unit }}"
+    enabled: true
+    state: started
+  loop:
+    - nordvpnd.socket
+    - nordvpnd.service
+  loop_control:
+    loop_var: nordvpn_systemd_unit
+  when: ansible_facts['service_mgr'] == 'systemd'
+  become: true

@@ -1,0 +1,180 @@
+---
+- name: Validate the NordVPN GUI role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    nordvpn_tasks_dir: "{{ playbook_dir }}/../roles/nordvpn/tasks"
+    setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    nordvpn_task_files:
+      - main.yml
+      - debian.yml
+      - darwin.yml
+      - windows.yml
+
+  tasks:
+    - name: Check the expected NordVPN task files
+      ansible.builtin.stat:
+        path: "{{ nordvpn_tasks_dir }}/{{ item }}"
+      register: nordvpn_task_stats
+      loop: "{{ nordvpn_task_files }}"
+
+    - name: Check that NordVPN has no default task file
+      ansible.builtin.stat:
+        path: "{{ nordvpn_tasks_dir }}/default.yml"
+      register: nordvpn_default_task
+
+    - name: Assert the NordVPN role has the curated OS files
+      ansible.builtin.assert:
+        that:
+          - >-
+            nordvpn_task_stats.results
+            | rejectattr('stat.exists') | list | length == 0
+          - not nordvpn_default_task.stat.exists
+        fail_msg: >-
+          nordvpn needs main.yml plus Debian, Darwin and Windows task files,
+          and must not define default.yml.
+
+    - name: Read the NordVPN role and playbook sources
+      ansible.builtin.set_fact:
+        nordvpn_main: >-
+          {{ lookup('ansible.builtin.file', nordvpn_tasks_dir ~ '/main.yml') }}
+        nordvpn_debian: >-
+          {{ lookup('ansible.builtin.file', nordvpn_tasks_dir ~ '/debian.yml') }}
+        nordvpn_darwin: >-
+          {{ lookup('ansible.builtin.file', nordvpn_tasks_dir ~ '/darwin.yml') }}
+        nordvpn_windows: >-
+          {{ lookup('ansible.builtin.file', nordvpn_tasks_dir ~ '/windows.yml') }}
+        setup_playbook_content: >-
+          {{ lookup('ansible.builtin.file', setup_playbook_path) }}
+
+    - name: Assert the dispatcher contains no installation logic
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_tasks' in nordvpn_main"
+          - "'with_first_found' in nordvpn_main"
+          - >-
+            nordvpn_main is search(
+              "ansible_facts\\['os_family'\\] \\| lower"
+            )
+          - "'default.yml' in nordvpn_main"
+          - "'ansible.builtin.apt' not in nordvpn_main"
+          - "'community.general.homebrew_cask' not in nordvpn_main"
+          - "'winget_packages' not in nordvpn_main"
+        fail_msg: >-
+          NordVPN's main task file must only dispatch to OS-specific files.
+
+    - name: Assert Ubuntu uses NordVPN's signed stable APT repository
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.get_url' in nordvpn_debian"
+          - >-
+            'https://repo.nordvpn.com/gpg/nordvpn_public.asc'
+            in nordvpn_debian
+          - "'nordvpn-archive-keyring.asc' in nordvpn_debian"
+          - "'ansible.builtin.deb822_repository' in nordvpn_debian"
+          - >-
+            'https://repo.nordvpn.com/deb/nordvpn/debian'
+            in nordvpn_debian
+          - "'- stable' in nordvpn_debian"
+          - "'- main' in nordvpn_debian"
+          - >-
+            'signed_by: /usr/share/keyrings/nordvpn-archive-keyring.asc'
+            in nordvpn_debian
+          - "'name: nordvpn-gui' in nordvpn_debian"
+          - "'ansible.builtin.apt' in nordvpn_debian"
+          - "'apt-key' not in nordvpn_debian"
+          - "'apt_repository' not in nordvpn_debian"
+          - "'community.general.snap' not in nordvpn_debian"
+          - "'install.sh' not in nordvpn_debian"
+          - "'architecture' not in nordvpn_debian"
+        fail_msg: >-
+          Ubuntu must install nordvpn-gui from NordVPN's signed stable APT
+          repository without a script, Snap fallback or architecture gate.
+
+    - name: Assert Ubuntu prepares app access and the daemon
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.user' in nordvpn_debian"
+          - "\"ansible_facts['user_id']\" in nordvpn_debian"
+          - "'- nordvpn' in nordvpn_debian"
+          - "'append: true' in nordvpn_debian"
+          - "'ansible.builtin.systemd_service' in nordvpn_debian"
+          - "'- nordvpnd.socket' in nordvpn_debian"
+          - "'- nordvpnd.service' in nordvpn_debian"
+          - "'enabled: true' in nordvpn_debian"
+          - "'state: started' in nordvpn_debian"
+          - >-
+            nordvpn_debian is search(
+              "ansible_facts\\['service_mgr'\\] == 'systemd'"
+            )
+        fail_msg: >-
+          Ubuntu must append the target user to the nordvpn group and
+          enable/start both the daemon socket and service.
+
+    - name: Assert macOS installs the snapshotted pkg cask non-interactively
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' in nordvpn_darwin"
+          - "'name: nordvpn' in nordvpn_darwin"
+          - "'brew_installed_casks | default([])' in nordvpn_darwin"
+          - "'sudo_password:' in nordvpn_darwin"
+          - "'ansible_become_password' in nordvpn_darwin"
+          - "'become: false' in nordvpn_darwin"
+        fail_msg: >-
+          macOS must gate the pkg cask on the Homebrew snapshot and pass the
+          vault-backed sudo password without running Homebrew as root.
+
+    - name: Assert Windows installs through the shared winget role
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.include_role' in nordvpn_windows"
+          - "'name: winget' in nordvpn_windows"
+          - "'- NordSecurity.NordVPN' in nordvpn_windows"
+          - "'win_chocolatey' not in nordvpn_windows"
+          - "'win_package' not in nordvpn_windows"
+        fail_msg: >-
+          Windows must install NordSecurity.NordVPN through the shared winget
+          role and no other package workflow.
+
+    - name: Assert the role installs only and never authenticates or connects
+      ansible.builtin.assert:
+        that:
+          - "'nordvpn login' not in (item | lower)"
+          - "'nordvpn connect' not in (item | lower)"
+          - "'autoconnect' not in (item | lower)"
+          - "'killswitch' not in (item | lower)"
+          - "'lan-discovery' not in (item | lower)"
+          - "'whitelist' not in (item | lower)"
+          - "'vault_' not in item"
+          - "'token' not in (item | lower)"
+        fail_msg: >-
+          The role must install only. Authentication, connection and network
+          policy remain manual, with no NordVPN credential in the role.
+      loop:
+        - "{{ nordvpn_main }}"
+        - "{{ nordvpn_debian }}"
+        - "{{ nordvpn_darwin }}"
+        - "{{ nordvpn_windows }}"
+      loop_control:
+        index_var: nordvpn_file_index
+        label: "{{ nordvpn_task_files[nordvpn_file_index] }}"
+
+    - name: Assert the GUI play exposes the VPN-gated NordVPN tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search(
+              "GUI applications[\\s\\S]*- role: nordvpn"
+            )
+          - >-
+            setup_playbook_content is search(
+              "- role: nordvpn[\\s\\S]{0,80}tags: \\[nordvpn\\]"
+              "[\\s\\S]{0,80}when: vpn \\| bool"
+            )
+          - >-
+            setup_playbook_content is search(
+              "vpn: false[\\s\\S]{0,40}when: wsl \\| bool"
+            )
+        fail_msg: >-
+          GUI applications must expose --tags nordvpn and gate the role on
+          vpn, while the WSL grouping logic keeps VPN roles disabled by default.

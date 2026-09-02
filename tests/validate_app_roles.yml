@@ -114,6 +114,14 @@
         debian: com.moonlight_stream.Moonlight
         darwin: moonlight
         windows: MoonlightGameStreamingProject.Moonlight
+      - name: nordvpn
+        debian: "name: nordvpn-gui"
+        debian_channel: apt_repository
+        debian_repository: https://repo.nordvpn.com/deb/nordvpn/debian
+        debian_signing_key: nordvpn_public.asc
+        darwin: nordvpn
+        windows: NordSecurity.NordVPN
+        pkg: true
       - name: obsidian
         debian: md.obsidian.Obsidian
         darwin: obsidian
@@ -981,8 +989,8 @@
         that:
           - ('sudo_password' in darwin_content) == (item.pkg | default(false))
         fail_msg: >-
-          Only the casks marked `pkg: true` in the table above - parsec and
-          karabiner_elements - need sudo_password: their artifact is a .pkg, so
+          Only the casks marked `pkg: true` in the table above - NordVPN,
+          parsec and karabiner_elements - need sudo_password: their artifact is a .pkg, so
           Homebrew shells out to "sudo installer" and an Ansible run has no
           terminal to prompt at. Plain .app casks are drag-installed and must
           not ask for the become password.

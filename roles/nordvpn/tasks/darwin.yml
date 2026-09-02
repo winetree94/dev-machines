@@ -1,0 +1,10 @@
+---
+# nordvpn is a pkg-based cask. Homebrew stays unprivileged while its installer
+# receives the become password through the module's temporary SUDO_ASKPASS path.
+- name: NordVPN | Install the macOS app
+  community.general.homebrew_cask:
+    name: nordvpn
+    state: present
+    sudo_password: "{{ ansible_become_password }}"
+  when: "'nordvpn' not in (brew_installed_casks | default([]))"
+  become: false

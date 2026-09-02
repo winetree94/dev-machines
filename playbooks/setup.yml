@@ -354,6 +354,9 @@
       tags: [microsoft_edge]
     - role: moonlight
       tags: [moonlight]
+    - role: nordvpn
+      tags: [nordvpn]
+      when: vpn | bool
     - role: obsidian
       tags: [obsidian]
     - role: onlyoffice

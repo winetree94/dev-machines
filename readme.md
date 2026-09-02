@@ -121,7 +121,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
-`gui` 는 `GUI applications` 플레이(데스크톱 앱 36개)와 Linux 의 tailscale systray
+`gui` 는 `GUI applications` 플레이(데스크톱 앱 37개)와 Linux 의 tailscale systray
 자동 시작을 함께 제어한다. 참이면 호스트가 `gui_enabled` 그룹에 들어가고, 그 플레이가
 그룹을 대상으로 돈다.
 
@@ -132,8 +132,8 @@ per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml
 
 - **GUI 앱** — `gui` 자동 감지에서 제외된다. 게스트에 데스크톱 앱을 깔아 봐야 실제
   화면은 Windows 쪽이고, 그 머신은 `desktop` 호스트로 따로 관리한다.
-- **VPN(`tailscale`, `wireguard`, `cloudflare_warp`)** — `vpn` 이 false 가 되어 세 롤을
-  건너뛴다. WSL 은
+- **VPN(`tailscale`, `wireguard`, `cloudflare_warp`, `nordvpn`)** — `vpn` 이 false 가
+  되어 네 롤을 건너뛴다. WSL 은
   Windows 호스트 뒤에 NAT 되어 있어 VPN 은 호스트가 들고 있어야 하고, 게스트의
   `tailscaled` 는 systemd 와 `/dev/net/tun` 을 요구한 뒤 같은 라우팅을 두고 호스트와
   충돌한다.
@@ -529,7 +529,7 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 
 ## GUI 앱
 
-데스크톱 앱 36개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 37개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
@@ -543,6 +543,11 @@ JetBrains Toolbox는 Ubuntu에서 checksum을 고정한 공식 x86_64/ARM64 arch
 최초 실행 시 Toolbox가 직접 만들기 때문에 Ansible은 실행 링크만 관리한다.
 Remote Desktop Manager는 Ubuntu에서 공식 Devolutions Cloudsmith APT 저장소를,
 macOS와 Windows에서는 각각 cask와 winget을 사용한다.
+NordVPN은 GUI가 활성화되고 `vpn`이 true인 호스트에만 설치한다. Ubuntu 패키지는
+공식 저장소의 `nordvpn-gui`이며 CLI와 daemon도 의존성으로 함께 설치된다. 로그인,
+자동 연결, 서버 선택, Kill Switch, DNS와 LAN allowlist는 사용자가 앱에서 관리한다.
+Tailscale, WireGuard 또는 Cloudflare WARP와 동시에 연결하면 기본 경로와 DNS가
+충돌할 수 있으므로 실제 연결은 한 VPN만 활성화한다.
 
 AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자체 태그와 CLI 태그가
 함께 붙어 있어 `--tags claude_code`, `--tags codex`, `--tags opencode` 실행도 GUI가
@@ -557,6 +562,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `opencode_desktop` | Flathub `ai.opencode.opencode` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
 | `kitty` | Ubuntu archive `kitty` | cask `kitty` | 미지원 |
 | `jetbrains_toolbox` | 공식 최신 안정 checksum archive | cask `jetbrains-toolbox` | `JetBrains.Toolbox` |
+| `nordvpn` | 공식 APT `nordvpn-gui` | cask `nordvpn` | `NordSecurity.NordVPN` |
 | `paseo` | 공식 최신 안정 amd64 `.deb` | cask `paseo` | 동적 local winget manifest |
 | `remote_desktop_manager` | 공식 APT `remotedesktopmanager` | cask `remote-desktop-manager` | `Devolutions.RemoteDesktopManager` |
 
