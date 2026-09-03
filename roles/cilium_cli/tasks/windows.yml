@@ -1,0 +1,7 @@
+---
+- name: Install Cilium CLI (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - Cilium.CiliumCLI

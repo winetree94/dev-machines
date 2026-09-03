@@ -1,0 +1,7 @@
+---
+- name: Cilium CLI | Install Cilium CLI (brew)
+  when: "'cilium-cli' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: cilium-cli
+    state: present
+  become: false

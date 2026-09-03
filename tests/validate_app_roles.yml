@@ -242,6 +242,10 @@
         debian: k9s
         darwin: k9s
         windows: Derailed.k9s
+      - name: cilium_cli
+        debian: cilium-cli
+        darwin: cilium-cli
+        windows: Cilium.CiliumCLI
       - name: flux
         debian: brew.yml
         darwin: brew.yml
@@ -1126,7 +1130,7 @@
           bootstrap play, which is where `gui` is auto-detected, and before the
           "GUI applications" play that targets the group it creates.
 
-    - name: Assert every AI role runs in the Common tooling play
+    - name: Assert every CLI role runs in the Common tooling play
       ansible.builtin.assert:
         that:
           - >-
@@ -1134,11 +1138,30 @@
             ~ item.name ~ "[\s\S]*GUI applications")
         fail_msg: >-
           Role {{ item.name }} is a CLI tool and belongs in the "Common
-          tooling"
-          play, which runs on every host.
-      loop: "{{ ai_roles }}"
+          tooling" play, which runs on every host.
+      loop: "{{ common_roles }}"
       loop_control:
         label: "{{ item.name }}"
+
+    - name: Assert the Cilium CLI role never changes a Kubernetes cluster
+      ansible.builtin.assert:
+        that:
+          - "'cilium install' not in cilium_role_content"
+          - "'cilium upgrade' not in cilium_role_content"
+          - "'cilium uninstall' not in cilium_role_content"
+          - "'kubeconfig' not in cilium_role_content"
+          - >-
+            setup_playbook_content is search("- role: cilium_cli"
+            ~ "[\\s\\S]{0,80}tags: \\[cilium_cli\\]")
+        fail_msg: >-
+          The cilium_cli role installs the local client only. It must not
+          install, upgrade, or remove Cilium in a Kubernetes cluster or manage
+          kubeconfig, and it must remain independently taggable.
+      vars:
+        cilium_role_content: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/cilium_cli/tasks/debian.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/cilium_cli/tasks/darwin.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/cilium_cli/tasks/windows.yml') }}
 
     - name: Assert every GUI role runs in the GUI applications play
       ansible.builtin.assert:

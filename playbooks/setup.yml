@@ -269,6 +269,8 @@
       tags: [helm]
     - role: k9s
       tags: [k9s]
+    - role: cilium_cli
+      tags: [cilium_cli]
     - role: flux
       tags: [flux]
     - role: kubeseal

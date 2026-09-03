@@ -69,6 +69,21 @@ Android SDK만 예외적으로 프로젝트 빌드 재현성을 우선한다. pl
 build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-tools는
 업데이트 실행 시 최신 버전으로 갱신한다.
 
+## Cilium CLI
+
+`cilium_cli` 롤은 Kubernetes 클러스터를 관리할 때 사용하는 `cilium` 명령만 설치한다.
+`--tags cilium_cli`로 따로 실행할 수 있다.
+
+| OS | 설치 경로 |
+|---|---|
+| Ubuntu | Homebrew core `cilium-cli` formula |
+| macOS | Homebrew core `cilium-cli` formula |
+| Windows | 공유 winget 롤의 `Cilium.CiliumCLI` |
+
+이 롤은 `cilium install`, 클러스터 연결, kubeconfig와 Cilium CNI 설정을 실행하거나
+관리하지 않는다. 패키지 갱신은 기존 `make update`의 Homebrew·winget 업데이트 흐름을
+따른다.
+
 ## PostgreSQL 클라이언트
 
 `postgresql_client` 롤은 데이터베이스 서버 없이 `psql`, `pg_dump`, `pg_restore` 등
