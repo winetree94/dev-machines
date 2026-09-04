@@ -1,0 +1,7 @@
+---
+- name: Yq | Install yq (brew)
+  when: "'yq' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: yq
+    state: present
+  become: false

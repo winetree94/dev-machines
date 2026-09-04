@@ -1,0 +1,7 @@
+---
+- name: Jq | Install jq (brew)
+  when: "'jq' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: jq
+    state: present
+  become: false

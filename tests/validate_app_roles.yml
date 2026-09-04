@@ -314,6 +314,18 @@
         debian: fd
         darwin: fd
         windows: sharkdp.fd
+      - name: jq
+        debian: "name: jq"
+        darwin: jq
+        windows: jqlang.jq
+      # Ubuntu's apt package is the Python jq wrapper. Use the Mike Farah
+      # implementation from Homebrew on both Unix platforms instead.
+      - name: yq
+        debian: brew.yml
+        darwin: brew.yml
+        windows: MikeFarah.yq
+        shared: brew.yml
+        shared_contains: "name: yq"
       # split out of git. git itself is the one apt exception - see its debian.yml
       - name: git
         debian: "name: git"
@@ -810,6 +822,27 @@
       vars:
         debian_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/debian.yml') }}"
 
+    - name: Assert jq and yq use the selected Ubuntu install channels
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.apt' in jq_debian"
+          - "'name: jq' in jq_debian"
+          - "'brew.yml' in yq_debian"
+          - "'community.general.homebrew' in yq_brew"
+          - "'name: yq' in yq_brew"
+          - "'brew_installed_formulae | default([])' in yq_brew"
+        fail_msg: >-
+          jq must come from the Ubuntu archive, while yq must use the shared
+          Homebrew formula so Ubuntu installs the Mike Farah implementation
+          without Snap confinement.
+      vars:
+        jq_debian: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/jq/tasks/debian.yml') }}
+        yq_debian: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/yq/tasks/debian.yml') }}
+        yq_brew: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/yq/tasks/brew.yml') }}
+
     - name: Assert the vendor installers are fetched, not piped into a shell
       ansible.builtin.assert:
         that:
@@ -1142,6 +1175,19 @@
       loop: "{{ common_roles }}"
       loop_control:
         label: "{{ item.name }}"
+
+    - name: Assert jq and yq carry independently runnable tags
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook_content is search("- role: jq"
+            ~ "[\\s\\S]{0,80}tags: \\[jq\\]")
+          - >-
+            setup_playbook_content is search("- role: yq"
+            ~ "[\\s\\S]{0,80}tags: \\[yq\\]")
+        fail_msg: >-
+          jq and yq must keep their matching role tags so either tool can be
+          installed without running the complete Common tooling play.
 
     - name: Assert the Cilium CLI role never changes a Kubernetes cluster
       ansible.builtin.assert:

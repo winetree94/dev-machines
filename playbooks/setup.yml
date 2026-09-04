@@ -223,6 +223,10 @@
       tags: [ripgrep]
     - role: fd
       tags: [fd]
+    - role: jq
+      tags: [jq]
+    - role: yq
+      tags: [yq]
     # version control
     - role: git
       tags: [git]
