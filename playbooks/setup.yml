@@ -196,8 +196,6 @@
       when: vpn | bool
     - role: docker
       tags: [docker]
-    - role: beszel_agent
-      tags: [beszel_agent]
     # secrets
     - role: doppler
       tags: [doppler]
