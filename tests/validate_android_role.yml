@@ -122,6 +122,23 @@
           Both implementations must accept licenses non-interactively and
           install only missing SDK packages; Ubuntu must retire its old adb.
 
+    - name: Assert Windows updates from a disposable SDK manager copy
+      ansible.builtin.assert:
+        that:
+          - "'ansible-android-update-' in android_windows"
+          - "'Stage the SDK manager outside the managed SDK' in android_windows"
+          - "'android_sdk_update_dir.path' in android_windows"
+          - "'Inspect available SDK package updates' in android_windows"
+          - "'Verify all installed SDK packages are current' in android_windows"
+          - "\"' -> ' in android_sdk_update_after.stdout\" in android_windows"
+          - "'failed_when: false' in android_windows"
+          - "'.ansible-latest-source-build' in android_windows"
+          - "'Remove the temporary SDK manager directory' in android_windows"
+        fail_msg: >-
+          Windows must run updates from a disposable Command-line Tools copy,
+          then verify package state because Android CLI has an unreliable exit
+          status after replacing packages on Windows.
+
     - name: Assert Android shell integration remains the user's responsibility
       ansible.builtin.assert:
         that:

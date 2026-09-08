@@ -35,9 +35,11 @@
 - name: D2Coding | Read the latest stable release
   ansible.builtin.uri:
     url: https://api.github.com/repos/naver/d2-coding-font/releases/latest
+    headers: "{{ github_api_headers }}"
     return_content: true
   register: d2coding_release
   check_mode: false
+  no_log: true
   when: d2coding_release_needed | bool
 
 - name: D2Coding | Select the latest archive

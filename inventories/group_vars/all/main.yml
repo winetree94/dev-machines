@@ -41,6 +41,14 @@ homebrew_environment: >-
 # [connection] in ansible.cfg and never writes the key to disk.
 ansible_private_key: "{{ vault_ssh_private_key }}"
 
+# Authenticate public GitHub API reads so update runs use the account-scoped
+# rate limit rather than each target host's small anonymous IP-based limit.
+github_api_token: "{{ vault_github_api_token }}"
+github_api_headers:
+  Accept: application/vnd.github+json
+  Authorization: "Bearer {{ github_api_token }}"
+  X-GitHub-Api-Version: "2022-11-28"
+
 # Dotweave reads this age identity only while bootstrapping a host. The role
 # writes it to a mode-0600 temporary file for `dotweave init --key-file` and
 # deletes that file in an always block; the durable copy is Dotweave's own

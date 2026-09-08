@@ -14,11 +14,13 @@
       ansible.builtin.assert:
         that:
           - "'releases/latest' in debian"
+          - "'github_api_headers' in debian"
           - "'rustdesk_latest_asset.digest' in debian"
           - "'armv7-sciter' in debian"
           - "'allow_downgrade: false' in debian"
           - "'name: rustdesk' in darwin"
           - "'releases/latest' in windows"
+          - "'github_api_headers' in windows"
           - "'manifest_templates' in windows"
           - "'arp_version_regex' in windows"
           - "'InstallerType: wix' in installer"

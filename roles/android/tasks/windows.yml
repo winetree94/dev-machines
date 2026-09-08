@@ -40,12 +40,12 @@
 
 - name: Android | Inspect the installed Command-line Tools build
   ansible.windows.win_stat:
-    path: "{{ android_sdk_root_effective }}\\cmdline-tools\\latest\\.ansible-source-build"
+    path: "{{ android_sdk_root_effective }}\\cmdline-tools\\.ansible-latest-source-build"
   register: android_cmdline_build_marker
 
 - name: Android | Read the installed Command-line Tools build
   ansible.builtin.slurp:
-    path: "{{ android_sdk_root_effective }}\\cmdline-tools\\latest\\.ansible-source-build"
+    path: "{{ android_sdk_root_effective }}\\cmdline-tools\\.ansible-latest-source-build"
   register: android_cmdline_build_content
   when: android_cmdline_build_marker.stat.exists
 
@@ -114,7 +114,7 @@
     - name: Android | Record the installed source build
       ansible.windows.win_copy:
         content: "{{ android_cmdline_tools_version_effective }}\r\n"
-        dest: "{{ android_sdk_root_effective }}\\cmdline-tools\\latest\\.ansible-source-build"
+        dest: "{{ android_sdk_root_effective }}\\cmdline-tools\\.ansible-latest-source-build"
   always:
     - name: Android | Remove the temporary extraction directory
       ansible.windows.win_file:
@@ -142,18 +142,73 @@
   when: android_cmdline_tools_ready | bool
 
 - name: Android | Update all installed SDK packages
-  ansible.windows.win_shell: >-
-    & '{{ android_sdk_root_effective }}\cmdline-tools\latest\bin\sdkmanager.bat'
-    '--sdk_root={{ android_sdk_root_effective }}' --update;
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-  environment:
-    ANDROID_HOME: "{{ android_sdk_root_effective }}"
-    JAVA_HOME: "{{ java_home }}"
-  register: android_sdk_update
-  changed_when: "'No updates available' not in android_sdk_update.stdout"
   when:
     - android_cmdline_tools_ready | bool
     - dev_machines_update_mode | bool
+  block:
+    # sdkmanager now delegates to Android CLI, which may update
+    # cmdline-tools/latest as part of --update. Windows cannot replace that
+    # directory while its executable and JARs are open, so run a disposable
+    # copy against the real SDK root.
+    - name: Android | Create a temporary SDK manager directory
+      ansible.windows.win_tempfile:
+        state: directory
+        prefix: ansible-android-update-
+      register: android_sdk_update_dir
+
+    - name: Android | Stage the SDK manager outside the managed SDK
+      ansible.windows.win_shell: >-
+        Copy-Item -LiteralPath
+        '{{ android_sdk_root_effective }}\cmdline-tools\latest'
+        -Destination '{{ android_sdk_update_dir.path }}\cmdline-tools'
+        -Recurse -Force
+      changed_when: false
+
+    - name: Android | Inspect available SDK package updates
+      ansible.windows.win_shell: >-
+        & '{{ android_sdk_update_dir.path }}\cmdline-tools\bin\sdkmanager.bat'
+        '--sdk_root={{ android_sdk_root_effective }}' --list_installed
+      environment:
+        ANDROID_HOME: "{{ android_sdk_root_effective }}"
+        JAVA_HOME: "{{ java_home }}"
+      register: android_sdk_update_before
+      changed_when: false
+      failed_when: "'Installed packages:' not in android_sdk_update_before.stdout"
+
+    - name: Android | Update all installed SDK packages from the staged manager
+      ansible.windows.win_shell: >-
+        & '{{ android_sdk_update_dir.path }}\cmdline-tools\bin\sdkmanager.bat'
+        '--sdk_root={{ android_sdk_root_effective }}' --update;
+      environment:
+        ANDROID_HOME: "{{ android_sdk_root_effective }}"
+        JAVA_HOME: "{{ java_home }}"
+      register: android_sdk_update
+      changed_when: "' -> ' in android_sdk_update_before.stdout"
+      failed_when: false
+
+    # Android CLI 1.0.16261425 completes SDK updates on Windows and then exits
+    # with 0xC0000409. Verify the resulting package state instead of trusting
+    # that unusable process status; a real partial update still leaves arrows.
+    - name: Android | Verify all installed SDK packages are current
+      ansible.windows.win_shell: >-
+        & '{{ android_sdk_update_dir.path }}\cmdline-tools\bin\sdkmanager.bat'
+        '--sdk_root={{ android_sdk_root_effective }}' --list_installed
+      environment:
+        ANDROID_HOME: "{{ android_sdk_root_effective }}"
+        JAVA_HOME: "{{ java_home }}"
+      register: android_sdk_update_after
+      changed_when: false
+      failed_when: >-
+        'Installed packages:' not in android_sdk_update_after.stdout or
+        ' -> ' in android_sdk_update_after.stdout
+  always:
+    - name: Android | Remove the temporary SDK manager directory
+      ansible.windows.win_file:
+        path: "{{ android_sdk_update_dir.path }}"
+        state: absent
+      when:
+        - android_sdk_update_dir is defined
+        - android_sdk_update_dir.path is defined
 
 - name: Android | Inspect requested SDK packages
   ansible.windows.win_stat:

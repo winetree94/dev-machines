@@ -29,9 +29,11 @@
     - name: RustDesk | Read the latest stable release
       ansible.builtin.uri:
         url: https://api.github.com/repos/rustdesk/rustdesk/releases/latest
+        headers: "{{ github_api_headers }}"
         return_content: true
       register: rustdesk_release
       check_mode: false
+      no_log: true
       when:
         - rustdesk_debian_version.stdout | trim == ''
           or dev_machines_update_mode | bool

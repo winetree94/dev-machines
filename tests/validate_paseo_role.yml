@@ -12,10 +12,12 @@
       ansible.builtin.assert:
         that:
           - "'releases/latest' in debian"
+          - "'github_api_headers' in debian"
           - "'paseo_latest_asset.digest' in debian"
           - "'allow_downgrade: false' in debian"
           - "'name: paseo' in darwin"
           - "'releases/latest' in windows"
+          - "'github_api_headers' in windows"
           - "'win_get_url' in windows"
           - "'checksum_algorithm: sha256' in windows"
           - "'New-ScheduledTaskPrincipal' in windows"

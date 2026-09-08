@@ -20,9 +20,11 @@
       ansible.builtin.assert:
         that:
           - "'releases/latest' in agave_unix"
+          - "'github_api_headers' in agave_unix"
           - "'agave_nerd_font_latest_asset.digest' in agave_unix"
           - "'dev_machines_update_mode' in agave_unix"
           - "'releases/latest' in d2coding_unix"
+          - "'github_api_headers' in d2coding_unix"
           - "'d2coding_latest_asset.digest' in d2coding_unix"
           - "'d2coding_latest_build' in d2coding_unix"
           - "'.ttc' not in d2coding_unix | lower"
@@ -39,10 +41,12 @@
       ansible.builtin.assert:
         that:
           - "'releases/latest' in agave_windows"
+          - "'github_api_headers' in agave_windows"
           - "'manifest_templates' in agave_windows"
           - "'NestedInstallerType: font' in agave_template"
           - "'agave_nerd_font_latest_asset.digest' in agave_template"
           - "'releases/latest' in d2coding_windows"
+          - "'github_api_headers' in d2coding_windows"
           - "'manifest_templates' in d2coding_windows"
           - "'NestedInstallerType: font' in d2coding_template"
           - "'d2coding_latest_asset.digest' in d2coding_template"
