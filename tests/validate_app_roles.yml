@@ -369,6 +369,11 @@
         debian: rclone
         darwin: rclone
         windows: Rclone.Rclone
+      - name: gcx
+        debian: gcx
+        darwin: gcx
+        windows: Grafana.gcx
+        windows_source: local_manifest
       - name: syncthing
         debian: "name: syncthing"
         darwin: syncthing

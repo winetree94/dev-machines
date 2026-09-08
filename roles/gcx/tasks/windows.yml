@@ -1,0 +1,62 @@
+---
+- name: Gcx | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/grafana/gcx/releases/latest
+    headers: "{{ github_api_headers }}"
+    return_content: true
+  register: gcx_release
+  check_mode: false
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+- name: Gcx | Resolve the latest stable version
+  ansible.builtin.set_fact:
+    gcx_latest_version: "{{ gcx_release.json.tag_name | regex_replace('^v', '') }}"
+
+- name: Gcx | Select the Windows release archives
+  ansible.builtin.set_fact:
+    gcx_windows_x64_asset: >-
+      {{ gcx_release.json.assets
+         | selectattr(
+             'name', 'equalto',
+             'gcx_' ~ gcx_latest_version ~ '_windows_amd64.zip'
+           )
+         | first }}
+    gcx_windows_arm64_asset: >-
+      {{ gcx_release.json.assets
+         | selectattr(
+             'name', 'equalto',
+             'gcx_' ~ gcx_latest_version ~ '_windows_arm64.zip'
+           )
+         | first }}
+
+- name: Gcx | Validate the Windows release metadata
+  ansible.builtin.assert:
+    that:
+      - gcx_windows_x64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+      - gcx_windows_arm64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+      - >-
+        gcx_windows_x64_asset.browser_download_url
+        is match('^https://github[.]com/grafana/gcx/releases/download/')
+      - >-
+        gcx_windows_arm64_asset.browser_download_url
+        is match('^https://github[.]com/grafana/gcx/releases/download/')
+    fail_msg: The latest gcx release has incomplete Windows archive metadata.
+    quiet: true
+
+- name: Gcx | Install from a dynamic local winget manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: Grafana.gcx
+        version: "{{ gcx_latest_version }}"
+        display_name: gcx
+        manifest_templates:
+          - src: winget/Grafana.gcx.installer.yaml.j2
+            dest: Grafana.gcx.installer.yaml
+          - src: winget/Grafana.gcx.locale.en-US.yaml.j2
+            dest: Grafana.gcx.locale.en-US.yaml
+          - src: winget/Grafana.gcx.yaml.j2
+            dest: Grafana.gcx.yaml

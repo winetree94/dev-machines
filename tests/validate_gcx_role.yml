@@ -1,0 +1,66 @@
+---
+- name: Validate the gcx role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/gcx"
+    setup_content: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}"
+    debian_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}"
+    darwin_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}"
+    windows_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    installer_content: >-
+      {{ lookup('ansible.builtin.file',
+                role_dir ~ '/templates/winget/Grafana.gcx.installer.yaml.j2') }}
+
+  tasks:
+    - name: Assert Unix installs the Homebrew core formula
+      ansible.builtin.assert:
+        that:
+          - "'name: gcx' in item"
+          - "'community.general.homebrew' in item"
+          - "'brew_installed_formulae | default([])' in item"
+          - "'homebrew_tap' not in item"
+          - "'become: false' in item"
+        fail_msg: gcx must use the bottled Homebrew core formula on Ubuntu and macOS.
+      loop:
+        - "{{ debian_content }}"
+        - "{{ darwin_content }}"
+
+    - name: Assert Windows uses verified official release archives through winget
+      ansible.builtin.assert:
+        that:
+          - "'api.github.com/repos/grafana/gcx/releases/latest' in windows_content"
+          - "'github_api_headers' in windows_content"
+          - "'no_log: true' in windows_content"
+          - "'windows_amd64.zip' in windows_content"
+          - "'windows_arm64.zip' in windows_content"
+          - "'digest' in windows_content"
+          - "'winget_local_packages' in windows_content"
+          - "'Grafana.gcx' in windows_content"
+          - "'win_get_url' not in windows_content"
+        fail_msg: >-
+          Windows must select both official release archives, validate their
+          GitHub SHA-256 digests, and install through the shared winget role.
+
+    - name: Assert the Windows manifest installs a portable gcx command
+      ansible.builtin.assert:
+        that:
+          - "'InstallerType: zip' in installer_content"
+          - "'NestedInstallerType: portable' in installer_content"
+          - "'UpgradeBehavior: uninstallPrevious' in installer_content"
+          - "'RelativeFilePath: gcx.exe' in installer_content"
+          - "'PortableCommandAlias: gcx' in installer_content"
+          - "'Architecture: x64' in installer_content"
+          - "'Architecture: arm64' in installer_content"
+          - "'InstallerSha256:' in installer_content"
+        fail_msg: The local manifest must expose the verified gcx.exe as a PATH command.
+
+    - name: Assert gcx is independently taggable in Common tooling
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_content is search(
+              "Common tooling[\\s\\S]*- role: gcx[\\s\\S]{0,50}tags: \\[gcx\\]"
+            )
+          - "setup_content is search('- role: gcx[\\s\\S]*GUI applications')"
+        fail_msg: gcx must run in Common tooling with its matching gcx tag.

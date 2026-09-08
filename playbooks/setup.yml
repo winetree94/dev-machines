@@ -284,6 +284,8 @@
     - role: talhelper
       tags: [talhelper]
     # cloud and storage
+    - role: gcx
+      tags: [gcx]
     - role: awscli
       tags: [awscli]
     - role: rclone

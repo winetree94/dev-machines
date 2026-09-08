@@ -97,6 +97,20 @@ build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-t
 
 서버 서비스, 데이터 디렉터리, 접속 정보와 `.pgpass`는 이 롤이 관리하지 않는다.
 
+## Grafana gcx CLI
+
+`gcx` 롤은 Grafana OSS/Enterprise와 Grafana Cloud 리소스를 관리하는 공식 Grafana CLI를
+설치한다. `--tags gcx`로 따로 실행할 수 있다.
+
+| OS | 설치 경로 |
+|---|---|
+| Ubuntu | Homebrew core `gcx` formula |
+| macOS | Homebrew core `gcx` formula |
+| Windows | 공식 x64/ARM64 release ZIP을 SHA-256 검증하는 portable local winget manifest |
+
+이 롤은 CLI 설치만 담당한다. `gcx login`, context, Grafana URL과 API/OAuth 토큰은
+사용자 또는 프로젝트별 설정으로 남겨두며 inventory나 vault에 추가하지 않는다.
+
 # Secret 구조
 
 모든 secret 은 `inventories/group_vars/all/vault.yml` **한 파일**에만 있고, 그 안에는
