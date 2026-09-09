@@ -1,0 +1,18 @@
+[Unit]
+Description=Prometheus SMART metrics exporter
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/smartctl_exporter --web.listen-address=127.0.0.1:9633 --smartctl.path=/usr/sbin/smartctl --smartctl.interval={{ monitoring_scrape_interval }}
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

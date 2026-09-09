@@ -1,0 +1,17 @@
+---
+- name: Restart NVIDIA GPU exporter on Linux
+  ansible.builtin.systemd_service:
+    name: nvidia_gpu_exporter
+    state: restarted
+    daemon_reload: true
+  become: true
+  when: not ansible_check_mode
+  listen: Restart NVIDIA GPU exporter on Linux
+
+- name: Restart NVIDIA GPU exporter on Windows
+  ansible.windows.win_shell: |
+    Stop-ScheduledTask -TaskName 'NVIDIA GPU Exporter' -ErrorAction SilentlyContinue
+    Start-ScheduledTask -TaskName 'NVIDIA GPU Exporter'
+  changed_when: true
+  when: not ansible_check_mode
+  listen: Restart NVIDIA GPU exporter on Windows

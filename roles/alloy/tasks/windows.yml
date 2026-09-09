@@ -1,0 +1,154 @@
+---
+- name: Alloy | Install Alloy (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - GrafanaLabs.Alloy
+
+# Alloy 1.19.0's Windows binary imports libssp-0.dll, but its official installer
+# does not ship that DLL. Keep the winget-managed service wrapper and pin the
+# last self-contained official binary until Grafana publishes a fixed release.
+- name: Alloy | Read the compatible Windows binary marker
+  ansible.windows.win_shell: >-
+    Get-Content -LiteralPath
+    'C:\ProgramData\GrafanaLabs\Alloy\windows-binary-version' -ErrorAction SilentlyContinue
+  register: alloy_windows_binary_marker
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Alloy | Stop the service before replacing the Windows binary
+  ansible.windows.win_service:
+    name: Alloy
+    state: stopped
+  when:
+    - not ansible_check_mode
+    - alloy_windows_binary_marker.stdout | trim != alloy_windows_binary_version
+
+- name: Alloy | Download the compatible Windows binary on the controller
+  ansible.builtin.get_url:
+    url: >-
+      {{ 'https://github.com/grafana/alloy/releases/download/v'
+         ~ alloy_windows_binary_version ~ '/alloy-windows-amd64.exe.zip' }}
+    dest: '/tmp/alloy-windows-amd64-{{ alloy_windows_binary_version }}.exe.zip'
+    checksum: "sha256:{{ alloy_windows_binary_checksum }}"
+    mode: "0600"
+  delegate_to: localhost
+  become: false
+  retries: 3
+  delay: 3
+  register: alloy_windows_binary_download
+  until: alloy_windows_binary_download is succeeded
+  when:
+    - not ansible_check_mode
+    - alloy_windows_binary_marker.stdout | trim != alloy_windows_binary_version
+
+- name: Alloy | Copy the compatible Windows binary archive
+  ansible.windows.win_copy:
+    src: '/tmp/alloy-windows-amd64-{{ alloy_windows_binary_version }}.exe.zip'
+    dest: 'C:\Windows\Temp\alloy-windows-amd64.exe.zip'
+  when:
+    - not ansible_check_mode
+    - alloy_windows_binary_marker.stdout | trim != alloy_windows_binary_version
+
+- name: Alloy | Unpack the compatible Windows binary
+  community.windows.win_unzip:
+    src: 'C:\Windows\Temp\alloy-windows-amd64.exe.zip'
+    dest: 'C:\Program Files\GrafanaLabs\Alloy'
+  when:
+    - not ansible_check_mode
+    - alloy_windows_binary_marker.stdout | trim != alloy_windows_binary_version
+
+- name: Alloy | Record the compatible Windows binary version
+  ansible.windows.win_copy:
+    content: "{{ alloy_windows_binary_version }}\n"
+    dest: 'C:\ProgramData\GrafanaLabs\Alloy\windows-binary-version'
+  when:
+    - not ansible_check_mode
+    - alloy_windows_binary_marker.stdout | trim != alloy_windows_binary_version
+
+- name: Alloy | Remove the controller download
+  ansible.builtin.file:
+    path: '/tmp/alloy-windows-amd64-{{ alloy_windows_binary_version }}.exe.zip'
+    state: absent
+  delegate_to: localhost
+  become: false
+  when:
+    - not ansible_check_mode
+    - alloy_windows_binary_marker.stdout | trim != alloy_windows_binary_version
+
+- name: Alloy | Create the textfile directory
+  ansible.windows.win_file:
+    path: 'C:\Program Files\GrafanaLabs\Alloy\textfile_inputs'
+    state: directory
+
+- name: Alloy | Render candidate configuration
+  ansible.windows.win_template:
+    src: config.windows.alloy.j2
+    dest: 'C:\Program Files\GrafanaLabs\Alloy\config.alloy.candidate'
+
+- name: Alloy | Validate candidate configuration
+  ansible.windows.win_command: >-
+    "C:\Program Files\GrafanaLabs\Alloy\alloy-windows-amd64.exe" validate
+    --stability.level=public-preview
+    "C:\Program Files\GrafanaLabs\Alloy\config.alloy.candidate"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Alloy | Activate validated configuration
+  ansible.windows.win_copy:
+    src: 'C:\Program Files\GrafanaLabs\Alloy\config.alloy.candidate'
+    dest: 'C:\Program Files\GrafanaLabs\Alloy\config.alloy'
+    remote_src: true
+  notify: Restart Alloy on Windows
+  when: not ansible_check_mode
+
+- name: Alloy | Configure service arguments
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\GrafanaLabs\Alloy
+    name: Arguments
+    type: multistring
+    data:
+      - run
+      - 'C:\Program Files\GrafanaLabs\Alloy\config.alloy'
+      - '--storage.path=C:\ProgramData\GrafanaLabs\Alloy\data'
+      - '--server.http.listen-addr=127.0.0.1:12345'
+      - --stability.level=public-preview
+      - --disable-reporting
+  notify: Restart Alloy on Windows
+  when: not ansible_check_mode
+
+- name: Alloy | Configure service credentials
+  ansible.windows.win_regedit:
+    path: HKLM:\SOFTWARE\GrafanaLabs\Alloy
+    name: Environment
+    type: multistring
+    data:
+      - "TELEMETRY_TOKEN={{ telemetry_token }}"
+  no_log: true
+  notify: Restart Alloy on Windows
+  when: not ansible_check_mode
+
+- name: Alloy | Restrict configuration and registry ACLs
+  ansible.windows.win_shell: |
+    $acl = Get-Acl 'C:\Program Files\GrafanaLabs\Alloy\config.alloy'
+    $acl.SetAccessRuleProtection($true, $false)
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('SYSTEM','FullControl','Allow')))
+    $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule('BUILTIN\Administrators','FullControl','Allow')))
+    Set-Acl 'C:\Program Files\GrafanaLabs\Alloy\config.alloy' $acl
+    $registryPath = 'HKLM:\SOFTWARE\GrafanaLabs\Alloy'
+    $registryAcl = Get-Acl $registryPath
+    $registryAcl.SetAccessRuleProtection($true, $false)
+    $registryAcl.AddAccessRule((New-Object System.Security.AccessControl.RegistryAccessRule('SYSTEM','FullControl','Allow')))
+    $registryAcl.AddAccessRule((New-Object System.Security.AccessControl.RegistryAccessRule('BUILTIN\Administrators','FullControl','Allow')))
+    Set-Acl $registryPath $registryAcl
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Alloy | Enable and start Alloy
+  ansible.windows.win_service:
+    name: Alloy
+    start_mode: auto
+    state: started
+  when: not ansible_check_mode

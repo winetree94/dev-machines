@@ -1,0 +1,129 @@
+---
+- name: Validate hardware monitoring roles
+  hosts: localhost
+  gather_facts: false
+  vars:
+    roles_dir: "{{ playbook_dir }}/../roles"
+    setup_path: "{{ playbook_dir }}/../playbooks/setup.yml"
+    all_vars_path: "{{ playbook_dir }}/../inventories/group_vars/all/main.yml"
+    monitoring_roles:
+      - alloy
+      - smartctl_exporter
+      - nvidia_gpu_exporter
+      - macmon
+      - libre_hardware_monitor
+  tasks:
+    - name: Read monitoring configuration sources
+      ansible.builtin.set_fact:
+        setup_content: "{{ lookup('ansible.builtin.file', setup_path) }}"
+        all_vars_content: "{{ lookup('ansible.builtin.file', all_vars_path) }}"
+        alloy_templates: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.unix.alloy.j2')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.windows.alloy.j2') }}
+
+    - name: Check monitoring role dispatchers and forbidden fallbacks
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item.0 }}/{{ item.1 }}"
+      loop: "{{ monitoring_roles | product(['tasks/main.yml', 'tasks/default.yml']) | list }}"
+      register: monitoring_role_files
+
+    - name: Assert every role has a dispatcher and no default task file
+      ansible.builtin.assert:
+        that:
+          - >-
+            monitoring_role_files.results
+            | selectattr('item.0', 'equalto', item)
+            | selectattr('item.1', 'equalto', 'tasks/main.yml')
+            | map(attribute='stat.exists') | first
+          - >-
+            not (monitoring_role_files.results
+                 | selectattr('item.0', 'equalto', item)
+                 | selectattr('item.1', 'equalto', 'tasks/default.yml')
+                 | map(attribute='stat.exists') | first)
+      loop: "{{ monitoring_roles }}"
+
+    - name: Assert monitoring roles are ordered and share the monitoring tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_content is search('- role: smartctl_exporter[\s\S]*- role: nvidia_gpu_exporter'
+              ~ '[\s\S]*- role: macmon[\s\S]*- role: libre_hardware_monitor'
+              ~ '[\s\S]*- role: alloy')
+          - >-
+            setup_content is search('- role: ' ~ item
+              ~ '[\s\S]{0,100}tags: \[' ~ item ~ ', monitoring\]')
+      loop: "{{ monitoring_roles }}"
+
+    - name: Assert Alloy uses the central authenticated OTLP path and fleet labels
+      ansible.builtin.assert:
+        that:
+          - "'otelcol.receiver.prometheus' in alloy_templates"
+          - "'otelcol.processor.transform' in alloy_templates"
+          - "'otelcol.auth.bearer' in alloy_templates"
+          - "'otelcol.storage.file' in alloy_templates"
+          - "'otelcol.exporter.otlphttp' in alloy_templates"
+          - "'TELEMETRY_TOKEN' in alloy_templates"
+          - "'resource.attributes[\"service.name\"]' in alloy_templates"
+          - "'resource.attributes[\"service.instance.id\"]' in alloy_templates"
+          - "'queue_size        = 5000' in alloy_templates"
+          - "'sizer             = \"requests\"' in alloy_templates"
+          - "'block_on_overflow = true' in alloy_templates"
+          - "'max_elapsed_time = \"0s\"' in alloy_templates"
+          - "'monitoring_fleet_label' in alloy_templates"
+          - "'127.0.0.1:9633' in alloy_templates"
+          - "'127.0.0.1:9835' in alloy_templates"
+          - "'serial_number|serial|wwn' in alloy_templates"
+          - "'prometheus.remote_write' not in alloy_templates"
+          - "'basic_auth' not in alloy_templates"
+          - "'TELEMETRY_USERNAME' not in alloy_templates"
+          - "'TELEMETRY_PASSWORD' not in alloy_templates"
+
+    - name: Assert public variables map secrets through the single vault
+      ansible.builtin.assert:
+        that:
+          - "'monitoring_otlp_endpoint: https://telemetry.winetree94.com' in all_vars_content"
+          - "all_vars_content is search('telemetry_token:.*vault_dev_machines_telemetry_token')"
+          - vault_dev_machines_telemetry_token is defined
+          - "'monitoring_remote_write_url' not in all_vars_content"
+          - "'telemetry_username' not in all_vars_content"
+          - "'telemetry_password' not in all_vars_content"
+      no_log: true
+
+    - name: Read platform task sources
+      ansible.builtin.set_fact:
+        linux_monitoring_content: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/alloy/tasks/debian.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/smartctl_exporter/tasks/debian.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/nvidia_gpu_exporter/tasks/debian.yml') }}
+        macos_monitoring_content: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/alloy/tasks/darwin.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/smartctl_exporter/tasks/darwin.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/macmon/tasks/darwin.yml') }}
+        windows_monitoring_content: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/alloy/tasks/windows.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/smartctl_exporter/tasks/windows.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/nvidia_gpu_exporter/tasks/windows.yml')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/libre_hardware_monitor/tasks/windows.yml') }}
+
+    - name: Assert install channels, checksums, and local-only bindings
+      ansible.builtin.assert:
+        that:
+          - "'https://apt.grafana.com' in linux_monitoring_content"
+          - "'checksum:' in linux_monitoring_content"
+          - "'grafana/grafana/alloy' in macos_monitoring_content"
+          - "'macmon' in macos_monitoring_content"
+          - "'GrafanaLabs.Alloy' in windows_monitoring_content"
+          - "'LibreHardwareMonitor.LibreHardwareMonitor' in windows_monitoring_content"
+          - "'smartmontools.smartmontools' in windows_monitoring_content"
+          - "'127.0.0.1' in linux_monitoring_content"
+          - "'127.0.0.1' in windows_monitoring_content"
+          - "'username: SYSTEM' in windows_monitoring_content"
+          - "'--stability.level=public-preview' in linux_monitoring_content"
+          - "'--stability.level=public-preview' in macos_monitoring_content"
+          - "'--stability.level=public-preview' in windows_monitoring_content"
+
+    - name: Assert Docker metrics and socket access are absent
+      ansible.builtin.assert:
+        that:
+          - "'prometheus.exporter.cadvisor' not in alloy_templates"
+          - "'/var/run/docker.sock' not in alloy_templates"

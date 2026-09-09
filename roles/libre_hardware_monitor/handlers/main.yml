@@ -1,0 +1,8 @@
+---
+- name: Restart LibreHardwareMonitor metrics bridge
+  ansible.windows.win_shell: |
+    Stop-ScheduledTask -TaskName 'LibreHardwareMonitor Metrics' -ErrorAction SilentlyContinue
+    Start-ScheduledTask -TaskName 'LibreHardwareMonitor Metrics'
+  changed_when: true
+  when: not ansible_check_mode
+  listen: Restart LibreHardwareMonitor metrics bridge

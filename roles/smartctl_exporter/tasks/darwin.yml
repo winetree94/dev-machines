@@ -1,0 +1,62 @@
+---
+- name: Smartctl exporter | Install smartmontools (brew)
+  community.general.homebrew:
+    name: smartmontools
+    state: present
+  become: false
+  when: "'smartmontools' not in (brew_installed_formulae | default([]))"
+
+- name: Smartctl exporter | Download the checksum-pinned arm64 release
+  ansible.builtin.get_url:
+    url: >-
+      {{ 'https://github.com/prometheus-community/smartctl_exporter/releases/download/v'
+         ~ smartctl_exporter_version ~ '/smartctl_exporter-'
+         ~ smartctl_exporter_version ~ '.darwin-arm64.tar.gz' }}
+    dest: /tmp/smartctl_exporter.tar.gz
+    checksum: "sha256:{{ smartctl_exporter_checksums['darwin-arm64'] }}"
+    mode: "0644"
+  become: false
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Unpack the exporter
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/tar
+      - -xzf
+      - /tmp/smartctl_exporter.tar.gz
+      - -C
+      - /tmp
+  args:
+    creates: "/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.darwin-arm64/smartctl_exporter"
+  become: false
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Install the exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.darwin-arm64/smartctl_exporter"
+    dest: /usr/local/bin/smartctl_exporter
+    remote_src: true
+    owner: root
+    group: wheel
+    mode: "0755"
+  become: true
+  notify: Restart smartctl exporter on macOS
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Install the root LaunchDaemon
+  ansible.builtin.template:
+    src: com.prometheus.smartctl-exporter.plist.j2
+    dest: /Library/LaunchDaemons/com.prometheus.smartctl-exporter.plist
+    owner: root
+    group: wheel
+    mode: "0644"
+  become: true
+  notify: Restart smartctl exporter on macOS
+
+- name: Smartctl exporter | Enable and start the LaunchDaemon
+  community.general.launchd:
+    name: com.prometheus.smartctl-exporter
+    state: started
+    enabled: true
+  become: true
+  when: not ansible_check_mode

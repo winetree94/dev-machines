@@ -1,0 +1,70 @@
+---
+- name: LibreHardwareMonitor | Install the checksum-pinned winget package
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - LibreHardwareMonitor.LibreHardwareMonitor
+
+- name: LibreHardwareMonitor | Resolve the installed library
+  ansible.windows.win_shell: |
+    $library = Get-ChildItem `
+      -LiteralPath "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" `
+      -Filter LibreHardwareMonitorLib.dll `
+      -Recurse `
+      -ErrorAction SilentlyContinue |
+      Select-Object -First 1
+    if (-not $library) {
+      throw 'LibreHardwareMonitorLib.dll was not found in the winget package directory'
+    }
+    $library.FullName
+  register: libre_hardware_monitor_library
+  changed_when: false
+  check_mode: false
+  when: not ansible_check_mode
+
+- name: LibreHardwareMonitor | Create the helper directory
+  ansible.windows.win_file:
+    path: 'C:\ProgramData\dev-machines\monitoring'
+    state: directory
+
+- name: LibreHardwareMonitor | Create the Alloy textfile directory
+  ansible.windows.win_file:
+    path: 'C:\Program Files\GrafanaLabs\Alloy\textfile_inputs'
+    state: directory
+
+- name: LibreHardwareMonitor | Install the Prometheus textfile bridge
+  ansible.windows.win_template:
+    src: export-hardware-metrics.ps1.j2
+    dest: 'C:\ProgramData\dev-machines\monitoring\export-hardware-metrics.ps1'
+  notify: Restart LibreHardwareMonitor metrics bridge
+  when: not ansible_check_mode
+
+- name: LibreHardwareMonitor | Register the LocalSystem metrics task
+  community.windows.win_scheduled_task:
+    name: LibreHardwareMonitor Metrics
+    description: Export hardware sensors to the Alloy textfile collector
+    actions:
+      - path: powershell.exe
+        arguments: '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "C:\ProgramData\dev-machines\monitoring\export-hardware-metrics.ps1"'
+    triggers:
+      - type: boot
+    username: SYSTEM
+    run_level: highest
+    execution_time_limit: PT0S
+    multiple_instances: 2
+    enabled: true
+    state: present
+  notify: Restart LibreHardwareMonitor metrics bridge
+  when: not ansible_check_mode
+
+- name: LibreHardwareMonitor | Ensure the metrics task is running
+  ansible.windows.win_shell: |
+    $task = Get-ScheduledTask -TaskName 'LibreHardwareMonitor Metrics'
+    if ($task.State -ne 'Running') {
+      Start-ScheduledTask -TaskName 'LibreHardwareMonitor Metrics'
+      'changed'
+    }
+  register: libre_hardware_monitor_started
+  changed_when: "'changed' in libre_hardware_monitor_started.stdout"
+  when: not ansible_check_mode

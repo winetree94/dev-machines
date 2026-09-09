@@ -1,0 +1,25 @@
+---
+- name: Restart smartctl exporter on Linux
+  ansible.builtin.systemd_service:
+    name: smartctl_exporter
+    state: restarted
+    daemon_reload: true
+  become: true
+  when: not ansible_check_mode
+  listen: Restart smartctl exporter on Linux
+
+- name: Restart smartctl exporter on macOS
+  community.general.launchd:
+    name: com.prometheus.smartctl-exporter
+    state: restarted
+  become: true
+  when: not ansible_check_mode
+  listen: Restart smartctl exporter on macOS
+
+- name: Restart smartctl exporter on Windows
+  ansible.windows.win_shell: |
+    Stop-ScheduledTask -TaskName 'Smartctl Exporter' -ErrorAction SilentlyContinue
+    Start-ScheduledTask -TaskName 'Smartctl Exporter'
+  changed_when: true
+  when: not ansible_check_mode
+  listen: Restart smartctl exporter on Windows

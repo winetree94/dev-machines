@@ -1,0 +1,24 @@
+---
+- name: Restart Alloy on Linux
+  ansible.builtin.systemd_service:
+    name: alloy
+    state: restarted
+    daemon_reload: true
+  become: true
+  when: not ansible_check_mode
+  listen: Restart Alloy on Linux
+
+- name: Restart Alloy on macOS
+  ansible.builtin.command:
+    argv: [brew, services, restart, grafana/grafana/alloy]
+  become: false
+  changed_when: true
+  when: not ansible_check_mode
+  listen: Restart Alloy on macOS
+
+- name: Restart Alloy on Windows
+  ansible.windows.win_service:
+    name: Alloy
+    state: restarted
+  listen: Restart Alloy on Windows
+  when: not ansible_check_mode

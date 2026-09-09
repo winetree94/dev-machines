@@ -1,0 +1,3 @@
+# HELP dev_machine_info Static, non-secret machine identity gathered by Ansible.
+# TYPE dev_machine_info gauge
+dev_machine_info{vendor="{{ alloy_machine_identity.stdout_lines[0] | default('unknown') | replace('\\', '\\\\') | replace('"', '\\"') }}",model="{{ alloy_machine_identity.stdout_lines[1] | default('unknown') | replace('\\', '\\\\') | replace('"', '\\"') }}",cpu="{{ alloy_machine_identity.stdout_lines[2] | default('unknown') | replace('\\', '\\\\') | replace('"', '\\"') }}"} 1

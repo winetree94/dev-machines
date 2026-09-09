@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.macmon.prometheus</string>
+  <key>ProgramArguments</key><array>
+    <string>/opt/homebrew/bin/macmon</string><string>serve</string>
+    <string>--host</string><string>127.0.0.1</string>
+    <string>--port</string><string>9090</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>{{ ansible_facts['env']['HOME'] }}/Library/Logs/macmon.log</string>
+  <key>StandardErrorPath</key><string>{{ ansible_facts['env']['HOME'] }}/Library/Logs/macmon.err.log</string>
+</dict></plist>

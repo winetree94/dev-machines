@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+out="{{ ansible_facts['env']['HOME'] }}/Library/Application Support/Alloy/textfile/battery.prom"
+tmp="${out}.tmp"
+line=$(/usr/bin/pmset -g batt | /usr/bin/tail -1)
+percent=$(printf '%s' "$line" | /usr/bin/sed -E 's/.*[[:space:]]([0-9]+)%;.*/\1/')
+status=unknown
+case "$line" in
+  *charging*) status=charging ;;
+  *discharging*) status=discharging ;;
+  *charged*) status=full ;;
+esac
+{
+  printf '# TYPE dev_battery_charge_ratio gauge\n'
+  /usr/bin/awk "BEGIN { printf \"dev_battery_charge_ratio %.6f\\n\", $percent / 100 }"
+  printf '# TYPE dev_battery_status gauge\n'
+  printf 'dev_battery_status{status="%s"} 1\n' "$status"
+} > "$tmp"
+/bin/mv "$tmp" "$out"

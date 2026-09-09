@@ -1,0 +1,77 @@
+$ErrorActionPreference = 'Stop'
+Add-Type -Path '{{ libre_hardware_monitor_library.stdout | trim | replace("'", "''") }}'
+
+function Escape-Label([string]$Value) {
+  return $Value.Replace('\\', '\\\\').Replace('"', '\\"').Replace("`r", '').Replace("`n", ' ')
+}
+
+$computer = New-Object LibreHardwareMonitor.Hardware.Computer
+$computer.IsCpuEnabled = $true
+$computer.IsGpuEnabled = $true
+$computer.IsMemoryEnabled = $true
+$computer.IsMotherboardEnabled = $true
+$computer.IsStorageEnabled = $true
+$computer.IsControllerEnabled = $true
+$computer.IsBatteryEnabled = $true
+$computer.Open()
+
+$output = 'C:\Program Files\GrafanaLabs\Alloy\textfile_inputs\hardware.prom'
+$temporary = "$output.tmp"
+$system = Get-CimInstance Win32_ComputerSystem
+$processor = Get-CimInstance Win32_Processor | Select-Object -First 1
+
+try {
+  while ($true) {
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $sensorLines = @{}
+    $lines.Add('# TYPE dev_machine_info gauge')
+    $lines.Add('dev_machine_info{vendor="' + (Escape-Label $system.Manufacturer) +
+      '",model="' + (Escape-Label $system.Model) + '",cpu="' +
+      (Escape-Label $processor.Name) + '"} 1')
+    $lines.Add('# TYPE dev_hardware_sensor_value gauge')
+
+    $allHardware = [System.Collections.Generic.List[object]]::new()
+    foreach ($hardware in $computer.Hardware) {
+      $hardware.Update()
+      $allHardware.Add($hardware)
+      foreach ($sub in $hardware.SubHardware) { $sub.Update(); $allHardware.Add($sub) }
+    }
+    foreach ($hardware in $allHardware) {
+      foreach ($sensor in $hardware.Sensors) {
+        if ($null -eq $sensor.Value) { continue }
+        $type = $sensor.SensorType.ToString().ToLowerInvariant()
+        $unit = switch ($type) {
+          'temperature' { 'celsius' }
+          'fan' { 'rpm' }
+          'voltage' { 'volts' }
+          'power' { 'watts' }
+          'load' { 'percent' }
+          'clock' { 'megahertz' }
+          'data' { 'gigabytes' }
+          'smalldata' { 'megabytes' }
+          'throughput' { 'bytes_per_second' }
+          'energy' { 'milliwatt_hours' }
+          default { 'raw' }
+        }
+        $series = 'dev_hardware_sensor_value{hardware="' + (Escape-Label $hardware.Name) +
+          '",sensor="' + (Escape-Label $sensor.Name) + '",type="' + $type +
+          '",unit="' + $unit + '"}'
+        $sensorLines[$series] = $sensor.Value.ToString(
+          [System.Globalization.CultureInfo]::InvariantCulture)
+      }
+    }
+    foreach ($series in ($sensorLines.Keys | Sort-Object)) {
+      $lines.Add($series + ' ' + $sensorLines[$series])
+    }
+    $battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($battery) {
+      $lines.Add('# TYPE dev_battery_charge_ratio gauge')
+      $lines.Add(('dev_battery_charge_ratio {0}' -f ($battery.EstimatedChargeRemaining / 100.0).ToString([System.Globalization.CultureInfo]::InvariantCulture)))
+    }
+    [System.IO.File]::WriteAllLines($temporary, $lines, [System.Text.UTF8Encoding]::new($false))
+    Move-Item -Force $temporary $output
+    Start-Sleep -Seconds 30
+  }
+} finally {
+  $computer.Close()
+}

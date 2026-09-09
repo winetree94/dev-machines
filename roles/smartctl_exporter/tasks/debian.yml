@@ -1,0 +1,63 @@
+---
+- name: Smartctl exporter | Install smartmontools
+  ansible.builtin.apt:
+    name: smartmontools
+    state: present
+  become: true
+
+- name: Smartctl exporter | Select the release architecture
+  ansible.builtin.set_fact:
+    smartctl_exporter_platform: >-
+      {{ 'linux-amd64' if ansible_facts['architecture'] == 'x86_64' else 'linux-arm64' }}
+
+- name: Smartctl exporter | Download the checksum-pinned release
+  ansible.builtin.get_url:
+    url: >-
+      {{ 'https://github.com/prometheus-community/smartctl_exporter/releases/download/v'
+         ~ smartctl_exporter_version ~ '/smartctl_exporter-'
+         ~ smartctl_exporter_version ~ '.' ~ smartctl_exporter_platform ~ '.tar.gz' }}
+    dest: /tmp/smartctl_exporter.tar.gz
+    checksum: "sha256:{{ smartctl_exporter_checksums[smartctl_exporter_platform] }}"
+    mode: "0644"
+  become: false
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Unpack the exporter
+  ansible.builtin.unarchive:
+    src: /tmp/smartctl_exporter.tar.gz
+    dest: /tmp
+    remote_src: true
+    creates: "/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.{{ smartctl_exporter_platform }}/smartctl_exporter"
+  become: false
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Install the exporter binary
+  ansible.builtin.copy:
+    src: "/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.{{ smartctl_exporter_platform }}/smartctl_exporter"
+    dest: /usr/local/bin/smartctl_exporter
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  notify: Restart smartctl exporter on Linux
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Install the hardened systemd service
+  ansible.builtin.template:
+    src: smartctl_exporter.service.j2
+    dest: /etc/systemd/system/smartctl_exporter.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Restart smartctl exporter on Linux
+
+- name: Smartctl exporter | Enable and start the service
+  ansible.builtin.systemd_service:
+    name: smartctl_exporter
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: not ansible_check_mode

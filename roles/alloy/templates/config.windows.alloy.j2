@@ -1,0 +1,100 @@
+prometheus.exporter.windows "host" {
+  enabled_collectors = ["cpu", "logical_disk", "memory", "net", "os", "physical_disk", "service", "system", "thermalzone", "textfile"]
+  textfile {
+    directories = ["C:\\Program Files\\GrafanaLabs\\Alloy\\textfile_inputs"]
+  }
+}
+
+prometheus.scrape "host" {
+  targets = prometheus.exporter.windows.host.targets
+  scrape_interval = "{{ monitoring_scrape_interval }}"
+  forward_to = [prometheus.relabel.common.receiver]
+}
+
+prometheus.scrape "smart" {
+  targets = [{ "__address__" = "127.0.0.1:9633", "job" = "smartctl" }]
+  scrape_interval = "{{ monitoring_scrape_interval }}"
+  forward_to = [prometheus.relabel.common.receiver]
+}
+{% if nvidia_gpu_exporter_active | default(false) %}
+prometheus.scrape "nvidia" {
+  targets = [{ "__address__" = "127.0.0.1:9835", "job" = "nvidia" }]
+  scrape_interval = "{{ monitoring_scrape_interval }}"
+  forward_to = [prometheus.relabel.common.receiver]
+}
+{% endif %}
+
+prometheus.relabel "common" {
+  rule {
+    target_label = "fleet"
+    replacement  = "{{ monitoring_fleet_label }}"
+  }
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+  rule {
+    target_label = "os"
+    replacement  = "{{ detected_os_group }}"
+  }
+  rule {
+    action = "labeldrop"
+    regex  = "serial_number|serial|wwn"
+  }
+  forward_to = [otelcol.receiver.prometheus.central.receiver]
+}
+
+otelcol.receiver.prometheus "central" {
+  output {
+    metrics = [otelcol.processor.transform.central.input]
+  }
+}
+
+otelcol.processor.transform "central" {
+  error_mode = "ignore"
+  metric_statements {
+    context = "datapoint"
+    statements = [
+      `set(attributes["job"], resource.attributes["service.name"]) where resource.attributes["service.name"] != nil`,
+      `set(attributes["instance"], resource.attributes["service.instance.id"]) where resource.attributes["service.instance.id"] != nil`,
+    ]
+  }
+  output {
+    metrics = [otelcol.exporter.otlphttp.central.input]
+  }
+}
+
+otelcol.auth.bearer "central" {
+  token = sys.env("TELEMETRY_TOKEN")
+}
+
+otelcol.storage.file "central" {
+  directory_permissions = "0700"
+  fsync                 = true
+}
+
+otelcol.exporter.otlphttp "central" {
+  client {
+    endpoint = "{{ monitoring_otlp_endpoint }}"
+    auth     = otelcol.auth.bearer.central.handler
+  }
+  metrics_endpoint = "{{ monitoring_otlp_endpoint }}/opentelemetry/v1/metrics"
+  retry_on_failure {
+    initial_interval = "5s"
+    max_interval     = "30s"
+    max_elapsed_time = "0s"
+  }
+  sending_queue {
+    storage           = otelcol.storage.file.central.handler
+    queue_size        = 5000
+    num_consumers     = 2
+    block_on_overflow = true
+    sizer             = "requests"
+    batch {
+      flush_timeout = "2s"
+      min_size      = 1000
+      max_size      = 2000
+      sizer         = "items"
+    }
+  }
+}

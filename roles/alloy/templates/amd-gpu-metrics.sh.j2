@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+out=/var/lib/alloy/textfile/amd-gpu.prom
+tmp="${out}.tmp"
+: > "$tmp"
+for card in /sys/class/drm/card*/device/gpu_busy_percent; do
+  [ -r "$card" ] || continue
+  name=$(basename "$(dirname "$(dirname "$card")")")
+  value=$(cat "$card")
+  printf 'dev_gpu_utilization_ratio{gpu="%s",vendor="amd"} %.6f\n' "$name" "$(awk "BEGIN { print $value / 100 }")" >> "$tmp"
+done
+mv "$tmp" "$out"

@@ -196,6 +196,22 @@
       when: vpn | bool
     - role: docker
       tags: [docker]
+    # hardware monitoring exporters must be ready before Alloy starts scraping.
+    - role: smartctl_exporter
+      tags: [smartctl_exporter, monitoring]
+      when: monitoring_enabled | bool
+    - role: nvidia_gpu_exporter
+      tags: [nvidia_gpu_exporter, monitoring]
+      when: monitoring_enabled | bool
+    - role: macmon
+      tags: [macmon, monitoring]
+      when: monitoring_enabled | bool
+    - role: libre_hardware_monitor
+      tags: [libre_hardware_monitor, monitoring]
+      when: monitoring_enabled | bool
+    - role: alloy
+      tags: [alloy, monitoring]
+      when: monitoring_enabled | bool
     # secrets
     - role: doppler
       tags: [doppler]

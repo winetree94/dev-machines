@@ -1,0 +1,61 @@
+---
+- name: Macmon | Assert this is an Apple Silicon Mac
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] == 'arm64'
+    fail_msg: macmon only supports Apple Silicon Macs.
+    quiet: true
+
+- name: Macmon | Install macmon (brew)
+  when: "'macmon' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: macmon
+    state: present
+  become: false
+
+- name: Macmon | Ensure launch agent and metric directories exist
+  ansible.builtin.file:
+    path: "{{ macmon_directory }}"
+    state: directory
+    mode: "0700"
+  loop:
+    - "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents"
+    - "{{ ansible_facts['env']['HOME'] }}/Library/Application Support/Alloy/textfile"
+    - "{{ ansible_facts['env']['HOME'] }}/.local/libexec"
+  loop_control:
+    loop_var: macmon_directory
+  become: false
+
+- name: Macmon | Install the battery textfile collector
+  ansible.builtin.template:
+    src: battery-metrics.sh.j2
+    dest: "{{ ansible_facts['env']['HOME'] }}/.local/libexec/dev-machine-battery-metrics"
+    mode: "0755"
+  become: false
+  notify: Restart macOS hardware collectors
+
+- name: Macmon | Install launch agents
+  ansible.builtin.template:
+    src: "{{ macmon_plist }}.j2"
+    dest: "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents/{{ macmon_plist }}"
+    mode: "0600"
+  loop:
+    - com.macmon.prometheus.plist
+    - com.dev-machines.battery-metrics.plist
+  loop_control:
+    loop_var: macmon_plist
+  become: false
+  notify: Restart macOS hardware collectors
+
+- name: Macmon | Enable and start launch agents
+  community.general.launchd:
+    name: "{{ macmon_service }}"
+    state: started
+    enabled: true
+  loop:
+    - com.macmon.prometheus
+    - com.dev-machines.battery-metrics
+  loop_control:
+    loop_var: macmon_service
+  become: false
+  when: not ansible_check_mode

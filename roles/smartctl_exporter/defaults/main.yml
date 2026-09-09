@@ -1,0 +1,7 @@
+---
+smartctl_exporter_version: 0.14.0
+smartctl_exporter_checksums:
+  linux-amd64: 875983cd27affc5a682401930e5a8eea3f06c325fe6d6a7228c5547d882685b3
+  linux-arm64: 27353b3adca7f54dd486417412041a17260709c724ea63f5138df2612ecf4299
+  darwin-arm64: 15ec1e40f7574e1bbad9955594e571ffe5bf4a275bc3789d88cdefbd47c57855
+  windows-amd64: dc4345fdc877e9e70afc510df293b1ec59f11e0d7a847a3482290aa7f4b0340a

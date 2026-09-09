@@ -1,0 +1,156 @@
+---
+- name: Alloy | Ensure the APT keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Alloy | Download the Grafana repository signing key
+  ansible.builtin.get_url:
+    url: https://apt.grafana.com/gpg.key
+    dest: /etc/apt/keyrings/grafana.asc
+    mode: "0644"
+  become: true
+
+- name: Alloy | Add the official Grafana APT repository
+  ansible.builtin.deb822_repository:
+    name: grafana
+    types: [deb]
+    uris: [https://apt.grafana.com]
+    suites: [stable]
+    components: [main]
+    signed_by: /etc/apt/keyrings/grafana.asc
+    state: present
+  become: true
+
+- name: Alloy | Install Alloy
+  ansible.builtin.apt:
+    name: alloy
+    state: present
+    update_cache: true
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Report package installation in check mode
+  ansible.builtin.debug:
+    msg: Alloy would be installed from the official Grafana APT repository.
+  changed_when: true
+  when: ansible_check_mode
+
+- name: Alloy | Create the textfile directory
+  ansible.builtin.file:
+    path: /var/lib/alloy/textfile
+    state: directory
+    owner: alloy
+    group: alloy
+    mode: "0755"
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Read non-secret hardware identity
+  ansible.builtin.shell: |
+    set -o pipefail
+    printf '%s\n' "$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || printf unknown)"
+    printf '%s\n' "$(cat /sys/class/dmi/id/product_name 2>/dev/null || printf unknown)"
+    lscpu | awk -F: '/Model name/{sub(/^[[:space:]]+/, "", $2); print $2; exit}'
+  args:
+    executable: /bin/bash
+  register: alloy_machine_identity
+  changed_when: false
+  check_mode: false
+
+- name: Alloy | Publish static machine identity without serial numbers
+  ansible.builtin.template:
+    src: machine-info.prom.j2
+    dest: /var/lib/alloy/textfile/machine-info.prom
+    owner: alloy
+    group: alloy
+    mode: "0644"
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Install the AMD GPU textfile collector
+  ansible.builtin.template:
+    src: amd-gpu-metrics.sh.j2
+    dest: /usr/local/libexec/dev-machine-amd-gpu-metrics
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Install the AMD GPU collector service and timer
+  ansible.builtin.template:
+    src: "{{ alloy_unit }}.j2"
+    dest: "/etc/systemd/system/{{ alloy_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - dev-machine-amd-gpu-metrics.service
+    - dev-machine-amd-gpu-metrics.timer
+  loop_control:
+    loop_var: alloy_unit
+  become: true
+  notify: Restart Alloy on Linux
+  when: not ansible_check_mode
+
+- name: Alloy | Enable the AMD GPU collector timer
+  ansible.builtin.systemd_service:
+    name: dev-machine-amd-gpu-metrics.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Configure credentials and local-only UI
+  ansible.builtin.template:
+    src: alloy.env.j2
+    dest: /etc/default/alloy
+    owner: root
+    group: alloy
+    mode: "0640"
+  no_log: true
+  become: true
+  notify: Restart Alloy on Linux
+  when: not ansible_check_mode
+
+- name: Alloy | Render candidate configuration
+  ansible.builtin.template:
+    src: config.unix.alloy.j2
+    dest: /etc/alloy/config.alloy.candidate
+    owner: root
+    group: alloy
+    mode: "0640"
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Validate candidate configuration
+  ansible.builtin.command: >-
+    alloy validate --stability.level=public-preview
+    /etc/alloy/config.alloy.candidate
+  changed_when: false
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Activate validated configuration
+  ansible.builtin.copy:
+    src: /etc/alloy/config.alloy.candidate
+    dest: /etc/alloy/config.alloy
+    remote_src: true
+    owner: root
+    group: alloy
+    mode: "0640"
+  become: true
+  notify: Restart Alloy on Linux
+  when: not ansible_check_mode
+
+- name: Alloy | Enable and start Alloy
+  ansible.builtin.systemd_service:
+    name: alloy
+    enabled: true
+    state: started
+  become: true
+  when: not ansible_check_mode

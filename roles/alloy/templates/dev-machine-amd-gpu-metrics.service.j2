@@ -1,0 +1,12 @@
+[Unit]
+Description=Export AMD GPU utilization for Alloy
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/dev-machine-amd-gpu-metrics
+User=alloy
+Group=alloy
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/alloy/textfile

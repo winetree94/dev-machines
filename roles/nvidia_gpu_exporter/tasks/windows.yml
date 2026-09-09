@@ -1,0 +1,62 @@
+---
+- name: NVIDIA GPU exporter | Detect the NVIDIA management CLI
+  ansible.windows.win_command: nvidia-smi --query-gpu=name --format=csv,noheader
+  register: nvidia_gpu_exporter_smi_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: NVIDIA GPU exporter | Resolve automatic enablement
+  ansible.builtin.set_fact:
+    nvidia_gpu_exporter_active: >-
+      {{ (monitoring_nvidia_enabled | string | lower == 'auto'
+          and nvidia_gpu_exporter_smi_probe.rc == 0)
+         or (monitoring_nvidia_enabled | string | lower != 'auto' and monitoring_nvidia_enabled | bool) }}
+
+- name: NVIDIA GPU exporter | Install the exporter (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - utkuozdemir.nvidia_gpu_exporter
+  when: nvidia_gpu_exporter_active | bool
+
+- name: NVIDIA GPU exporter | Resolve the installed executable
+  ansible.windows.win_shell: (Get-Command nvidia_gpu_exporter.exe -ErrorAction Stop).Source
+  register: nvidia_gpu_exporter_command
+  changed_when: false
+  check_mode: false
+  when:
+    - nvidia_gpu_exporter_active | bool
+    - not ansible_check_mode
+
+- name: NVIDIA GPU exporter | Register the LocalSystem startup task
+  community.windows.win_scheduled_task:
+    name: NVIDIA GPU Exporter
+    description: Export NVIDIA GPU metrics to Alloy on loopback only
+    actions:
+      - path: "{{ nvidia_gpu_exporter_command.stdout | trim }}"
+        arguments: '--web.listen-address=127.0.0.1:9835 --collect.interval={{ monitoring_scrape_interval }}'
+    triggers:
+      - type: boot
+    username: SYSTEM
+    run_level: highest
+    enabled: true
+    state: present
+  notify: Restart NVIDIA GPU exporter on Windows
+  when:
+    - nvidia_gpu_exporter_active | bool
+    - not ansible_check_mode
+
+- name: NVIDIA GPU exporter | Ensure the exporter task is running
+  ansible.windows.win_shell: |
+    $task = Get-ScheduledTask -TaskName 'NVIDIA GPU Exporter'
+    if ($task.State -ne 'Running') {
+      Start-ScheduledTask -TaskName 'NVIDIA GPU Exporter'
+      'changed'
+    }
+  register: nvidia_gpu_exporter_windows_started
+  changed_when: "'changed' in nvidia_gpu_exporter_windows_started.stdout"
+  when:
+    - nvidia_gpu_exporter_active | bool
+    - not ansible_check_mode

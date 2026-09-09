@@ -1,0 +1,13 @@
+---
+- name: Restart macOS hardware collectors
+  community.general.launchd:
+    name: "{{ macmon_service }}"
+    state: restarted
+  loop:
+    - com.macmon.prometheus
+    - com.dev-machines.battery-metrics
+  loop_control:
+    loop_var: macmon_service
+  become: false
+  when: not ansible_check_mode
+  listen: Restart macOS hardware collectors

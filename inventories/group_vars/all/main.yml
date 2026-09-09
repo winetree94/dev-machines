@@ -54,3 +54,14 @@ github_api_headers:
 # deletes that file in an always block; the durable copy is Dotweave's own
 # keys.txt outside this repository.
 dotweave_age_identity: "{{ vault_dotweave_age_identity }}"
+
+# Host hardware monitoring. The dedicated bearer token remains in the
+# repository's single encrypted vault.
+monitoring_enabled: true
+monitoring_otlp_endpoint: https://telemetry.winetree94.com
+monitoring_scrape_interval: 30s
+monitoring_fleet_label: dev-machines
+monitoring_nvidia_enabled: auto
+monitoring_smart_enabled: true
+monitoring_sensor_bridge_enabled: true
+telemetry_token: "{{ vault_dev_machines_telemetry_token }}"

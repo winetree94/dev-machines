@@ -1,0 +1,115 @@
+---
+- name: Alloy | Resolve the Homebrew repository
+  ansible.builtin.command: brew --repository
+  register: alloy_homebrew_repository
+  changed_when: false
+  check_mode: false
+  become: false
+
+# Homebrew 6 parses a tap before homebrew_tap can mark it trusted. Clone the
+# official tap first, then trust it before any formula is loaded.
+- name: Alloy | Clone the official Grafana tap without loading formulae
+  ansible.builtin.git:
+    repo: https://github.com/grafana/homebrew-grafana.git
+    dest: "{{ alloy_homebrew_repository.stdout }}/Library/Taps/grafana/homebrew-grafana"
+    version: master
+    update: true
+  become: false
+
+- name: Alloy | Trust the official Grafana tap
+  ansible.builtin.command: brew trust grafana/grafana
+  changed_when: false
+  become: false
+
+- name: Alloy | Install Alloy (brew)
+  community.general.homebrew:
+    name: grafana/grafana/alloy
+    state: present
+  become: false
+  when: "'grafana/grafana/alloy' not in (brew_installed_formulae | default([]))"
+
+- name: Alloy | Resolve the Homebrew prefix
+  ansible.builtin.command: brew --prefix
+  register: alloy_brew_prefix
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: Alloy | Create the macOS textfile directory
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/Library/Application Support/Alloy/textfile"
+    state: directory
+    mode: "0700"
+  become: false
+
+- name: Alloy | Read non-secret hardware identity
+  ansible.builtin.shell: |
+    printf '%s\n' 'Apple Inc.'
+    sysctl -n hw.model
+    sysctl -n machdep.cpu.brand_string
+  register: alloy_machine_identity
+  changed_when: false
+  check_mode: false
+  become: false
+
+- name: Alloy | Publish static machine identity without serial numbers
+  ansible.builtin.template:
+    src: machine-info.prom.j2
+    dest: "{{ ansible_facts['env']['HOME'] }}/Library/Application Support/Alloy/textfile/machine-info.prom"
+    mode: "0644"
+  become: false
+
+- name: Alloy | Configure credentials
+  ansible.builtin.template:
+    src: alloy.macos.env.j2
+    dest: "{{ alloy_brew_prefix.stdout }}/etc/alloy/config.env"
+    mode: "0600"
+  no_log: true
+  become: false
+  notify: Restart Alloy on macOS
+
+- name: Alloy | Configure local-only UI
+  ansible.builtin.copy:
+    dest: "{{ alloy_brew_prefix.stdout }}/etc/alloy/extra-args.txt"
+    content: |
+      --server.http.listen-addr=127.0.0.1:12345
+      --stability.level=public-preview
+      --disable-reporting
+    mode: "0644"
+  become: false
+  notify: Restart Alloy on macOS
+
+- name: Alloy | Render candidate configuration
+  ansible.builtin.template:
+    src: config.unix.alloy.j2
+    dest: "{{ alloy_brew_prefix.stdout }}/etc/alloy/config.alloy.candidate"
+    mode: "0600"
+  become: false
+
+- name: Alloy | Validate candidate configuration
+  ansible.builtin.command:
+    argv:
+      - "{{ alloy_brew_prefix.stdout }}/bin/alloy"
+      - validate
+      - --stability.level=public-preview
+      - "{{ alloy_brew_prefix.stdout }}/etc/alloy/config.alloy.candidate"
+  changed_when: false
+  become: false
+  when: not ansible_check_mode
+
+- name: Alloy | Activate validated configuration
+  ansible.builtin.copy:
+    src: "{{ alloy_brew_prefix.stdout }}/etc/alloy/config.alloy.candidate"
+    dest: "{{ alloy_brew_prefix.stdout }}/etc/alloy/config.alloy"
+    remote_src: true
+    mode: "0600"
+  become: false
+  notify: Restart Alloy on macOS
+  when: not ansible_check_mode
+
+- name: Alloy | Enable and start Alloy
+  community.general.homebrew_services:
+    name: grafana/grafana/alloy
+    state: present
+  become: false
+  when: not ansible_check_mode

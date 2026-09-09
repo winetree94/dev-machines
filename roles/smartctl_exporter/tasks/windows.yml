@@ -1,0 +1,94 @@
+---
+- name: Smartctl exporter | Install smartmontools (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - smartmontools.smartmontools
+
+- name: Smartctl exporter | Create the installation directory
+  ansible.windows.win_file:
+    path: 'C:\Program Files\smartctl_exporter'
+    state: directory
+
+- name: Smartctl exporter | Check the installed exporter
+  ansible.windows.win_stat:
+    path: 'C:\Program Files\smartctl_exporter\smartctl_exporter-0.14.0.windows-amd64\smartctl_exporter.exe'
+  register: smartctl_exporter_windows_binary
+
+- name: Smartctl exporter | Download the checksum-pinned release on the controller
+  ansible.builtin.get_url:
+    url: >-
+      {{ 'https://github.com/prometheus-community/smartctl_exporter/releases/download/v'
+         ~ smartctl_exporter_version ~ '/smartctl_exporter-'
+         ~ smartctl_exporter_version ~ '.windows-amd64.zip' }}
+    dest: '/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.windows-amd64.zip'
+    checksum: "sha256:{{ smartctl_exporter_checksums['windows-amd64'] }}"
+    mode: "0600"
+  when:
+    - not ansible_check_mode
+    - not smartctl_exporter_windows_binary.stat.exists
+  delegate_to: localhost
+  become: false
+  retries: 3
+  delay: 3
+  register: smartctl_exporter_windows_download
+  until: smartctl_exporter_windows_download is succeeded
+
+- name: Smartctl exporter | Copy the verified release to Windows
+  ansible.windows.win_copy:
+    src: '/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.windows-amd64.zip'
+    dest: 'C:\Windows\Temp\smartctl_exporter.zip'
+  when:
+    - not ansible_check_mode
+    - not smartctl_exporter_windows_binary.stat.exists
+
+- name: Smartctl exporter | Unpack the release
+  community.windows.win_unzip:
+    src: 'C:\Windows\Temp\smartctl_exporter.zip'
+    dest: 'C:\Program Files\smartctl_exporter'
+    creates: 'C:\Program Files\smartctl_exporter\smartctl_exporter-0.14.0.windows-amd64\smartctl_exporter.exe'
+  when:
+    - not ansible_check_mode
+    - not smartctl_exporter_windows_binary.stat.exists
+
+- name: Smartctl exporter | Remove the controller download
+  ansible.builtin.file:
+    path: '/tmp/smartctl_exporter-{{ smartctl_exporter_version }}.windows-amd64.zip'
+    state: absent
+  when:
+    - not ansible_check_mode
+    - not smartctl_exporter_windows_binary.stat.exists
+  delegate_to: localhost
+  become: false
+
+- name: Smartctl exporter | Register the LocalSystem startup task
+  community.windows.win_scheduled_task:
+    name: Smartctl Exporter
+    description: Export SMART metrics to Alloy on loopback only
+    actions:
+      - path: >-
+          C:\Program Files\smartctl_exporter\smartctl_exporter-0.14.0.windows-amd64\smartctl_exporter.exe
+        arguments: >-
+          --web.listen-address=127.0.0.1:9633
+          --smartctl.path="C:\Program Files\smartmontools\bin\smartctl.exe"
+          --smartctl.interval={{ monitoring_scrape_interval }}
+    triggers:
+      - type: boot
+    username: SYSTEM
+    run_level: highest
+    enabled: true
+    state: present
+  notify: Restart smartctl exporter on Windows
+  when: not ansible_check_mode
+
+- name: Smartctl exporter | Ensure the exporter task is running
+  ansible.windows.win_shell: |
+    $task = Get-ScheduledTask -TaskName 'Smartctl Exporter'
+    if ($task.State -ne 'Running') {
+      Start-ScheduledTask -TaskName 'Smartctl Exporter'
+      'changed'
+    }
+  register: smartctl_exporter_windows_started
+  changed_when: "'changed' in smartctl_exporter_windows_started.stdout"
+  when: not ansible_check_mode
