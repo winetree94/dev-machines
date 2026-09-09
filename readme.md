@@ -65,6 +65,11 @@ Ubuntu의 APT, Snap, Flatpak과 Homebrew, macOS의 Homebrew/MAS/softwareupdate,
 Windows의 winget 소스가 각각 전체 업데이트 대상이다. `mise`가 관리하는 런타임도
 `mise upgrade`로 갱신된다. `make update-check`로 같은 흐름을 check mode에서 미리 본다.
 
+Native Ubuntu에는 `swap` 롤이 `/swap.img`를 물리 RAM의 절반, 최대 16 GiB로
+생성·활성화하고 `/etc/fstab`에 유지한다. 기존 관리 파일도 같은 크기로 수렴하지만 다른
+swap 장치와 `vm.swappiness`는 변경하지 않는다. WSL의 swap은 Windows 쪽 `.wslconfig`가
+관리하므로 이 롤에서 제외한다. `--tags swap`으로 별도 점검·적용할 수 있다.
+
 Android SDK만 예외적으로 프로젝트 빌드 재현성을 우선한다. platform `android-36`과
 build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-tools는
 업데이트 실행 시 최신 버전으로 갱신한다.

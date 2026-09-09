@@ -1,0 +1,62 @@
+---
+- name: Validate the Ubuntu swap role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/swap"
+    setup_playbook: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}
+    defaults: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}
+    swap_tasks: >-
+      {{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}
+
+  tasks:
+    - name: Check unsupported dispatcher files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ role_dir }}/tasks/default.yml"
+        - "{{ role_dir }}/tasks/debian.yml"
+        - "{{ role_dir }}/tasks/darwin.yml"
+        - "{{ role_dir }}/tasks/windows.yml"
+      register: swap_unsupported_files
+
+    - name: Assert the public policy and Ubuntu-only wiring
+      ansible.builtin.assert:
+        that:
+          - swap_unsupported_files.results | selectattr('stat.exists') | list | length == 0
+          - "'swap_enabled: true' in defaults"
+          - "'swap_file_path: /swap.img' in defaults"
+          - "'swap_max_size_mib: 16384' in defaults"
+          - >-
+            setup_playbook is search("Ubuntu bootstrap[\\s\\S]*- role: swap[\\s\\S]{0,100}tags: \\[swap\\]")
+          - "'swap_enabled | bool' in setup_playbook"
+          - "'not wsl | bool' in setup_playbook"
+        fail_msg: The swap role must be native-Ubuntu-only and independently tagged.
+        quiet: true
+
+    - name: Assert sizing, safety and persistence behavior
+      ansible.builtin.assert:
+        that:
+          - '"ansible_facts[''memtotal_mb'']" in swap_tasks'
+          - "'ansible_memtotal_mb' in swap_tasks"
+          - "'gather_subset:' in swap_tasks"
+          - "'// 2' in swap_tasks"
+          - "'swap_max_size_mib' in swap_tasks"
+          - "'swap_target_size_bytes' in swap_tasks"
+          - "'df' in swap_tasks"
+          - "'swap_candidate_path' in swap_tasks"
+          - "'swap_backup_path' in swap_tasks"
+          - "'fallocate' in swap_tasks"
+          - "'mkswap' in swap_tasks"
+          - "'swapoff' in swap_tasks"
+          - "'swapon' in swap_tasks"
+          - "'mode: \"0600\"' in swap_tasks"
+          - "'regexp:' in swap_tasks"
+          - "'path: /etc/fstab' in swap_tasks"
+          - "'rescue:' in swap_tasks"
+          - "'ansible_check_mode' in swap_tasks"
+          - "'become: true' in swap_tasks"
+        fail_msg: The swap role lost its sizing, transaction, permission or fstab guarantees.
+        quiet: true

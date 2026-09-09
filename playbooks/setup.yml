@@ -113,6 +113,13 @@
     # against them. The desktop_libs tag remains as a compatibility alias.
     - role: platform_prerequisites
       tags: [platform_prerequisites, desktop_libs]
+    # Native Ubuntu hosts keep one managed swapfile sized from physical RAM.
+    # WSL swap belongs to the Windows host's .wslconfig instead.
+    - role: swap
+      tags: [swap]
+      when:
+        - swap_enabled | bool
+        - not wsl | bool
     - role: snap
       tags: [snap]
     - role: flatpak

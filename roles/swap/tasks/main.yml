@@ -1,0 +1,318 @@
+---
+- name: Swap | Gather the physical memory fact
+  ansible.builtin.setup:
+    gather_subset:
+      - hardware
+    filter:
+      - ansible_memtotal_mb
+  check_mode: false
+
+- name: Swap | Validate configuration
+  ansible.builtin.assert:
+    that:
+      - swap_file_path is string
+      - swap_file_path is match('^/')
+      - swap_max_size_mib | int > 0
+      - ansible_facts['memtotal_mb'] | int >= 2
+    fail_msg: Swap requires an absolute file path, a positive cap and usable memory facts.
+    quiet: true
+
+- name: Swap | Calculate the target size
+  ansible.builtin.set_fact:
+    swap_target_size_mib: >-
+      {{ [((ansible_facts['memtotal_mb'] | int) // 2),
+           (swap_max_size_mib | int)] | min }}
+    swap_target_size_bytes: >-
+      {{ ([((ansible_facts['memtotal_mb'] | int) // 2),
+             (swap_max_size_mib | int)] | min) * 1048576 }}
+    swap_candidate_path: "{{ swap_file_path }}.ansible.tmp"
+    swap_backup_path: "{{ swap_file_path }}.ansible.backup"
+
+- name: Swap | Inspect the target directory
+  become: true
+  ansible.builtin.stat:
+    path: "{{ swap_file_path | dirname }}"
+  register: swap_parent_stat
+
+- name: Swap | Require an existing target directory
+  ansible.builtin.assert:
+    that:
+      - swap_parent_stat.stat.exists
+      - swap_parent_stat.stat.isdir
+    fail_msg: "The swap target directory {{ swap_file_path | dirname }} does not exist."
+    quiet: true
+
+- name: Swap | Inspect the managed file
+  become: true
+  ansible.builtin.stat:
+    path: "{{ swap_file_path }}"
+  register: swap_file_stat
+
+- name: Swap | Refuse to replace a non-regular target
+  ansible.builtin.assert:
+    that:
+      - not swap_file_stat.stat.exists or swap_file_stat.stat.isreg
+    fail_msg: "Refusing to replace non-regular path {{ swap_file_path }}."
+    quiet: true
+
+- name: Swap | Read the managed file signature
+  become: true
+  ansible.builtin.command:
+    argv:
+      - blkid
+      - -s
+      - TYPE
+      - -o
+      - value
+      - "{{ swap_file_path }}"
+  register: swap_file_signature
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: swap_file_stat.stat.exists
+
+- name: Swap | List active swap devices
+  become: true
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - --noheadings
+      - --raw
+      - --show=NAME
+  register: swap_active_devices
+  changed_when: false
+  check_mode: false
+
+- name: Swap | Determine convergence state
+  ansible.builtin.set_fact:
+    swap_managed_active: >-
+      {{ swap_file_path in (swap_active_devices.stdout_lines | default([])) }}
+    swap_needs_replacement: >-
+      {{
+        not swap_file_stat.stat.exists
+        or (swap_file_stat.stat.size | default(0) | int) != (swap_target_size_bytes | int)
+        or (swap_file_signature.stdout | default('') | trim) != 'swap'
+      }}
+
+- name: Swap | Inspect a previous transaction backup
+  become: true
+  ansible.builtin.stat:
+    path: "{{ swap_backup_path }}"
+  register: swap_backup_stat
+  when: swap_needs_replacement | bool
+
+- name: Swap | Refuse to overwrite a recovery backup
+  ansible.builtin.assert:
+    that:
+      - not swap_backup_stat.stat.exists
+    fail_msg: >-
+      {{ swap_backup_path }} exists from an interrupted transaction. Preserve it
+      and inspect the managed swapfile before retrying.
+    quiet: true
+  when: swap_needs_replacement | bool
+
+- name: Swap | Inspect a stale candidate
+  become: true
+  ansible.builtin.stat:
+    path: "{{ swap_candidate_path }}"
+  register: swap_candidate_stat
+  when: swap_needs_replacement | bool
+
+- name: Swap | Read available bytes on the target filesystem
+  become: true
+  ansible.builtin.command:
+    argv:
+      - df
+      - --output=avail
+      - -B1
+      - --
+      - "{{ swap_file_path | dirname }}"
+  register: swap_filesystem_available
+  changed_when: false
+  check_mode: false
+  when: swap_needs_replacement | bool
+
+- name: Swap | Require room for a complete candidate
+  ansible.builtin.assert:
+    that:
+      - >-
+        (swap_filesystem_available.stdout_lines[-1] | trim | int)
+        + (swap_candidate_stat.stat.size | default(0) | int)
+        >= (swap_target_size_bytes | int)
+    fail_msg: >-
+      Not enough free space beside {{ swap_file_path }} to allocate the complete
+      {{ swap_target_size_mib }} MiB replacement without touching the current swap.
+    quiet: true
+  when: swap_needs_replacement | bool
+
+- name: Swap | Report the pending runtime change in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Swap would converge {{ swap_file_path }} to {{ swap_target_size_mib }} MiB
+      and ensure it is active.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - swap_needs_replacement | bool or not swap_managed_active | bool
+
+- name: Swap | Transactionally replace the managed file
+  become: true
+  when:
+    - swap_needs_replacement | bool
+    - not ansible_check_mode
+  block:
+    - name: Swap | Remove a stale candidate
+      ansible.builtin.file:
+        path: "{{ swap_candidate_path }}"
+        state: absent
+
+    - name: Swap | Fully allocate the candidate
+      ansible.builtin.command:
+        argv:
+          - fallocate
+          - --length
+          - "{{ swap_target_size_bytes }}"
+          - --
+          - "{{ swap_candidate_path }}"
+      changed_when: true
+
+    - name: Swap | Restrict candidate permissions
+      ansible.builtin.file:
+        path: "{{ swap_candidate_path }}"
+        state: file
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Swap | Format the candidate
+      ansible.builtin.command:
+        argv:
+          - mkswap
+          - --force
+          - "{{ swap_candidate_path }}"
+      changed_when: true
+
+    - name: Swap | Deactivate the old managed file
+      ansible.builtin.command:
+        argv:
+          - swapoff
+          - "{{ swap_file_path }}"
+      changed_when: true
+      when: swap_managed_active | bool
+
+    - name: Swap | Preserve the old managed file
+      ansible.builtin.command:
+        argv:
+          - mv
+          - --
+          - "{{ swap_file_path }}"
+          - "{{ swap_backup_path }}"
+      changed_when: true
+      when: swap_file_stat.stat.exists
+
+    - name: Swap | Activate the candidate path
+      ansible.builtin.command:
+        argv:
+          - mv
+          - --
+          - "{{ swap_candidate_path }}"
+          - "{{ swap_file_path }}"
+      changed_when: true
+
+    - name: Swap | Enable the replacement
+      ansible.builtin.command:
+        argv:
+          - swapon
+          - "{{ swap_file_path }}"
+      changed_when: true
+
+    - name: Swap | Remove the successful transaction backup
+      ansible.builtin.file:
+        path: "{{ swap_backup_path }}"
+        state: absent
+
+  rescue:
+    - name: Swap | Inspect the rollback backup
+      ansible.builtin.stat:
+        path: "{{ swap_backup_path }}"
+      register: swap_rollback_backup
+
+    - name: Swap | Deactivate a failed replacement
+      ansible.builtin.command:
+        argv:
+          - swapoff
+          - "{{ swap_file_path }}"
+      register: swap_failed_replacement_off
+      changed_when: swap_failed_replacement_off.rc == 0
+      failed_when: false
+      when: swap_rollback_backup.stat.exists
+
+    - name: Swap | Remove the failed replacement
+      ansible.builtin.file:
+        path: "{{ swap_file_path }}"
+        state: absent
+      when: swap_rollback_backup.stat.exists
+
+    - name: Swap | Restore the previous managed file
+      ansible.builtin.command:
+        argv:
+          - mv
+          - --
+          - "{{ swap_backup_path }}"
+          - "{{ swap_file_path }}"
+      changed_when: true
+      when: swap_rollback_backup.stat.exists
+
+    - name: Swap | Restore the previous active state
+      ansible.builtin.command:
+        argv:
+          - swapon
+          - "{{ swap_file_path }}"
+      changed_when: true
+      when:
+        - swap_rollback_backup.stat.exists
+        - swap_managed_active | bool
+
+    - name: Swap | Stop after rolling back the failed transaction
+      ansible.builtin.fail:
+        msg: Swap replacement failed; the previous managed file was restored when available.
+
+  always:
+    - name: Swap | Remove the transaction candidate
+      ansible.builtin.file:
+        path: "{{ swap_candidate_path }}"
+        state: absent
+
+- name: Swap | Enforce managed file permissions
+  become: true
+  ansible.builtin.file:
+    path: "{{ swap_file_path }}"
+    state: file
+    owner: root
+    group: root
+    mode: "0600"
+  when:
+    - swap_file_stat.stat.exists or not ansible_check_mode
+
+- name: Swap | Activate an existing valid managed file
+  become: true
+  ansible.builtin.command:
+    argv:
+      - swapon
+      - "{{ swap_file_path }}"
+  changed_when: true
+  when:
+    - not swap_needs_replacement | bool
+    - not swap_managed_active | bool
+    - not ansible_check_mode
+
+- name: Swap | Persist the managed file in fstab
+  become: true
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: "^\\s*{{ swap_file_path | regex_escape }}\\s+"
+    line: "{{ swap_file_path }} none swap sw 0 0"
+    owner: root
+    group: root
+    mode: "0644"
+    state: present

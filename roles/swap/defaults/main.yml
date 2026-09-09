@@ -1,0 +1,4 @@
+---
+swap_enabled: true
+swap_file_path: /swap.img
+swap_max_size_mib: 16384
