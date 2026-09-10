@@ -1,0 +1,12 @@
+---
+# The community manifest (manifests/c/can1357/oh-my-pi) is a portable package:
+# winget copies omp-windows-<arch>.exe and exposes the omp command on PATH. It
+# also declares the Microsoft.VCRedist.2015+.x64 dependency, which winget
+# installs before the package itself. Never run the vendor installer directly -
+# the shared winget role already answers installed state from its snapshot.
+- name: Install oh-my-pi (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - can1357.oh-my-pi

@@ -1,0 +1,67 @@
+---
+# Shared third-party Homebrew tap helper.
+#
+# Homebrew 6 refuses to load anything from an untrusted tap, and a fresh tap is
+# a chicken-and-egg case: `brew tap` validates the formula files it has just
+# cloned, so adding an untrusted tap fails with "Refusing to load formula ...
+# from untrusted tap" before community.general.homebrew_tap - which taps first
+# and trusts afterwards - ever reaches its own trust step. `brew trust --tap`
+# records the entry by name without needing the tap on disk, so every requested
+# tap is trusted here before it is added.
+#
+# Like the shared `mas` and `winget` roles this one is gated by its callers and
+# needs no first_found dispatcher: it is only ever included from macOS and
+# Linux task files, so it never reaches a Windows host.
+#
+# The `brew_tap_trusted` fact keeps the trust lookup to one brew call per host
+# however many roles include this one, and a tap trusted during the run is
+# added to it so a later role does not trust the same tap again.
+- name: Brew tap | Trust and tap the requested repositories
+  environment:
+    # The same search path the community.general.homebrew_* modules default to,
+    # so this works on either Homebrew prefix and over non-login SSH.
+    PATH: "/opt/homebrew/bin:/usr/local/bin:/home/linuxbrew/.linuxbrew/bin:{{ ansible_facts['env']['PATH'] }}"
+  block:
+    - name: Brew tap | Read the trusted taps
+      ansible.builtin.command:
+        argv:
+          - brew
+          - trust
+          - --json
+          - v1
+      register: brew_tap_trust_read
+      changed_when: false
+      check_mode: false
+      become: false
+      when: brew_tap_trusted is not defined
+
+    - name: Brew tap | Remember the trusted taps
+      ansible.builtin.set_fact:
+        brew_tap_trusted: >-
+          {{ (brew_tap_trust_read.stdout | from_json).taps | default([]) }}
+      when: brew_tap_trusted is not defined
+
+    - name: Brew tap | Trust the taps Homebrew does not trust yet
+      ansible.builtin.command:
+        argv:
+          - brew
+          - trust
+          - --tap
+          - "{{ item }}"
+      loop: "{{ brew_tap_names | reject('in', brew_tap_trusted) | list }}"
+      changed_when: true
+      become: false
+
+    - name: Brew tap | Remember the trusted taps
+      ansible.builtin.set_fact:
+        brew_tap_trusted: "{{ brew_tap_trusted | union(brew_tap_names) }}"
+
+    # community.general.homebrew_tap is deliberately left without its trust
+    # option: the tasks above already trusted every requested tap by name, and
+    # the module's own trust step runs after the tap it would need first.
+    - name: Brew tap | Tap the requested repositories
+      community.general.homebrew_tap:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ brew_tap_names }}"
+      become: false

@@ -7,11 +7,11 @@
 # Bun's own documentation points at this tap, so the token stays fully
 # qualified and the tap stays - the same call made for anomalyco/tap/opencode.
 - name: Bun | Tap the Bun repository
-  community.general.homebrew_tap:
-    name: oven-sh/bun
-    state: present
-    trust: true
-  become: false
+  ansible.builtin.include_role:
+    name: brew_tap
+  vars:
+    brew_tap_names:
+      - oven-sh/bun
 
 - name: Bun | Install Bun (brew)
   when: "'oven-sh/bun/bun' not in (brew_installed_formulae | default([]))"

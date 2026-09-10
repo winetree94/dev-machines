@@ -32,6 +32,14 @@
         windows: SST.opencode
         shared: brew.yml
         shared_contains: anomalyco/tap/opencode
+        tap: anomalyco/tap
+      - name: oh_my_pi
+        debian: brew.yml
+        darwin: brew.yml
+        windows: can1357.oh-my-pi
+        shared: brew.yml
+        shared_contains: can1357/tap/omp
+        tap: can1357/tap
 
     # GUI application roles: Ubuntu package marker, Homebrew cask token,
     # winget id. Ubuntu uses Flathub unless `debian_channel` says otherwise.
@@ -252,6 +260,7 @@
         windows: FluxCD.Flux
         shared: brew.yml
         shared_contains: fluxcd/tap/flux
+        tap: fluxcd/tap
       - name: talosctl
         debian: talosctl
         darwin: talosctl
@@ -281,6 +290,7 @@
         windows: Oven-sh.Bun
         shared: brew.yml
         shared_contains: oven-sh/bun/bun
+        tap: oven-sh/bun
       - name: pnpm
         debian: pnpm
         darwin: pnpm
@@ -389,6 +399,7 @@
         windows: tinyrack.dotweave
         shared: brew.yml
         shared_contains: tinyrack-net/tap/dotweave
+        tap: tinyrack-net/tap
       - name: rust
         debian: rustup.yml
         darwin: rustup.yml
@@ -572,7 +583,7 @@
           because their callers include them instead.
       loop: >-
         {{ role_dirs.files
-           | rejectattr('path', 'search', '/(mas|winget)$')
+           | rejectattr('path', 'search', '/(mas|winget|brew_tap)$')
            | list }}
       loop_control:
         label: "{{ item.path | basename }}"
@@ -898,18 +909,22 @@
       vars:
         shared_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/' ~ item.shared) }}"
 
-    - name: Assert every third-party Homebrew tap is trusted
+    - name: Assert every third-party Homebrew tap is added through the shared brew_tap role
       ansible.builtin.assert:
         that:
-          - "'trust: true' in shared_content"
+          - "'name: brew_tap' in shared_content"
+          - "('- ' ~ item.tap) in shared_content"
+          - "'brew_tap_names' in shared_content"
+          - "'community.general.homebrew_tap' not in shared_content"
         fail_msg: >-
-          roles/{{ item.name }}/tasks/{{ item.shared }} taps a third-party
-          repository, and Homebrew 6 refuses to load anything from an untrusted
-          tap, so the tap task needs trust: true.
-      loop: "{{ shared_roles }}"
+          roles/{{ item.name }}/tasks/{{ item.shared }} needs the third-party
+          tap {{ item.tap }}, and Homebrew 6 validates a tap's files while
+          cloning it - so the tap has to be trusted before it is added, which
+          community.general.homebrew_tap (tap first, trust afterwards) cannot
+          do. Delegate to the shared roles/brew_tap role with brew_tap_names.
+      loop: "{{ shared_roles | selectattr('tap', 'defined') | list }}"
       loop_control:
         label: "{{ item.name }}"
-      when: "'homebrew_tap' in shared_content"
       vars:
         shared_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/' ~ item.shared) }}"
 

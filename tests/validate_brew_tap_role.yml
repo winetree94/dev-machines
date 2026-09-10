@@ -1,0 +1,118 @@
+---
+# The shared third-party Homebrew tap helper. Homebrew 6 validates a tap's files
+# while cloning it, so an untrusted tap cannot be added with community.general.
+# homebrew_tap - that module taps first and trusts afterwards, which is exactly
+# the order Homebrew 6 rejects. This test locks in the trust-before-tap order
+# every tap-using role now depends on, and that none of them taps directly.
+- name: Validate the shared Homebrew tap role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/brew_tap"
+    tasks_file: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}"
+    defaults_file: "{{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}"
+    setup_playbook: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}
+    tap_roles:
+      - name: oh_my_pi
+        file: tasks/brew.yml
+        tap: can1357/tap
+      - name: opencode
+        file: tasks/brew.yml
+        tap: anomalyco/tap
+      - name: bun
+        file: tasks/brew.yml
+        tap: oven-sh/bun
+      - name: flux
+        file: tasks/brew.yml
+        tap: fluxcd/tap
+      - name: dotweave
+        file: tasks/brew.yml
+        tap: tinyrack-net/tap
+      - name: doppler
+        file: tasks/darwin.yml
+        tap: dopplerhq/doppler
+      - name: alloy
+        file: tasks/darwin.yml
+        tap: grafana/grafana
+
+  tasks:
+    - name: Assert the helper trusts every requested tap before adding it
+      ansible.builtin.assert:
+        that:
+          - "'brew trust' in tasks_file"
+          - "'--json' in tasks_file"
+          - "'brew trust --tap' in tasks_file"
+          - tasks_file.find('brew trust --tap') < tasks_file.find('community.general.homebrew_tap:')
+          - "'trust: true' not in tasks_file"
+          - "'brew_tap_names' in tasks_file"
+          - "'become: false' in tasks_file"
+        fail_msg: >-
+          roles/brew_tap/tasks/main.yml must read the trusted taps from brew and
+          trust the requested ones by name before the tap is added - the tap
+          module's own trust option runs after the clone it would have to
+          survive, so it can never make a fresh tap work.
+
+    - name: Assert the helper memoises the trust lookup per host
+      ansible.builtin.assert:
+        that:
+          - "'brew_tap_trusted is not defined' in tasks_file"
+          - "'brew_tap_trusted | union(brew_tap_names)' in tasks_file"
+          - "'check_mode: false' in tasks_file"
+        fail_msg: >-
+          The trusted-tap lookup must happen once per host, and a tap trusted
+          during the run has to be added to the fact so a second including role
+          neither repeats the lookup nor re-trusts the same tap.
+
+    - name: Assert the helper declares its input and stays out of the play graph
+      ansible.builtin.assert:
+        that:
+          - "'brew_tap_names: []' in defaults_file"
+          - "'- role: brew_tap' not in setup_playbook"
+        fail_msg: >-
+          brew_tap is a helper, the same contract as the shared mas and winget
+          roles: callers include it with brew_tap_names, so that list defaults
+          to empty and the role is never wired into setup.yml.
+
+    - name: Assert every tap-using role delegates to the shared helper
+      ansible.builtin.assert:
+        that:
+          - "'name: brew_tap' in caller_content"
+          - "('- ' ~ item.tap) in caller_content"
+          - "'community.general.homebrew_tap' not in caller_content"
+        fail_msg: >-
+          roles/{{ item.name }}/{{ item.file }} must add {{ item.tap }} through
+          the shared brew_tap role. Tapping it directly fails on a fresh host,
+          because Homebrew 6 refuses to validate the formula files of a tap it
+          does not trust yet.
+      loop: "{{ tap_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        caller_content: >-
+          {{ lookup('ansible.builtin.file',
+                    playbook_dir ~ '/../roles/' ~ item.name ~ '/' ~ item.file) }}
+
+    - name: Find every task file that taps a repository directly
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../roles"
+        patterns: "*.yml"
+        recurse: true
+        contains: '^\s+community\.general\.homebrew_tap:\s*$'
+      register: direct_tap_tasks
+
+    - name: Assert the shared helper is the only place that taps a repository
+      ansible.builtin.assert:
+        that:
+          - >-
+            direct_tap_tasks.files | map(attribute='path')
+            | map('regex_replace', '^.*/roles/', 'roles/') | sort | list
+            == ['roles/brew_tap/tasks/main.yml']
+        fail_msg: >-
+          These task files call community.general.homebrew_tap directly:
+          {{ direct_tap_tasks.files | map(attribute='path')
+             | map('regex_replace', '^.*/roles/', 'roles/') | list | sort
+             | join(', ') }}. Add the tap with the shared brew_tap role instead
+          - Homebrew 6 rejects a fresh untrusted tap before the module's own
+          trust step runs.
+        quiet: true

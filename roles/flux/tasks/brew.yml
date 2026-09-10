@@ -3,14 +3,12 @@
 # same path works on Ubuntu. It is not tasks/default.yml on purpose:
 # default.yml is also the dispatcher's fallback on Windows, which has its own
 # winget path and must never reach Homebrew.
-#
-# Homebrew 6 refuses to load anything from an untrusted third-party tap.
 - name: Flux | Tap the Flux CD repository
-  community.general.homebrew_tap:
-    name: fluxcd/tap
-    state: present
-    trust: true
-  become: false
+  ansible.builtin.include_role:
+    name: brew_tap
+  vars:
+    brew_tap_names:
+      - fluxcd/tap
 
 - name: Flux | Install the Flux CLI (brew)
   when: "'fluxcd/tap/flux' not in (brew_installed_formulae | default([]))"

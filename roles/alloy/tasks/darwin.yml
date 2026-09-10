@@ -1,25 +1,14 @@
 ---
-- name: Alloy | Resolve the Homebrew repository
-  ansible.builtin.command: brew --repository
-  register: alloy_homebrew_repository
-  changed_when: false
-  check_mode: false
-  become: false
-
-# Homebrew 6 parses a tap before homebrew_tap can mark it trusted. Clone the
-# official tap first, then trust it before any formula is loaded.
-- name: Alloy | Clone the official Grafana tap without loading formulae
-  ansible.builtin.git:
-    repo: https://github.com/grafana/homebrew-grafana.git
-    dest: "{{ alloy_homebrew_repository.stdout }}/Library/Taps/grafana/homebrew-grafana"
-    version: master
-    update: true
-  become: false
-
-- name: Alloy | Trust the official Grafana tap
-  ansible.builtin.command: brew trust grafana/grafana
-  changed_when: false
-  become: false
+# The tap is added through the shared brew_tap role rather than by cloning
+# grafana/homebrew-grafana into Library/Taps: Homebrew 6 parses a tap before
+# homebrew_tap can mark it trusted, and the shared role trusts the tap by name
+# before adding it.
+- name: Alloy | Tap the official Grafana repository
+  ansible.builtin.include_role:
+    name: brew_tap
+  vars:
+    brew_tap_names:
+      - grafana/grafana
 
 - name: Alloy | Install Alloy (brew)
   community.general.homebrew:

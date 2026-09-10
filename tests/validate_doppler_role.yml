@@ -63,8 +63,8 @@
     - name: Assert Doppler role installs the current tap and cask on macOS
       ansible.builtin.assert:
         that:
-          - "'community.general.homebrew_tap' in doppler_darwin"
-          - "'name: dopplerhq/doppler' in doppler_darwin"
+          - "'name: brew_tap' in doppler_darwin"
+          - "'- dopplerhq/doppler' in doppler_darwin"
           - "'brew install --cask dopplerhq/doppler/doppler' in doppler_darwin"
           - "'dopplerhq/cli/doppler' not in doppler_darwin"
           - >-
@@ -86,15 +86,17 @@
           The cask install must be gated on "brew info --json=v2", otherwise it reruns
           on every play and fails on brew's "not upgrading" notice.
 
-    - name: Assert the macOS tap is trusted
+    - name: Assert the macOS tap goes through the shared tap role
       ansible.builtin.assert:
         that:
-          - >-
-            doppler_darwin is search("name: dopplerhq/doppler\n\\s*trust: true")
+          - "'name: brew_tap' in doppler_darwin"
+          - "'brew_tap_names' in doppler_darwin"
+          - "'community.general.homebrew_tap' not in doppler_darwin"
         fail_msg: >-
           Homebrew 6 refuses to load formulae, casks and commands from untrusted
-          third-party taps, so the tap must be tapped with trust: true or the install
-          below fails with "no available cask".
+          third-party taps, and it validates a tap's files while cloning it - so
+          the tap must be added through the shared brew_tap role, which trusts
+          it by name first, or the install below fails with "no available cask".
 
     - name: Assert Doppler role uses the official APT repository on Debian
       ansible.builtin.assert:

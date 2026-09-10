@@ -1,0 +1,12 @@
+---
+# Third-party Homebrew taps the calling role needs, as owner/repository - for
+# example ["can1357/tap"]. Include this role from a brew.yml / darwin.yml
+# before installing anything that lives in a tap:
+#
+#   - name: Tap the oh-my-pi formula repository
+#     ansible.builtin.include_role:
+#       name: brew_tap
+#     vars:
+#       brew_tap_names:
+#         - can1357/tap
+brew_tap_names: []

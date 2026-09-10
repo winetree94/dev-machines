@@ -406,8 +406,9 @@ Tailscale 및 WireGuard와 함께 설치할 수 있지만 동시에 연결하면
   `/usr/share/keyrings` 에 두고 `signed_by` 로 참조한다. 별도 변환 명령이나
   파이프 설치 스크립트는 쓰지 않는다.
 - `darwin.yml` — Homebrew tap `dopplerhq/doppler` + cask. 주의할 점이 두 개 있다.
-  - Homebrew 6 은 신뢰하지 않는 서드파티 탭의 formula/cask 를 아예 로드하지
-    않으므로 `homebrew_tap` 에 `trust: true` 가 필요하다.
+  - tap 등록은 공용 `brew_tap` 롤이 담당한다. Homebrew 6 은 신뢰하지 않는 서드파티 탭의
+    formula/cask 를 로드하지 않고, tap 을 복제하는 동안 그 안의 파일까지 검증하므로 trust 가
+    tap 보다 먼저여야 한다.
   - cask 토큰은 반드시 `dopplerhq/doppler/doppler` 로 정규화해서 쓴다. 짧은
     `doppler` 는 homebrew-cask 의 무관한 음악 앱 `doppler-app` 으로 해석된다.
     `community.general.homebrew_cask` 는 설치 여부를 `brew list --cask <name>`
@@ -498,9 +499,9 @@ SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 2
 
 ## AI CLI 도구
 
-`claude_code` / `codex` / `copilot_cli` / `opencode` 네 롤로 나뉘어 있다. 예전에는 `ai`
-롤 하나였는데, Windows 에서는 아무것도 설치되지 않는 스텁이었고 `codex` / `copilot-cli`
-를 formula 모듈로 설치하려 했지만 둘 다 실제로는 cask 다.
+`claude_code` / `codex` / `copilot_cli` / `opencode` / `oh_my_pi` 다섯 롤로 나뉘어
+있다. 예전에는 `ai` 롤 하나였는데, Windows 에서는 아무것도 설치되지 않는 스텁이었고
+`codex` / `copilot-cli` 를 formula 모듈로 설치하려 했지만 둘 다 실제로는 cask 다.
 
 | 롤 | Ubuntu | macOS | Windows |
 | --- | --- | --- | --- |
@@ -508,16 +509,30 @@ SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 2
 | `codex` | 공식 `chatgpt.com/codex/install.sh` | cask `codex` | `OpenAI.Codex` |
 | `copilot_cli` | 공식 `gh.io/copilot-install` | cask `copilot-cli` | `GitHub.Copilot` |
 | `opencode` | brew `anomalyco/tap/opencode` | 같음 | `SST.opencode` |
+| `oh_my_pi` | brew `can1357/tap/omp` | 같음 | `can1357.oh-my-pi` |
 
 - 앞의 셋은 Homebrew 패키지가 **cask** 이고 cask 는 macOS 전용이라 Ubuntu 에서 쓸 수 없다.
   그래서 벤더 공식 설치 스크립트를 쓴다. `curl … | bash` 로 파이프하지 않고 `get_url` 로
   받아서 별도 태스크로 실행하며, `~/.local/bin/<tool>` 을 `stat` 으로 검사해 멱등성을 지킨다.
   Claude Code 는 공식 APT 저장소도 있지만 서드파티 apt 저장소를 늘리지 않는 방침이라 쓰지 않는다.
-- `opencode` 만 Linux 에서도 도는 formula 라서 `brew.yml` 하나를 `debian.yml` 과
-  `darwin.yml` 이 함께 include 한다. tap 은 `trust: true` 로 등록해야 한다(Homebrew 6 은
-  신뢰하지 않은 서드파티 tap 을 로드하지 않는다). homebrew-core 에도 같은 이름의 formula 가
-  생겨 brew 가 shadow 경고를 내므로 토큰은 `anomalyco/tap/opencode` 로 정규화해서 쓴다.
-  `sst/tap` 은 `anomalyco/tap` 으로 이름이 바뀌었고, winget 퍼블리셔만 예전 `SST` 로 남아 있다.
+- `opencode` 와 `oh_my_pi` 는 Linux 에서도 도는 formula 라서 `brew.yml` 하나를
+  `debian.yml` 과 `darwin.yml` 이 함께 include 한다. `opencode` 는 homebrew-core 에도 같은
+  이름의 formula 가 생겨 brew 가 shadow 경고를 내므로 토큰은 `anomalyco/tap/opencode` 로
+  정규화해서 쓴다. `sst/tap` 은 `anomalyco/tap` 으로 이름이 바뀌었고, winget 퍼블리셔만 예전
+  `SST` 로 남아 있다. `oh_my_pi` 는 formula 이름이 `omp`(바이너리도 `omp`)이고 tap 은
+  `can1357/tap` 이다.
+- 서드파티 tap 등록은 공용 `brew_tap` 롤(`roles/brew_tap`)이 전담한다. Homebrew 6 은 신뢰하지
+  않는 tap 을 로드하지 않고, tap 을 복제하면서 그 안의 formula 까지 검증하므로 아직 신뢰되지
+  않은 tap 은 `brew tap` 자체가 `Refusing to load formula … from untrusted tap` 으로
+  실패한다. 공용 `community.general.homebrew_tap` 은 tap → trust 순서라 이 경우 trust 단계에
+  도달하지 못한다. `brew_tap` 롤은 `brew trust --json v1` 로 현재 상태를 호스트당 한 번만 읽고,
+  아직 신뢰되지 않은 tap 만 `brew trust --tap` 으로 먼저 신뢰한 뒤 tap 한다. 이미 신뢰된
+  호스트에서는 아무 것도 바꾸지 않는다. `oh_my_pi`, `opencode`, `bun`, `flux`, `dotweave`,
+  `doppler`, `alloy` 가 이 롤을 쓴다.
+- `oh_my_pi` 의 Windows 설치만 local manifest 가 아니라 winget-pkgs 의 커뮤니티 매니페스트
+  `can1357.oh-my-pi` 를 쓴다. `InstallerType: portable` 이라 winget 이 릴리스 exe 를 복사하고
+  `omp` 명령을 PATH 에 노출하며, `Microsoft.VCRedist.2015+.x64` 의존성도 winget 이 함께
+  설치한다. 설치 여부 판단은 공용 `winget` 롤의 `winget export` 스냅샷이 담당한다.
 - winget ID 는 `GitHub.Copilot` 이다. **`GitHub.CopilotCLI` 는 존재하지 않고**,
   `GitHub.CopilotApp` 은 별개의 데스크톱 앱이다.
 

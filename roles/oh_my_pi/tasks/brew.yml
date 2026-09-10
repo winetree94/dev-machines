@@ -1,0 +1,20 @@
+---
+# Shared by darwin.yml and debian.yml: the formula carries an on_linux block
+# that downloads the prebuilt Linux binary, so the same path works on Ubuntu.
+# It is not tasks/default.yml on purpose - default.yml is also the fallback for
+# Windows, which has its own winget path and must never reach Homebrew.
+- name: Oh My Pi | Tap the oh-my-pi formula repository
+  ansible.builtin.include_role:
+    name: brew_tap
+  vars:
+    brew_tap_names:
+      - can1357/tap
+
+# The token stays fully qualified so it can never resolve to a same-named
+# formula from another tap. The project ships the binary as "omp".
+- name: Oh My Pi | Install omp (Homebrew)
+  when: "'can1357/tap/omp' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: can1357/tap/omp
+    state: present
+  become: false

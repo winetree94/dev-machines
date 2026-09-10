@@ -329,6 +329,8 @@
       tags: [copilot_cli]
     - role: opencode
       tags: [opencode]
+    - role: oh_my_pi
+      tags: [oh_my_pi]
 
 - name: GUI applications
   # Empty when no host has gui enabled, in which case the play is skipped.

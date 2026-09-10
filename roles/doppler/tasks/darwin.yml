@@ -3,15 +3,16 @@
 # from a formula to a GoReleaser-built cask. dopplerhq/homebrew-cli is now a
 # migration stub whose own README points at "dopplerhq/doppler/doppler".
 #
-# trust: true is required from Homebrew 6 onwards - it refuses to load
-# formulae, casks and commands from untrusted third-party taps, so an
-# untrusted tap makes the install below fail with "no available cask".
-- name: Doppler | Tap and trust the Doppler repository
-  community.general.homebrew_tap:
-    name: dopplerhq/doppler
-    trust: true
-    state: present
-  become: false
+# The tap is added through the shared brew_tap role: Homebrew 6 refuses to load
+# formulae, casks and commands from an untrusted third-party tap, and it
+# validates a tap's files while cloning it, so the trust entry has to exist
+# before the tap does.
+- name: Doppler | Tap the Doppler repository
+  ansible.builtin.include_role:
+    name: brew_tap
+  vars:
+    brew_tap_names:
+      - dopplerhq/doppler
 
 # The token has to stay fully qualified: the bare "doppler" cask token
 # resolves to homebrew-cask's unrelated (and disabled) doppler-app music
