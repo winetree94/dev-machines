@@ -555,7 +555,9 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
 쓴다. VS Code 와 Claude Desktop 은 Ubuntu 에서 각각 Microsoft/Anthropic 공식 signed
 APT 저장소를 쓴다. Claude Desktop 패키지가 자동으로 추가하는 중복 저장소는 끄고
-Ansible이 관리하는 `.sources` 하나만 유지한다. Chrome도 Google 공식 signed APT
+Ansible이 관리하는 `.sources` 하나만 유지한다. ChatGPT Desktop(Codex)도 Ubuntu
+Linux preview 용 OpenAI 공식 signed APT 저장소를 쓰며, 같은 방식으로 패키지가
+추가하는 중복 저장소를 끈다. Chrome도 Google 공식 signed APT
 저장소를 사용하며, Ubuntu ARM에서는 공식 패키지가 없어 건너뛴다. OpenCode Desktop 은 공식 stable x64 `.deb` 를 쓴다. OpenCode가
 Ubuntu ARM용 `.deb`를 공식 다운로드 표면에 제공하기 전까지 ARM 호스트에서는 건너뛴다.
 JetBrains Toolbox는 Ubuntu에서 checksum을 고정한 공식 x86_64/ARM64 archive를
@@ -577,7 +579,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | --- | --- | --- | --- |
 | `alacritty` | Ubuntu archive `alacritty` | 미지원 | `Alacritty.Alacritty` |
 | `claude_desktop` | 공식 APT `claude-desktop` | cask `claude` | `Anthropic.Claude` |
-| `chatgpt_desktop` | 미지원 | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
+| `chatgpt_desktop` | 공식 APT `chatgpt` | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
 | `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
 | `opencode_desktop` | Flathub `ai.opencode.opencode` | cask `opencode-desktop` | `SST.OpenCodeDesktop` |
 | `kitty` | Ubuntu archive `kitty` | cask `kitty` | 미지원 |
@@ -587,7 +589,13 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `remote_desktop_manager` | 공식 APT `remotedesktopmanager` | cask `remote-desktop-manager` | `Devolutions.RemoteDesktopManager` |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
-폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다.
+폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다. Ubuntu에서는 OpenAI의
+Linux preview 저장소(`https://persistent.oaistatic.com/codex-app-prod/linux/deb`,
+suite `stable`)를 `deb822_repository` + `signed_by`로 추가하고 amd64/arm64 모두에
+설치한다. 서명 키는 OpenAI가 URL로 배포하지 않아 지문
+`3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4`로 keyserver.ubuntu.com에서 받는다.
+`get_url`이 `--check`에서 보내는 HEAD 프로브를 keyserver가 405로 거부하므로 키
+다운로드는 `not ansible_check_mode`로 건너뛰고 `debug` 태스크가 변경 예정을 보고한다.
 
 `bottles`, `flatseal`, `gear_lever`, `xclicker`, `remmina` 다섯 개는 macOS/Windows 패키지가 아예 없는
 Linux 전용 프로젝트다. `debian.yml` 만 두고 나머지는 만들지 않는다 - 비슷한 다른 앱으로

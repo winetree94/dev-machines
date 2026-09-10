@@ -53,6 +53,10 @@
         windows: Anthropic.Claude
       - name: chatgpt_desktop
         cli_tag: codex
+        debian: "name: chatgpt"
+        debian_channel: apt_repository
+        debian_repository: https://persistent.oaistatic.com/codex-app-prod/linux/deb
+        debian_signing_key: chatgpt-archive-keyring.asc
         darwin: chatgpt
         windows: 9PLM9XGG6VKS
         windows_source: msstore
@@ -777,6 +781,25 @@
           deb822 repository.
       vars:
         claude_desktop_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/claude_desktop/tasks/debian.yml') }}"
+
+    - name: Assert ChatGPT Desktop suppresses the repository its package adds
+      ansible.builtin.assert:
+        that:
+          - "'repo_add_once=\\\"false\\\"' in chatgpt_desktop_content"
+          - "'/etc/apt/sources.list.d/chatgpt.sources' in chatgpt_desktop_content"
+          - "'ansible.builtin.deb822_repository' in chatgpt_desktop_content"
+          - "'keyserver.ubuntu.com/pks/lookup' in chatgpt_desktop_content"
+          - "'3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4' in chatgpt_desktop_content"
+          - "'options=mr' in chatgpt_desktop_content"
+          - "'when: not ansible_check_mode' in chatgpt_desktop_content"
+        fail_msg: >-
+          roles/chatgpt_desktop/tasks/debian.yml must turn off the repository
+          the ChatGPT package adds for itself, fetch the signing key by
+          fingerprint (OpenAI publishes no key URL), and keep that download out
+          of a check-mode run: keyserver.ubuntu.com answers the HEAD probe
+          get_url uses under --check with 405.
+      vars:
+        chatgpt_desktop_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/chatgpt_desktop/tasks/debian.yml') }}"
 
     - name: Assert each direct Debian GUI role uses the official package
       ansible.builtin.assert:
