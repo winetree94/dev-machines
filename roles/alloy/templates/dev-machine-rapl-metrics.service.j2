@@ -1,0 +1,14 @@
+[Unit]
+Description=Export Linux RAPL energy counters for Alloy
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/dev-machine-rapl-metrics
+User=root
+Group=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/sys/devices/virtual/powercap
+ReadWritePaths=/var/lib/alloy/textfile

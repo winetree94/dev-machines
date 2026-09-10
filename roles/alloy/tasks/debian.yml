@@ -105,6 +105,41 @@
   become: true
   when: not ansible_check_mode
 
+- name: Alloy | Install the RAPL energy textfile collector
+  ansible.builtin.template:
+    src: rapl-metrics.sh.j2
+    dest: /usr/local/libexec/dev-machine-rapl-metrics
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+  when: not ansible_check_mode
+
+- name: Alloy | Install the RAPL collector service and timer
+  ansible.builtin.template:
+    src: "{{ alloy_unit }}.j2"
+    dest: "/etc/systemd/system/{{ alloy_unit }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - dev-machine-rapl-metrics.service
+    - dev-machine-rapl-metrics.timer
+  loop_control:
+    loop_var: alloy_unit
+  become: true
+  notify: Restart Alloy on Linux
+  when: not ansible_check_mode
+
+- name: Alloy | Enable the RAPL collector timer
+  ansible.builtin.systemd_service:
+    name: dev-machine-rapl-metrics.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  become: true
+  when: not ansible_check_mode
+
 - name: Alloy | Configure credentials and local-only UI
   ansible.builtin.template:
     src: alloy.env.j2

@@ -6,6 +6,8 @@
     roles_dir: "{{ playbook_dir }}/../roles"
     setup_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     all_vars_path: "{{ playbook_dir }}/../inventories/group_vars/all/main.yml"
+    hardware_dashboard_path: >-
+      {{ playbook_dir }}/../resources/dashboards/dashboards.v0alpha1.dashboard.grafana.app/dev-machines-hardware.yaml
     monitoring_roles:
       - alloy
       - smartctl_exporter
@@ -17,9 +19,12 @@
       ansible.builtin.set_fact:
         setup_content: "{{ lookup('ansible.builtin.file', setup_path) }}"
         all_vars_content: "{{ lookup('ansible.builtin.file', all_vars_path) }}"
+        hardware_dashboard_content: "{{ lookup('ansible.builtin.file', hardware_dashboard_path) }}"
         alloy_templates: >-
           {{ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.unix.alloy.j2')
-             ~ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.windows.alloy.j2') }}
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.windows.alloy.j2')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/rapl-metrics.sh.j2')
+             ~ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/dev-machine-rapl-metrics.service.j2') }}
 
     - name: Check monitoring role dispatchers and forbidden fallbacks
       ansible.builtin.stat:
@@ -73,6 +78,10 @@
           - "'127.0.0.1:9633' in alloy_templates"
           - "'127.0.0.1:9835' in alloy_templates"
           - "'serial_number|serial|wwn' in alloy_templates"
+          - "'disable_collectors = [\"rapl\"]' in alloy_templates"
+          - "'dev_cpu_rapl_energy_joules_total' in alloy_templates"
+          - "'ReadOnlyPaths=/sys/devices/virtual/powercap' in alloy_templates"
+          - "'ReadWritePaths=/var/lib/alloy/textfile' in alloy_templates"
           - "'prometheus.remote_write' not in alloy_templates"
           - "'basic_auth' not in alloy_templates"
           - "'TELEMETRY_USERNAME' not in alloy_templates"
@@ -116,6 +125,7 @@
           - "'LibreHardwareMonitor.LibreHardwareMonitor' in windows_monitoring_content"
           - "'smartmontools.smartmontools' in windows_monitoring_content"
           - "'127.0.0.1' in linux_monitoring_content"
+          - "'dev-machine-rapl-metrics.timer' in linux_monitoring_content"
           - "'127.0.0.1' in windows_monitoring_content"
           - "'username: SYSTEM' in windows_monitoring_content"
           - "'--stability.level=public-preview' in linux_monitoring_content"
@@ -127,3 +137,10 @@
         that:
           - "'prometheus.exporter.cadvisor' not in alloy_templates"
           - "'/var/run/docker.sock' not in alloy_templates"
+
+    - name: Assert the hardware dashboard graphs CPU and GPU power without duplicate battery sensors
+      ansible.builtin.assert:
+        that:
+          - "'rate(dev_cpu_rapl_energy_joules_total' in hardware_dashboard_content"
+          - "'nvidia_smi_power_draw_watts' in hardware_dashboard_content"
+          - "'chip!~\"power_supply_.*\"' in hardware_dashboard_content"

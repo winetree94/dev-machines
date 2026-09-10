@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Linux RAPL energy metrics
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec={{ monitoring_scrape_interval }}
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,10 @@
 prometheus.exporter.unix "host" {
   enable_collectors = [{% if detected_os_group == 'ubuntu' %}"drm"{% endif %}]
+{% if detected_os_group == 'ubuntu' %}
+  // Alloy runs unprivileged, while Linux exposes RAPL energy counters as root-only.
+  // A narrowly sandboxed root oneshot publishes those counters through textfile.
+  disable_collectors = ["rapl"]
+{% endif %}
   textfile {
     directory = "{{ '/var/lib/alloy/textfile' if detected_os_group == 'ubuntu' else ansible_facts['env']['HOME'] ~ '/Library/Application Support/Alloy/textfile' }}"
   }

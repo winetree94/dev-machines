@@ -1,0 +1,31 @@
+#!/bin/sh
+set -eu
+
+out=/var/lib/alloy/textfile/rapl.prom
+tmp="${out}.tmp"
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+
+{
+  printf '%s\n' '# HELP dev_cpu_rapl_energy_joules_total CPU energy consumed as reported by Linux RAPL.'
+  printf '%s\n' '# TYPE dev_cpu_rapl_energy_joules_total counter'
+
+  # Prefer the MSR-backed hierarchy and omit the parallel MMIO package counter,
+  # which reports the same package energy on systems such as Intel mobile CPUs.
+  for energy_path in \
+    /sys/devices/virtual/powercap/intel-rapl/intel-rapl:*/energy_uj \
+    /sys/devices/virtual/powercap/intel-rapl/intel-rapl:*/intel-rapl:*:*/energy_uj
+  do
+    [ -r "$energy_path" ] || continue
+    zone_dir=$(dirname "$energy_path")
+    zone=$(basename "$zone_dir")
+    domain=$(cat "$zone_dir/name")
+    energy_uj=$(cat "$energy_path")
+    energy_joules=$(awk -v value="$energy_uj" 'BEGIN { printf "%.6f", value / 1000000 }')
+    printf 'dev_cpu_rapl_energy_joules_total{zone="%s",domain="%s"} %s\n' \
+      "$zone" "$domain" "$energy_joules"
+  done
+} > "$tmp"
+
+chmod 0644 "$tmp"
+mv "$tmp" "$out"
+trap - EXIT HUP INT TERM
