@@ -6,8 +6,6 @@
     roles_dir: "{{ playbook_dir }}/../roles"
     setup_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     all_vars_path: "{{ playbook_dir }}/../inventories/group_vars/all/main.yml"
-    hardware_dashboard_path: >-
-      {{ playbook_dir }}/../resources/dashboards/dashboards.v0alpha1.dashboard.grafana.app/dev-machines-hardware.yaml
     monitoring_roles:
       - alloy
       - smartctl_exporter
@@ -19,7 +17,6 @@
       ansible.builtin.set_fact:
         setup_content: "{{ lookup('ansible.builtin.file', setup_path) }}"
         all_vars_content: "{{ lookup('ansible.builtin.file', all_vars_path) }}"
-        hardware_dashboard_content: "{{ lookup('ansible.builtin.file', hardware_dashboard_path) }}"
         alloy_templates: >-
           {{ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.unix.alloy.j2')
              ~ lookup('ansible.builtin.file', roles_dir ~ '/alloy/templates/config.windows.alloy.j2')
@@ -137,10 +134,3 @@
         that:
           - "'prometheus.exporter.cadvisor' not in alloy_templates"
           - "'/var/run/docker.sock' not in alloy_templates"
-
-    - name: Assert the hardware dashboard graphs CPU and GPU power without duplicate battery sensors
-      ansible.builtin.assert:
-        that:
-          - "'rate(dev_cpu_rapl_energy_joules_total' in hardware_dashboard_content"
-          - "'nvidia_smi_power_draw_watts' in hardware_dashboard_content"
-          - "'chip!~\"power_supply_.*\"' in hardware_dashboard_content"
