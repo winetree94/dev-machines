@@ -89,6 +89,24 @@
           present afterwards, so a failed install fails here with a clear message
           instead of somewhere inside Homebrew later in the run.
 
+    - name: Assert Apple Silicon macOS updates authenticate non-interactively
+      ansible.builtin.assert:
+        that:
+          - "'--stdinpass' in xcode_main"
+          - "'--user' in xcode_main"
+          - '"ansible_facts[''user_id'']" in xcode_main'
+          - >-
+            xcode_main is search("stdin:.*ansible_become_password")
+          - >-
+            xcode_main is search("--stdinpass[\\s\\S]{0,200}no_log: true")
+          - >-
+            xcode_main is search("architecture.*arm64[\\s\\S]*Install all recommended macOS updates on Intel")
+        fail_msg: >-
+          Apple Silicon softwareupdate requires a volume owner's username and
+          password even when run as root. Pass the SSH user's become password
+          through --stdinpass under no_log, and keep a separate root-only Intel
+          invocation because Intel macOS does not support those options.
+
     - name: Assert mas comes from the shared mas role
       ansible.builtin.assert:
         that:
@@ -177,10 +195,13 @@
       ansible.builtin.assert:
         that:
           - "'vault_' not in xcode_main"
-          - "'ansible_become_password' not in xcode_main"
+          - "xcode_main | regex_findall('ansible_become_password') | length == 1"
+          - >-
+            xcode_main is search("stdin:.*ansible_become_password[\\s\\S]{0,80}no_log: true")
         fail_msg: >-
-          Signing in to the App Store stays a manual step. No Apple ID credential may
-          reach the repository or the vault.
+          The role may use only the mapped become password, under no_log, as
+          softwareupdate's Apple Silicon volume-owner credential. It must never
+          read vault variables or Apple ID credentials.
 
     - name: Assert xcode runs in the macOS bootstrap play before the common tooling
       ansible.builtin.assert:

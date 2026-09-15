@@ -74,6 +74,8 @@
       - name: alacritty
         debian: "name: alacritty"
         debian_channel: apt
+        darwin: alacritty
+        darwin_source: direct_dmg
         windows: Alacritty.Alacritty
       - name: bitwarden_desktop
         debian: com.bitwarden.desktop
@@ -443,7 +445,11 @@
     # the CLI roles are formulae or include a shared sub-file.
     cask_roles: >-
       {{ (ai_roles + gui_roles + macos_only_roles) | selectattr('darwin', 'defined')
-         | rejectattr('shared', 'defined') | list }}
+         | rejectattr('shared', 'defined')
+         | rejectattr('darwin_source', 'defined') | list }}
+    direct_dmg_darwin_roles: >-
+      {{ darwin_roles | selectattr('darwin_source', 'defined')
+         | selectattr('darwin_source', 'equalto', 'direct_dmg') | list }}
     flatpak_gui_roles: >-
       {{ gui_roles | selectattr('debian', 'defined')
          | rejectattr('debian_channel', 'defined') | list }}
@@ -999,6 +1005,25 @@
           {{ item.darwin }} cask. Homebrew refuses to run as root, so the task
           stays unprivileged.
       loop: "{{ cask_roles }}"
+      loop_control:
+        label: "{{ item.name }}"
+      vars:
+        darwin_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/darwin.yml') }}"
+
+    - name: Assert each direct-DMG role installs the official release, not the cask
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' not in darwin_content"
+          - "'api.github.com/repos/' ~ item.name ~ '/' in darwin_content"
+          - "'hdiutil' in darwin_content"
+          - "'ditto' in darwin_content"
+        fail_msg: >-
+          roles/{{ item.name }}/tasks/darwin.yml is marked darwin_source:
+          direct_dmg, so it must fetch the release asset from GitHub and install
+          the bundle with hdiutil + ditto. The Homebrew cask is disabled
+          (fails_gatekeeper_check), so calling community.general.homebrew_cask
+          here would fail the run.
+      loop: "{{ direct_dmg_darwin_roles }}"
       loop_control:
         label: "{{ item.name }}"
       vars:

@@ -122,7 +122,41 @@
     - ansible_check_mode
     - "'* Label:' in xcode_macos_updates.stdout or '\n* ' in xcode_macos_updates.stdout"
 
-- name: Xcode | Install all recommended macOS updates
+- name: Xcode | Install all recommended macOS updates on Apple Silicon
+  when:
+    - dev_machines_update_mode | bool
+    - not ansible_check_mode
+    - ansible_facts['architecture'] == 'arm64'
+  block:
+    - name: Xcode | Run authenticated softwareupdate
+      ansible.builtin.command:
+        argv:
+          - softwareupdate
+          - --install
+          - --all
+          - --verbose
+          - --user
+          - "{{ ansible_facts['user_id'] }}"
+          - --stdinpass
+        stdin: "{{ ansible_become_password }}"
+      become: true
+      changed_when: true
+      no_log: true
+  rescue:
+    - name: Xcode | Report authenticated softwareupdate failure
+      ansible.builtin.fail:
+        msg: >-
+          macOS softwareupdate failed while authenticating
+          {{ ansible_facts['user_id'] }} as the Apple Silicon volume owner.
+          Confirm that this account has a secure token and that its mapped
+          become password is the current login password, then re-run.
+
+# Apple Silicon requires a volume owner's credentials even when softwareupdate
+# already runs as root. Without --stdinpass it tries to read from the SSH task's
+# nonexistent terminal and eventually fails with LocalAuthentication "Password
+# rejected (3)" after downloading the update. Intel Macs do not support these
+# two authentication options and continue to use the root-only invocation.
+- name: Xcode | Install all recommended macOS updates on Intel
   ansible.builtin.command:
     argv:
       - softwareupdate
@@ -134,6 +168,7 @@
   when:
     - dev_machines_update_mode | bool
     - not ansible_check_mode
+    - ansible_facts['architecture'] == 'x86_64'
 
 - name: Xcode | Install mas
   ansible.builtin.include_role:

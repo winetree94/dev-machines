@@ -1,0 +1,17 @@
+---
+# macOS installs the official universal DMG directly: the Homebrew cask is
+# disabled (see tasks/darwin.yml), so the paths the cask used to manage are
+# spelled out here. The version is deliberately not pinned - the role resolves
+# the current stable release and its vendor-published digest at run time.
+alacritty_macos_app: /Applications/Alacritty.app
+alacritty_macos_binary: "{{ alacritty_macos_app }}/Contents/MacOS/alacritty"
+alacritty_macos_resources: "{{ alacritty_macos_app }}/Contents/Resources/61"
+alacritty_macos_cli_dir: /usr/local/bin
+alacritty_macos_cli_link: "{{ alacritty_macos_cli_dir }}/alacritty"
+
+# The two terminfo entries the cask linked into ~/.terminfo/61. "61" is the
+# hex encoding of the first letter of the entry name, which is how ncurses
+# hashes the directory.
+alacritty_macos_terminfo_entries:
+  - alacritty
+  - alacritty-direct

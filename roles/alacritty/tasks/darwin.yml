@@ -1,0 +1,237 @@
+---
+# The "alacritty" Homebrew cask is disabled in homebrew-cask
+# (disable! date: "2026-09-01", because: :fails_gatekeeper_check), so
+# "brew install --cask alacritty" refuses to install it. Alacritty's release
+# workflow only ad-hoc signs the app bundle (codesign --force --deep --sign -)
+# and never notarizes it, which is what Homebrew reads as a failed Gatekeeper
+# check, and upstream has no plan to change that (alacritty/alacritty#8958).
+#
+# macOS therefore installs the DMG that same release workflow builds - the
+# exact artifact the cask pointed at - instead of the cask. It is universal2,
+# so one file covers x86_64 and arm64 and there is no architecture branch.
+# get_url fetches it with curl, which does not set com.apple.quarantine; that
+# attribute is what makes Gatekeeper block an ad-hoc signed app, so keeping it
+# off the installed copy is what makes the app launch. ditto --noqtn and the
+# xattr fallback below cover a bundle that arrives with it anyway.
+
+- name: Alacritty | Read the installed version
+  ansible.builtin.command:
+    argv:
+      - "{{ alacritty_macos_binary }}"
+      - --version
+  register: alacritty_version
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  become: false
+
+- name: Alacritty | Select the installed version number
+  ansible.builtin.set_fact:
+    alacritty_installed_version: >-
+      {{ alacritty_version.stdout | default('')
+         | regex_findall('[0-9]+[.][0-9]+[.][0-9]+') | first | default('') }}
+
+- name: Alacritty | Resolve whether release metadata is needed
+  ansible.builtin.set_fact:
+    alacritty_release_needed: >-
+      {{ dev_machines_update_mode | bool
+         or alacritty_installed_version | length == 0 }}
+
+- name: Alacritty | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/alacritty/alacritty/releases/latest
+    headers: "{{ github_api_headers }}"
+    return_content: true
+  register: alacritty_release
+  check_mode: false
+  no_log: true
+  when: alacritty_release_needed | bool
+
+- name: Alacritty | Select the latest release DMG
+  ansible.builtin.set_fact:
+    alacritty_latest_version: >-
+      {{ alacritty_release.json.tag_name | regex_replace('^v', '') }}
+    alacritty_latest_asset: >-
+      {{ alacritty_release.json.assets
+         | selectattr('name', 'match', '^Alacritty-.*[.]dmg$') | first }}
+  when: alacritty_release_needed | bool
+
+- name: Alacritty | Validate the latest release metadata
+  ansible.builtin.assert:
+    that:
+      - alacritty_latest_asset.digest is match('^sha256:[0-9a-f]{64}$')
+    fail_msg: The latest Alacritty release has no SHA-256 DMG digest.
+    quiet: true
+  when: alacritty_release_needed | bool
+
+- name: Alacritty | Resolve whether installation is needed
+  ansible.builtin.set_fact:
+    alacritty_needs_install: >-
+      {{ alacritty_release_needed | bool
+         and (alacritty_installed_version | length == 0
+              or alacritty_installed_version
+                 is version(alacritty_latest_version, '<')) }}
+
+- name: Alacritty | Report the pending installation in check mode
+  ansible.builtin.debug:
+    msg: >-
+      Alacritty {{ alacritty_latest_version }} would be installed from the
+      official checksum-pinned universal DMG.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - alacritty_needs_install | bool
+
+- name: Alacritty | Install the pinned release from the official DMG
+  when:
+    - not ansible_check_mode
+    - alacritty_needs_install | bool
+  block:
+    - name: Alacritty | Create a temporary working directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: -alacritty
+      register: alacritty_temp
+      become: false
+
+    - name: Alacritty | Create the mount point
+      ansible.builtin.file:
+        path: "{{ alacritty_temp.path }}/mount"
+        state: directory
+        mode: "0755"
+      become: false
+
+    - name: Alacritty | Download the official universal DMG
+      ansible.builtin.get_url:
+        url: "{{ alacritty_latest_asset.browser_download_url }}"
+        dest: "{{ alacritty_temp.path }}/Alacritty.dmg"
+        checksum: "{{ alacritty_latest_asset.digest }}"
+        mode: "0600"
+        timeout: 600
+      become: false
+
+    - name: Alacritty | Attach the disk image
+      ansible.builtin.command:
+        argv:
+          - hdiutil
+          - attach
+          - -nobrowse
+          - -noautoopen
+          - -readonly
+          - -mountpoint
+          - "{{ alacritty_temp.path }}/mount"
+          - "{{ alacritty_temp.path }}/Alacritty.dmg"
+      changed_when: false
+      become: false
+
+    - name: Alacritty | Remove the previously installed application bundle
+      ansible.builtin.file:
+        path: "{{ alacritty_macos_app }}"
+        state: absent
+      become: true
+
+    - name: Alacritty | Install the application bundle
+      ansible.builtin.command:
+        argv:
+          - ditto
+          - --noqtn
+          - "{{ alacritty_temp.path }}/mount/Alacritty.app"
+          - "{{ alacritty_macos_app }}"
+      changed_when: true
+      become: true
+
+    - name: Alacritty | Inspect the quarantine attribute of the installed bundle
+      ansible.builtin.command:
+        argv:
+          - xattr
+          - -p
+          - com.apple.quarantine
+          - "{{ alacritty_macos_app }}"
+      register: alacritty_quarantine
+      changed_when: false
+      failed_when: false
+      become: true
+
+    - name: Alacritty | Clear the quarantine attribute
+      ansible.builtin.command:
+        argv:
+          - xattr
+          - -dr
+          - com.apple.quarantine
+          - "{{ alacritty_macos_app }}"
+      when: alacritty_quarantine.rc == 0
+      changed_when: true
+      become: true
+
+  always:
+    - name: Alacritty | Detach the disk image
+      ansible.builtin.command:
+        argv:
+          - hdiutil
+          - detach
+          - "{{ alacritty_temp.path }}/mount"
+      changed_when: false
+      failed_when: false
+      become: false
+      when:
+        - alacritty_temp is defined
+        - alacritty_temp.path is defined
+
+    - name: Alacritty | Remove the temporary working directory
+      ansible.builtin.file:
+        path: "{{ alacritty_temp.path }}"
+        state: absent
+      become: false
+      when:
+        - alacritty_temp is defined
+        - alacritty_temp.path is defined
+
+# The cask also put the bundled CLI on PATH and linked the two terminfo
+# entries, which is what makes "alacritty" work from a shell and TERM=alacritty
+# resolve for ssh sessions. Reproduce both so the result matches a cask install.
+- name: Alacritty | Inspect the installed application bundle
+  ansible.builtin.stat:
+    path: "{{ alacritty_macos_binary }}"
+  register: alacritty_bundle
+  become: false
+
+# /usr/local/bin is on the default PATH through /etc/paths on both Intel and
+# Apple Silicon, so the link does not depend on the Homebrew prefix.
+- name: Alacritty | Ensure the CLI directory exists
+  ansible.builtin.file:
+    path: "{{ alacritty_macos_cli_dir }}"
+    state: directory
+    mode: "0755"
+  become: true
+  when: alacritty_bundle.stat.exists
+
+- name: Alacritty | Put the bundled CLI on PATH
+  ansible.builtin.file:
+    src: "{{ alacritty_macos_binary }}"
+    dest: "{{ alacritty_macos_cli_link }}"
+    state: link
+    force: true
+  become: true
+  when: alacritty_bundle.stat.exists
+
+- name: Alacritty | Create the user terminfo directory
+  ansible.builtin.file:
+    path: "{{ ansible_facts['env']['HOME'] }}/.terminfo/61"
+    state: directory
+    mode: "0755"
+  become: false
+  when: alacritty_bundle.stat.exists
+
+- name: Alacritty | Install the bundled terminfo entries
+  ansible.builtin.copy:
+    src: "{{ alacritty_macos_resources }}/{{ alacritty_terminfo_entry }}"
+    dest: >-
+      {{ ansible_facts['env']['HOME'] }}/.terminfo/61/{{ alacritty_terminfo_entry }}
+    remote_src: true
+    mode: "0644"
+  loop: "{{ alacritty_macos_terminfo_entries }}"
+  loop_control:
+    loop_var: alacritty_terminfo_entry
+    label: "{{ alacritty_terminfo_entry }}"
+  become: false
+  when: alacritty_bundle.stat.exists

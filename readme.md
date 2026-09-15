@@ -577,7 +577,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 
 | GUI 롤 | Ubuntu | macOS | Windows |
 | --- | --- | --- | --- |
-| `alacritty` | Ubuntu archive `alacritty` | 미지원 | `Alacritty.Alacritty` |
+| `alacritty` | Ubuntu archive `alacritty` | 공식 universal DMG | `Alacritty.Alacritty` |
 | `claude_desktop` | 공식 APT `claude-desktop` | cask `claude` | `Anthropic.Claude` |
 | `chatgpt_desktop` | 공식 APT `chatgpt` | cask `chatgpt` | msstore `9PLM9XGG6VKS` |
 | `chrome` | 공식 APT `google-chrome-stable` | cask `google-chrome` | `Google.Chrome` |
@@ -608,6 +608,20 @@ macOS 시스템 확장 위에 올라가는 키보드 드라이버라 Linux/Windo
 있다는 것만큼 엄격하게 검사한다. 설치 후 시스템 설정 > 개인정보 보호 및 보안에서
 드라이버 확장 승인과 입력 모니터링 권한 부여를 한 번 손으로 해줘야 한다 - Apple 이
 스크립트로 처리할 방법을 주지 않는다.
+
+`alacritty` 의 macOS cask 는 2026-09-01자로 homebrew-cask 에서 `disable!`
+(`fails_gatekeeper_check`) 되어 `brew install --cask alacritty` 가 더 이상 동작하지 않는다.
+upstream 릴리스 워크플로가 앱 번들에 ad-hoc 서명만 하고 notarization 을 하지 않는 것이
+원인이고 해결 계획도 없다([alacritty#8958](https://github.com/alacritty/alacritty/issues/8958)).
+그래서 macOS 는 cask 대신 같은 릴리스 워크플로가 만드는 공식 universal2 DMG 를 받아
+설치한다. GitHub API 의 최신 릴리스에서 `Alacritty-*.dmg` asset 을 골라 API 가 알려주는
+`digest` 로 체크섬을 검증하고, `hdiutil` 로 마운트해 `ditto --noqtn` 으로 번들을 복사한다.
+`get_url` 이 받은 DMG 에는 `com.apple.quarantine` 이 붙지 않으므로 ad-hoc 서명 앱도
+Gatekeeper 차단 없이 실행되고, 조건부 `xattr -dr` 로 quarantine 이 붙은 경우까지 방어한다.
+cask 가 하던 부가 작업도 재현한다: `/usr/local/bin/alacritty` 심볼릭과
+`~/.terminfo/61/{alacritty,alacritty-direct}` 두 엔트리다. 체크섬은 손으로 고정한 버전
+상수가 아니라 GitHub API 의 asset `digest` 를 쓰므로, 새 호스트는 그 시점의 최신 릴리스를
+받고 이미 설치된 호스트는 `make update`(`dev_machines_update_mode`) 일 때만 올라간다.
 
 pkg 기반 cask 는 `parsec` 와 `karabiner_elements` 둘뿐이라(테이블에서 `pkg: true` 로
 표시), 이 둘만 `sudo_password` 를 넘긴다. 나머지는 `.app` 드래그 설치라 sudo 가 필요 없다.
