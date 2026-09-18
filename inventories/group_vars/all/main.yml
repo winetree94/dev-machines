@@ -55,6 +55,10 @@ github_api_headers:
 # keys.txt outside this repository.
 dotweave_age_identity: "{{ vault_dotweave_age_identity }}"
 
+# RustDesk clients authenticate against the public key of the self-hosted
+# server. The value remains in the repository's single encrypted vault.
+rustdesk_key: "{{ vault_rustdesk_key }}"
+
 # Host hardware monitoring. The dedicated bearer token remains in the
 # repository's single encrypted vault.
 monitoring_enabled: true

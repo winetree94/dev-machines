@@ -6,3 +6,12 @@ rustdesk_linux_architectures:
   - x86_64
   - aarch64
   - armv7l
+
+# Every managed client uses the same self-hosted ID/relay server. The key is
+# mapped from the encrypted inventory vault in group_vars/all/main.yml.
+rustdesk_custom_rendezvous_server: rustdesk.intranet.winetree94.com
+rustdesk_relay_server: rustdesk.intranet.winetree94.com
+rustdesk_server_options:
+  custom-rendezvous-server: "{{ rustdesk_custom_rendezvous_server }}"
+  relay-server: "{{ rustdesk_relay_server }}"
+  key: "{{ rustdesk_key }}"

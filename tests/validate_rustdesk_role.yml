@@ -4,12 +4,22 @@
   gather_facts: false
   vars:
     role_dir: "{{ playbook_dir }}/../roles/rustdesk"
+    defaults: "{{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}"
     debian: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}"
     darwin: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}"
     windows: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    unix_configure: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/configure_unix.yml') }}"
+    rustdesk_handlers: "{{ lookup('ansible.builtin.file', role_dir ~ '/handlers/main.yml') }}"
+    group_vars: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../inventories/group_vars/all/main.yml') }}
     installer: >-
       {{ lookup('ansible.builtin.file', role_dir ~ '/templates/winget/RustDesk.RustDesk.installer.yaml.j2') }}
   tasks:
+    - name: Check that the role has no generic OS fallback
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/tasks/default.yml"
+      register: rustdesk_default_tasks
+
     - name: Assert RustDesk follows official stable artifacts
       ansible.builtin.assert:
         that:
@@ -27,3 +37,38 @@
           - "'Architecture: x64' in installer"
           - "'Architecture: arm64' in installer"
           - "'digest' in installer"
+
+    - name: Assert RustDesk configures the self-hosted server idempotently
+      ansible.builtin.assert:
+        that:
+          - "not rustdesk_default_tasks.stat.exists"
+          - "'rustdesk_custom_rendezvous_server: rustdesk.intranet.winetree94.com' in defaults"
+          - "'rustdesk_relay_server: rustdesk.intranet.winetree94.com' in defaults"
+          - "'custom-rendezvous-server' in defaults"
+          - "'relay-server' in defaults"
+          - "'key:' in defaults"
+          - "'rustdesk_key' in defaults"
+          - "'rustdesk_key:' in group_vars"
+          - "'vault_rustdesk_key' in group_vars"
+          - "vault_rustdesk_key is defined"
+          - "'--option' in unix_configure"
+          - "'changed_when: false' in unix_configure"
+          - "'changed_when: true' in unix_configure"
+          - "'no_log: true' in unix_configure"
+          - "'/usr/bin/rustdesk' in debian"
+          - "'Restart RustDesk on Linux' in debian"
+          - "'/Applications/RustDesk.app/Contents/MacOS/RustDesk' in darwin"
+          - "'Restart RustDesk on macOS' in darwin"
+          - "'--option' in windows"
+          - "'ansible_facts' in windows"
+          - "'ProgramFiles' in windows"
+          - "'no_log: true' in windows"
+          - "'Restart RustDesk on Windows' in windows"
+          - "'name: Restart RustDesk on Linux' in rustdesk_handlers"
+          - "'name: rustdesk' in rustdesk_handlers"
+          - "'system/com.carriez.RustDesk_service' in rustdesk_handlers"
+          - "'name: Restart RustDesk on Windows' in rustdesk_handlers"
+          - "'vault_' not in debian"
+          - "'vault_' not in darwin"
+          - "'vault_' not in windows"
+          - "'vault_' not in unix_configure"

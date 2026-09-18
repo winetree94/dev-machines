@@ -5,3 +5,10 @@
     name: rustdesk
     state: present
   become: false
+
+- name: RustDesk | Configure the self-hosted server
+  ansible.builtin.include_tasks: configure_unix.yml
+  vars:
+    rustdesk_cli_path: /Applications/RustDesk.app/Contents/MacOS/RustDesk
+    rustdesk_restart_handler: Restart RustDesk on macOS
+  when: not ansible_check_mode or 'rustdesk' in (brew_installed_casks | default([]))

@@ -100,3 +100,15 @@
             path: "{{ rustdesk_linux_archive }}"
             state: absent
           become: false
+
+- name: RustDesk | Configure the self-hosted server
+  ansible.builtin.include_tasks: configure_unix.yml
+  vars:
+    rustdesk_cli_path: /usr/bin/rustdesk
+    rustdesk_restart_handler: Restart RustDesk on Linux
+  when:
+    - ansible_facts['architecture'] in rustdesk_linux_architectures
+    - >-
+      not ansible_check_mode
+      or (rustdesk_debian_version is defined
+          and rustdesk_debian_version.stdout | trim != '')

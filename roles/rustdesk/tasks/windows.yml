@@ -45,3 +45,43 @@
             dest: RustDesk.RustDesk.locale.en-US.yaml
           - src: winget/RustDesk.RustDesk.yaml.j2
             dest: RustDesk.RustDesk.yaml
+
+- name: RustDesk | Locate the installed Windows CLI
+  ansible.windows.win_stat:
+    path: "{{ ansible_facts['env']['ProgramFiles'] }}\\RustDesk\\RustDesk.exe"
+  register: rustdesk_windows_cli
+  check_mode: false
+
+- name: RustDesk | Read current server options
+  ansible.windows.win_command:
+    argv:
+      - "{{ rustdesk_windows_cli.stat.path }}"
+      - --option
+      - "{{ item.key }}"
+  loop: "{{ rustdesk_server_options | dict2items }}"
+  register: rustdesk_current_server_options
+  changed_when: false
+  check_mode: false
+  become: true
+  no_log: true
+  when:
+    - rustdesk_windows_cli.stat.exists
+    - not ansible_check_mode
+
+- name: RustDesk | Apply changed server options
+  ansible.windows.win_command:
+    argv:
+      - "{{ rustdesk_windows_cli.stat.path }}"
+      - --option
+      - "{{ item.item.key }}"
+      - "{{ item.item.value }}"
+  loop: "{{ rustdesk_current_server_options.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when:
+    - item.stdout is defined
+    - item.stdout | trim != item.item.value
+  changed_when: true
+  become: true
+  no_log: true
+  notify: Restart RustDesk on Windows
