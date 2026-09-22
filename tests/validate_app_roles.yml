@@ -396,6 +396,13 @@
         windows: HetznerCloud.CLI
         shared: brew.yml
         shared_contains: "name: hcloud"
+      - name: himalaya
+        debian: brew.yml
+        darwin: brew.yml
+        windows: Pimalaya.Himalaya
+        shared: brew.yml
+        shared_contains: "name: himalaya"
+        windows_source: local_manifest
       - name: syncthing
         debian: "name: syncthing"
         darwin: syncthing

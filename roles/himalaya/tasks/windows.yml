@@ -1,0 +1,54 @@
+---
+- name: Himalaya | Assert the Windows architecture is supported
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['architecture'] in ['64-bit', 'AMD64', 'x86_64']
+    fail_msg: >-
+      Himalaya publishes Windows x86_64 binaries only;
+      {{ ansible_facts['architecture'] }} is unsupported.
+    quiet: true
+
+- name: Himalaya | Read the latest stable release
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/pimalaya/himalaya/releases/latest
+    headers: "{{ github_api_headers }}"
+    return_content: true
+  register: himalaya_release
+  check_mode: false
+  no_log: true
+  delegate_to: localhost
+  become: false
+
+- name: Himalaya | Select the Windows release archive
+  ansible.builtin.set_fact:
+    himalaya_latest_version: "{{ himalaya_release.json.tag_name | regex_replace('^v', '') }}"
+    himalaya_windows_x64_asset: >-
+      {{ himalaya_release.json.assets
+         | selectattr('name', 'equalto', 'himalaya.x86_64-windows.zip')
+         | first }}
+
+- name: Himalaya | Validate the Windows release metadata
+  ansible.builtin.assert:
+    that:
+      - himalaya_windows_x64_asset.digest is match('^sha256:[0-9a-f]{64}$')
+      - >-
+        himalaya_windows_x64_asset.browser_download_url
+        is match('^https://github[.]com/pimalaya/himalaya/releases/download/')
+    fail_msg: The latest Himalaya release has incomplete Windows archive metadata.
+    quiet: true
+
+- name: Himalaya | Install from a dynamic local winget manifest
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_local_packages:
+      - id: Pimalaya.Himalaya
+        version: "{{ himalaya_latest_version }}"
+        display_name: Himalaya
+        manifest_templates:
+          - src: winget/Pimalaya.Himalaya.installer.yaml.j2
+            dest: Pimalaya.Himalaya.installer.yaml
+          - src: winget/Pimalaya.Himalaya.locale.en-US.yaml.j2
+            dest: Pimalaya.Himalaya.locale.en-US.yaml
+          - src: winget/Pimalaya.Himalaya.yaml.j2
+            dest: Pimalaya.Himalaya.yaml

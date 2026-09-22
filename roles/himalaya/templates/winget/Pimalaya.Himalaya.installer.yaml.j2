@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.12.0.schema.json
+PackageIdentifier: Pimalaya.Himalaya
+PackageVersion: {{ himalaya_latest_version }}
+InstallerType: zip
+NestedInstallerType: portable
+UpgradeBehavior: uninstallPrevious
+NestedInstallerFiles:
+  - RelativeFilePath: himalaya.exe
+    PortableCommandAlias: himalaya
+Installers:
+  - Architecture: x64
+    InstallerUrl: {{ himalaya_windows_x64_asset.browser_download_url }}
+    InstallerSha256: {{ himalaya_windows_x64_asset.digest | regex_replace('^sha256:', '') | upper }}
+ManifestType: installer
+ManifestVersion: 1.12.0

@@ -131,6 +131,21 @@ build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-t
 `~/.config/hcloud/cli.toml`은 사용자 또는 프로젝트별 설정으로 남겨두며 inventory나
 vault에 추가하지 않는다.
 
+## Himalaya 이메일 CLI
+
+`himalaya` 롤은 IMAP, SMTP, JMAP, Maildir 등 여러 백엔드를 지원하는 터미널 메일
+클라이언트를 설치한다. `--tags himalaya`로 따로 실행할 수 있다.
+
+| OS | 설치 경로 |
+|---|---|
+| Ubuntu | Homebrew core `himalaya` formula |
+| macOS | Homebrew core `himalaya` formula |
+| Windows | 공식 x86_64 release ZIP을 SHA-256 검증하는 portable local winget manifest |
+
+이 롤은 CLI 설치만 담당한다. 메일 계정, 서버 주소, 비밀번호/OAuth 토큰과
+`~/.config/himalaya/config.toml`은 사용자가 직접 구성하며 inventory나 vault에 추가하지
+않는다. Windows ARM64에는 upstream 네이티브 바이너리가 없어 지원하지 않는다.
+
 # Secret 구조
 
 모든 secret 은 `inventories/group_vars/all/vault.yml` **한 파일**에만 있고, 그 안에는

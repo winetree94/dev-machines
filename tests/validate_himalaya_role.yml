@@ -1,0 +1,133 @@
+---
+- name: Validate the Himalaya role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/himalaya"
+    setup_content: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}"
+    main_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}"
+    debian_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/debian.yml') }}"
+    darwin_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/darwin.yml') }}"
+    brew_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/brew.yml') }}"
+    windows_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    installer_content: >-
+      {{ lookup('ansible.builtin.file',
+                role_dir ~ '/templates/winget/Pimalaya.Himalaya.installer.yaml.j2') }}
+    locale_content: >-
+      {{ lookup('ansible.builtin.file',
+                role_dir ~ '/templates/winget/Pimalaya.Himalaya.locale.en-US.yaml.j2') }}
+
+  tasks:
+    - name: Check the Himalaya role files exist
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/{{ item }}"
+      register: himalaya_file_stats
+      loop:
+        - tasks/main.yml
+        - tasks/debian.yml
+        - tasks/darwin.yml
+        - tasks/brew.yml
+        - tasks/windows.yml
+        - templates/winget/Pimalaya.Himalaya.installer.yaml.j2
+        - templates/winget/Pimalaya.Himalaya.locale.en-US.yaml.j2
+        - templates/winget/Pimalaya.Himalaya.yaml.j2
+
+    - name: Assert every Himalaya role file exists
+      ansible.builtin.assert:
+        that:
+          - himalaya_file_stats.results | rejectattr('stat.exists') | list | length == 0
+        fail_msg: The Himalaya role is missing one or more required task or manifest files.
+
+    - name: Check for a forbidden default task file
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/tasks/default.yml"
+      register: himalaya_default_stat
+
+    - name: Assert the dispatcher has no default fallback
+      ansible.builtin.assert:
+        that:
+          - not himalaya_default_stat.stat.exists
+          - "'ansible.builtin.include_tasks' in main_content"
+          - "'with_first_found' in main_content"
+          - "main_content is search(\"ansible_facts\\['os_family'\\] \\| lower\")"
+          - "'community.general' not in main_content"
+          - "'ansible.builtin.apt' not in main_content"
+        fail_msg: Himalaya must use the standard first_found dispatcher without a default fallback.
+
+    - name: Assert Unix installs the Homebrew core formula
+      ansible.builtin.assert:
+        that:
+          - "'include_tasks: brew.yml' in item"
+          - "'community.general.homebrew' not in item"
+        fail_msg: Himalaya's Ubuntu and macOS files must delegate to the shared Homebrew sub-file.
+      loop:
+        - "{{ debian_content }}"
+        - "{{ darwin_content }}"
+
+    - name: Assert the shared Homebrew task is snapshot-gated and unprivileged
+      ansible.builtin.assert:
+        that:
+          - "'name: himalaya' in brew_content"
+          - "'community.general.homebrew' in brew_content"
+          - "'brew_installed_formulae | default([])' in brew_content"
+          - "'become: false' in brew_content"
+        fail_msg: Himalaya must use the Homebrew snapshot gate on Ubuntu and macOS.
+
+    - name: Assert Windows uses the verified official x64 archive through winget
+      ansible.builtin.assert:
+        that:
+          - "'api.github.com/repos/pimalaya/himalaya/releases/latest' in windows_content"
+          - "'github_api_headers' in windows_content"
+          - "'no_log: true' in windows_content"
+          - "'himalaya.x86_64-windows.zip' in windows_content"
+          - "'sha256:[0-9a-f]{64}' in windows_content"
+          - "'winget_local_packages' in windows_content"
+          - "'Pimalaya.Himalaya' in windows_content"
+          - "'win_get_url' not in windows_content"
+          - "'win_chocolatey' not in windows_content"
+          - "'win_scoop' not in windows_content"
+        fail_msg: >-
+          Windows must select and validate the official x86_64 ZIP, then install it
+          through the shared winget role's local manifest path.
+
+    - name: Assert Windows rejects unsupported architectures
+      ansible.builtin.assert:
+        that:
+          - "windows_content is search(\"ansible_facts\\\\['architecture'\\\\]\")"
+          - "'64-bit' in windows_content"
+          - "'AMD64' in windows_content"
+          - "'x86_64' in windows_content"
+        fail_msg: Windows must fail clearly when the host is not x86_64.
+
+    - name: Assert the local manifest exposes the portable Himalaya command
+      ansible.builtin.assert:
+        that:
+          - "'PackageIdentifier: Pimalaya.Himalaya' in installer_content"
+          - "'InstallerType: zip' in installer_content"
+          - "'NestedInstallerType: portable' in installer_content"
+          - "'UpgradeBehavior: uninstallPrevious' in installer_content"
+          - "'RelativeFilePath: himalaya.exe' in installer_content"
+          - "'PortableCommandAlias: himalaya' in installer_content"
+          - "'Architecture: x64' in installer_content"
+          - "'Architecture: arm64' not in installer_content"
+          - "'InstallerSha256:' in installer_content"
+        fail_msg: The local manifest must install the verified x64 himalaya.exe as a PATH command.
+
+    - name: Assert the locale manifest identifies the official project
+      ansible.builtin.assert:
+        that:
+          - "'PackageName: Himalaya' in locale_content"
+          - "'https://github.com/pimalaya/himalaya' in locale_content"
+          - "'License: MIT' in locale_content"
+          - "'ShortDescription: CLI to manage emails' in locale_content"
+        fail_msg: The local winget locale manifest must describe the official Himalaya project.
+
+    - name: Assert Himalaya is independently taggable in Common tooling
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_content is search(
+              "Common tooling[\\s\\S]*- role: himalaya[\\s\\S]{0,50}tags: \\[himalaya\\]"
+            )
+          - "setup_content is search('- role: himalaya[\\s\\S]*GUI applications')"
+        fail_msg: Himalaya must run in Common tooling with its matching himalaya tag.

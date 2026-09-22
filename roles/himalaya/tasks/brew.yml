@@ -1,0 +1,10 @@
+---
+# Shared by darwin.yml and debian.yml - Homebrew's himalaya formula has Linux
+# and macOS bottles, so the same path works on both Unix targets. It is not
+# tasks/default.yml because that would also be the Windows fallback.
+- name: Himalaya | Install the Himalaya CLI (brew)
+  when: "'himalaya' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: himalaya
+    state: present
+  become: false

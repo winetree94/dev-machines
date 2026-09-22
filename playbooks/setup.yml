@@ -238,6 +238,9 @@
       tags: [age]
     - role: sops
       tags: [sops]
+    # mail
+    - role: himalaya
+      tags: [himalaya]
     # shell
     - role: zsh
       tags: [zsh]
