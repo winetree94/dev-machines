@@ -6,10 +6,28 @@
     winget_packages:
       - jdx.mise
 
+# mise ships through winget as a portable package, so its shim is a symlink
+# the elevated SSH session cannot traverse when a desktop session created it.
+# Run the executable inside the package directory instead.
+- name: Mise | Resolve the executable behind the winget shim
+  ansible.builtin.include_role:
+    name: winget
+    tasks_from: resolve_executable
+  vars:
+    winget_executable_command: mise
+  when:
+    - dev_machines_update_mode | bool
+    - not ansible_check_mode
+
 - name: Mise | Upgrade managed runtimes
-  ansible.windows.win_command: mise upgrade
+  ansible.windows.win_command:
+    argv:
+      - "{{ winget_executable_path }}"
+      - upgrade
   register: mise_runtime_upgrade
   changed_when: >-
     'already installed' not in mise_runtime_upgrade.stdout
     and 'nothing to upgrade' not in mise_runtime_upgrade.stdout | lower
-  when: dev_machines_update_mode | bool
+  when:
+    - dev_machines_update_mode | bool
+    - not ansible_check_mode

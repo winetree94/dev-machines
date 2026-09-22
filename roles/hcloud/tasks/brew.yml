@@ -1,0 +1,11 @@
+---
+# Shared by darwin.yml and debian.yml - Homebrew's hcloud formula has a Linux
+# bottle, so the same path works on Ubuntu. It is not tasks/default.yml on
+# purpose: default.yml would also be the dispatcher fallback on Windows, which
+# has its own winget package and must never install through Homebrew.
+- name: Hcloud | Install the Hetzner Cloud CLI (brew)
+  when: "'hcloud' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: hcloud
+    state: present
+  become: false

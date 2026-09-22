@@ -151,6 +151,16 @@
 
 - name: Windows bootstrap
   hosts: windows
+  pre_tasks:
+    # Nothing in this play can run before this: a Windows host whose sshd falls
+    # back to cmd.exe fails every module with "Module result deserialization
+    # failed", because the powershell shell plugin quotes its -EncodedCommand
+    # payload for a PowerShell default shell. `always` so a tag-filtered run
+    # against an unprepared host repairs it instead of dying obscurely.
+    - name: Ensure the OpenSSH default shell is PowerShell
+      ansible.builtin.include_role:
+        name: openssh_default_shell
+      tags: always
   roles:
     # Nothing to install - winget ships with the OS. Including the shared
     # winget role with no packages runs only its availability assert, so a host
@@ -309,6 +319,8 @@
     # cloud and storage
     - role: gcx
       tags: [gcx]
+    - role: hcloud
+      tags: [hcloud]
     - role: awscli
       tags: [awscli]
     - role: rclone

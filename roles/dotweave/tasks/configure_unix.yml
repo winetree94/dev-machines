@@ -188,7 +188,8 @@
           - pull
           - --yes
       register: dotweave_pull
-      changed_when: "'Already up to date' not in dotweave_pull.stdout"
+      changed_when: >-
+        'Already up to date' not in (dotweave_pull.stdout | default(''))
 
     # init clones over HTTPS because the SSH identity is one of the files the
     # pull above materializes. Only switch origin after that key exists.

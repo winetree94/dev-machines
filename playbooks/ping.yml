@@ -12,6 +12,14 @@
 - name: Ping Windows hosts
   hosts: windows
   gather_facts: false
+  pre_tasks:
+    # A Windows host whose sshd still runs cmd.exe fails every module with
+    # "Module result deserialization failed", so the connectivity check has to
+    # be able to repair that before it pings. Idempotent and read-only once the
+    # value is right.
+    - name: Ensure the OpenSSH default shell is PowerShell
+      ansible.builtin.include_role:
+        name: openssh_default_shell
   tasks:
     - name: Ping host
       ansible.windows.win_ping:

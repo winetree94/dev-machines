@@ -1,0 +1,7 @@
+---
+- name: Hcloud | Install the Hetzner Cloud CLI (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - HetznerCloud.CLI

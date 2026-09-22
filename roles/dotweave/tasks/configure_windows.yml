@@ -4,6 +4,14 @@
     dotweave_home_directory: "{{ ansible_facts['env']['APPDATA'] }}/dotweave"
     dotweave_initialized_now: false
 
+- name: Dotweave | Resolve the executable behind the winget shim
+  ansible.builtin.include_role:
+    name: winget
+    tasks_from: resolve_executable
+  vars:
+    winget_executable_command: dotweave
+  when: not ansible_check_mode
+
 - name: Dotweave | Check the repository manifest
   ansible.windows.win_stat:
     path: "{{ dotweave_home_directory }}/repository/manifest.jsonc"
@@ -67,7 +75,7 @@
     - name: Dotweave | Clone and initialize the dotfiles repository
       ansible.windows.win_command:
         argv:
-          - dotweave
+          - "{{ winget_executable_path }}"
           - init
           - "{{ dotweave_repository_https_url }}"
           - --key-file
@@ -176,11 +184,12 @@
     - name: Dotweave | Restore the tracked files into the home directory
       ansible.windows.win_command:
         argv:
-          - dotweave
+          - "{{ winget_executable_path }}"
           - pull
           - --yes
       register: dotweave_pull
-      changed_when: "'Already up to date' not in dotweave_pull.stdout"
+      changed_when: >-
+        'Already up to date' not in (dotweave_pull.stdout | default(''))
 
     - name: Dotweave | Switch origin to SSH
       ansible.windows.win_command:

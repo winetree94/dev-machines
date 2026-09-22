@@ -1,0 +1,97 @@
+---
+# A Windows host whose sshd still falls back to cmd.exe fails every module with
+# "Module result deserialization failed", because the powershell shell plugin
+# quotes its -EncodedCommand payload in a way only a PowerShell default shell
+# strips. This test locks in the repair that makes such a host usable: it has
+# to stay on `raw`, it has to drop the connection that still spawns cmd.exe,
+# and both playbooks have to run it before their first module against Windows.
+- name: Validate the OpenSSH default shell bootstrap
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/openssh_default_shell"
+    tasks_file: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}"
+    ping_playbook: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/ping.yml') }}
+    setup_playbook: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}
+    windows_group_vars: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../inventories/group_vars/windows.yml') }}
+
+  tasks:
+    - name: Assert the repair escapes the shell wrapper it is repairing
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.raw' in tasks_file"
+          - "'ansible.windows.win_regedit' not in tasks_file"
+          - "'HKLM\\SOFTWARE\\OpenSSH' in tasks_file"
+          - "'DefaultShell' in tasks_file"
+          - "'powershell.exe' in tasks_file"
+        fail_msg: >-
+          roles/openssh_default_shell/tasks/main.yml has to write
+          HKLM\SOFTWARE\OpenSSH\DefaultShell through ansible.builtin.raw. Every
+          module on this host travels through the exact wrapper that the missing
+          DefaultShell breaks, so a module cannot repair it.
+        quiet: true
+
+    - name: Assert the repair is idempotent and honest under --check
+      ansible.builtin.assert:
+        that:
+          - "'changed_when: false' in tasks_file"
+          - "'check_mode: false' in tasks_file"
+          - "'not ansible_check_mode' in tasks_file"
+          - "'ansible.builtin.debug' in tasks_file"
+        fail_msg: >-
+          raw is skipped in check mode, so the read-only probe must set
+          check_mode: false, the registry write must be withheld while
+          ansible_check_mode is set, and the withheld repair must be reported
+          instead of silently skipping.
+        quiet: true
+
+    - name: Assert the repair drops the connection that still runs cmd.exe
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.meta: reset_connection' in tasks_file"
+          # meta tasks silently ignore `when:` and reset the connection anyway,
+          # so the reset has to be defined without one.
+          - >-
+            'when' not in tasks_file[
+              tasks_file.find('ansible.builtin.meta: reset_connection'):
+              tasks_file.find('ansible.builtin.debug')
+            ]
+        fail_msg: >-
+          sshd resolves DefaultShell per session and ssh_args keeps the master
+          socket alive for ten minutes, so the registry write alone leaves the
+          rest of the run talking to the stale cmd.exe session. The reset must
+          be unconditional: a `when:` on a meta task is ignored with a warning.
+        quiet: true
+
+    - name: Assert both playbooks repair the host before their first module
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook.find('name: openssh_default_shell')
+            < setup_playbook.find('- role: winget')
+          - >-
+            ping_playbook.find('name: openssh_default_shell')
+            < ping_playbook.find('ansible.windows.win_ping:')
+          - >-
+            'tags: always' in setup_playbook[
+              setup_playbook.find('name: openssh_default_shell'):
+              setup_playbook.find('- role: winget')
+            ]
+        fail_msg: >-
+          setup.yml must repair the host before the winget bootstrap role and
+          ping.yml before win_ping, and the setup pre_task keeps `tags: always`
+          so a tag-filtered run against an unprepared host repairs it too.
+        quiet: true
+
+    - name: Assert the PowerShell shell type stays the declared contract
+      ansible.builtin.assert:
+        that:
+          - "'ansible_shell_type: powershell' in windows_group_vars"
+        fail_msg: >-
+          The repair is what makes the windows group's declared
+          `ansible_shell_type: powershell` work. Do not paper over a missing
+          DefaultShell by switching the group to the cmd shell plugin.
+        quiet: true

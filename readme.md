@@ -116,6 +116,21 @@ build-tools `35.0.0`, `36.0.0`은 고정하고, command-line tools와 platform-t
 이 롤은 CLI 설치만 담당한다. `gcx login`, context, Grafana URL과 API/OAuth 토큰은
 사용자 또는 프로젝트별 설정으로 남겨두며 inventory나 vault에 추가하지 않는다.
 
+## Hetzner hcloud CLI
+
+`hcloud` 롤은 Hetzner Cloud API를 관리하는 공식 `hcloud` CLI를 설치한다.
+`--tags hcloud`로 따로 실행할 수 있다.
+
+| OS | 설치 경로 |
+|---|---|
+| Ubuntu | Homebrew core `hcloud` formula |
+| macOS | Homebrew core `hcloud` formula |
+| Windows | 공유 winget 롤의 community-source `HetznerCloud.CLI` |
+
+이 롤은 CLI 설치만 담당한다. `HCLOUD_TOKEN`, context, shell completion과
+`~/.config/hcloud/cli.toml`은 사용자 또는 프로젝트별 설정으로 남겨두며 inventory나
+vault에 추가하지 않는다.
+
 # Secret 구조
 
 모든 secret 은 `inventories/group_vars/all/vault.yml` **한 파일**에만 있고, 그 안에는
@@ -201,16 +216,24 @@ ansible 로 최대한 자동화했지만 머신별 초기 설정은 사람이 �
 ```powershell
 Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
 Set-Service sshd -StartupType Automatic; Start-Service sshd
-New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
-  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
 
 # 관리자 그룹 계정은 ~/.ssh/authorized_keys 가 아니라 아래 경로를 사용한다
 $k = "C:\ProgramData\ssh\administrators_authorized_keys"
 icacls $k /inheritance:r /grant "Administrators:F" /grant "SYSTEM:F"
+
+# 선택 사항. 비워 두면 첫 `make ping` / `make apply` 가 자동으로 채운다.
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell `
+  -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
 ```
 
 - `become_method: runas` 는 계정의 **대화형 비밀번호**를 요구한다.
   Microsoft 계정이면 MSA 비밀번호이며, **Windows Hello PIN 은 동작하지 않는다.**
+- `HKLM:\SOFTWARE\OpenSSH\DefaultShell` 은 공용 `openssh_default_shell` 롤이 관리한다.
+  값이 없으면 sshd 가 세션을 cmd.exe 로 열고, powershell 셸 플러그인이 보내는
+  `-EncodedCommand '<base64>'` 의 작은따옴표가 그대로 전달돼 모든 모듈이
+  `Module result deserialization failed` 로 죽는다. 롤은 `raw` 로 값을 확인하고 필요하면
+  기록한 뒤, 아직 cmd.exe 를 실행 중인 SSH 연결을 끊어 같은 실행 안에서 복구를 끝낸다.
+  수동 설정은 위 명령으로 미리 해 둘 수 있고, 롤은 이미 맞는 값은 건드리지 않는다.
 - 접속 기본값(SSH + PowerShell)은 `inventories/group_vars/windows.yml` 에 있고,
   WinRM 대안이 주석으로 함께 들어있다.
 - SSH 키를 설치할 수 없는 상황의 탈출구로 `ansible_password` (SSH 비밀번호 인증)를 쓸 수도
@@ -469,6 +492,17 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
   호스트가 패키지 롤마다 하나씩 깨지는 대신 맨 앞에서 한 번 명확하게 실패한다.
   체크는 `winget_available` 팩트로 게이팅해서, 롤을 포함할 때마다가 아니라
   호스트당 한 번만 WinRM 왕복이 발생한다.
+- 도구를 실제로 **실행**하는 롤은 같은 `winget` 롤을 `tasks_from: resolve_executable`로
+  다시 include 해서 패키지 디렉터리의 실행 파일 경로를 받는다. 휴대용(portable) 패키지는
+  `%LOCALAPPDATA%\Microsoft\WinGet\Links`의 심볼릭 링크로 노출되는데, 일반 데스크톱
+  세션(필터링된 토큰)이 만든 링크는 untrusted mount point 로 표시되어 관리자(High 무결성)
+  프로세스가 따라갈 수 없다. Ansible 은 OpenSSH 로 붙어서 항상 관리자 토큰을 받으므로,
+  그런 shim 을 실행하면 `Win32ErrorCode 448`(`ERROR_UNTRUSTED_MOUNT_POINT`, "The path
+  cannot be traversed because it contains an untrusted mount point")로 죽는다. 링크를
+  따라가지 않고 `Get-Item`.Target 으로 대상 경로만 읽어 오므로 shim 이 어떻게 만들어졌든
+  관계없다. `winget_executable_command` 로 명령 이름을 넘기고
+  `winget_executable_path` 팩트를 쓴다. `(Get-Command <name>).Source` 는 shim 경로를
+  그대로 돌려주므로 그것만으로는 부족하다.
 - **winget 전용 모듈은 만들지 않았다.** 공식/커뮤니티 모듈이 없고, 캡슐화할 로직이
   종료 코드 검사 한 줄뿐이며, Windows 모듈은 PowerShell 이라 yamllint /
   ansible-lint / `tests/validate_*.yml` 안전망 밖에 놓이기 때문이다.
@@ -493,6 +527,11 @@ Android SDK는 사용자 홈에 속하므로 롤은 `ANDROID_HOME`, PATH, 사용
 CLI 링크를 등록하지 않는다. 셸 통합의 책임은 SDK를 소유한 사용자에게 있다. Java는
 예외다. JDK가 apt/Homebrew/winget의 시스템 경로에 설치되므로 `java` 롤이
 `JAVA_HOME`과 Java CLI 노출까지 관리한다.
+
+Windows 에서 sdkmanager 호출에는 함정이 둘 있다. `cmd.exe` 가 인용하지 않은 인자를
+`;` 에서 쪼개므로 패키지 이름은 항상 따옴표로 감싸 넘기고, Android CLI 는 성공
+여부와 무관하게 `0xC0000409` 로 끝나므로 종료 코드 대신 설치된
+`source.properties` 상태로 성공을 판정한다.
 
 SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 21이므로 오래된 프로젝트는
 프로젝트의 Gradle Wrapper가 Java 21 실행을 지원하는지 별도로 확인해야 한다.

@@ -1,0 +1,43 @@
+---
+# Resolve a command that winget installed as a portable package to the real
+# executable inside the package directory. Callers include this task file with
+# `winget_executable_command` and read the `winget_executable_path` fact:
+#
+#   - name: Install dotweave (winget)
+#     ansible.builtin.include_role:
+#       name: winget
+#     vars:
+#       winget_packages:
+#         - tinyrack.dotweave
+#
+#   - name: Resolve the dotweave executable
+#     ansible.builtin.include_role:
+#       name: winget
+#       tasks_from: resolve_executable
+#     vars:
+#       winget_executable_command: dotweave
+#
+# A portable package is exposed through a symlink in
+# %LOCALAPPDATA%\Microsoft\WinGet\Links, and Windows marks a link that a
+# non-elevated process created as an untrusted mount point. An elevated process
+# may not traverse it, so CreateProcessW dies with ERROR_UNTRUSTED_MOUNT_POINT
+# (448) - "The path cannot be traversed because it contains an untrusted mount
+# point". Ansible reaches Windows over OpenSSH, which hands an administrator
+# session an elevated token, so every portable shim that was installed from a
+# normal desktop session is unusable from this repository even though it still
+# works when the user runs it interactively. Dereferencing the link reads the
+# package path without starting anything, which keeps the role independent of
+# how the shim was created.
+- name: Winget | Resolve a command to the executable behind its shim
+  ansible.windows.win_shell: |
+    $command = Get-Command -Name '{{ winget_executable_command }}' -CommandType Application -ErrorAction Stop |
+      Select-Object -First 1
+    $target = (Get-Item -LiteralPath $command.Source -Force).Target | Select-Object -First 1
+    if ($target) { $target } else { $command.Source }
+  register: winget_executable_resolution
+  changed_when: false
+  check_mode: false
+
+- name: Winget | Remember the resolved executable
+  ansible.builtin.set_fact:
+    winget_executable_path: "{{ winget_executable_resolution.stdout | trim }}"

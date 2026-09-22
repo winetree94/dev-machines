@@ -73,11 +73,20 @@
         loop_var: winget_manifest_template
         label: "{{ winget_manifest_template.dest }}"
 
+    # App Installer updates rewrite %LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe
+    # in place. A run that overlaps the replacement dies with "Program
+    # 'winget.exe' failed to run: Access is denied" - the same lock class as the
+    # installer race below, not a broken manifest - so retry rather than fail
+    # the host and skip every role after it.
     - name: Winget | Validate the local package manifest
       ansible.windows.win_shell: >-
         winget validate --manifest "{{ winget_local_manifest_temp.path }}"
         --disable-interactivity
+      register: winget_local_manifest_validate
       changed_when: false
+      until: winget_local_manifest_validate.rc == 0
+      retries: 3
+      delay: 10
 
     - name: Winget | Install or upgrade from the local manifest
       ansible.windows.win_shell: >-

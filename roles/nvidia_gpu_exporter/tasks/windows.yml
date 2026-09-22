@@ -21,11 +21,15 @@
       - utkuozdemir.nvidia_gpu_exporter
   when: nvidia_gpu_exporter_active | bool
 
+# The scheduled task below starts the exporter as SYSTEM, and the winget
+# shim is a symlink an elevated process may not traverse when a desktop
+# session created it, so register the executable inside the package instead.
 - name: NVIDIA GPU exporter | Resolve the installed executable
-  ansible.windows.win_shell: (Get-Command nvidia_gpu_exporter.exe -ErrorAction Stop).Source
-  register: nvidia_gpu_exporter_command
-  changed_when: false
-  check_mode: false
+  ansible.builtin.include_role:
+    name: winget
+    tasks_from: resolve_executable
+  vars:
+    winget_executable_command: nvidia_gpu_exporter
   when:
     - nvidia_gpu_exporter_active | bool
     - not ansible_check_mode
@@ -35,7 +39,7 @@
     name: NVIDIA GPU Exporter
     description: Export NVIDIA GPU metrics to Alloy on loopback only
     actions:
-      - path: "{{ nvidia_gpu_exporter_command.stdout | trim }}"
+      - path: "{{ winget_executable_path }}"
         arguments: '--web.listen-address=127.0.0.1:9835 --collect.interval={{ monitoring_scrape_interval }}'
     triggers:
       - type: boot

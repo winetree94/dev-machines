@@ -1,0 +1,69 @@
+---
+# Shared Windows SSH prerequisite: make sshd hand every session to PowerShell.
+#
+# The powershell shell plugin wraps each module in
+#
+#   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Unrestricted
+#     -EncodedCommand '<base64>'
+#
+# and the single quotes around the payload are load-bearing. PowerShell strips
+# them as quote characters; cmd.exe passes them through as part of the value.
+# A host whose HKLM\SOFTWARE\OpenSSH\DefaultShell is unset runs its sessions in
+# cmd.exe, so the very first module task answers with
+#
+#   Cannot process the command because the value specified with -EncodedCommand
+#   is not properly encoded. The value must be Base64 encoded.
+#   Module result deserialization failed: No start of json char found
+#
+# and no module can rescue the host, because every module goes through that
+# same wrapper. ansible.builtin.raw is the one task type that bypasses it, so
+# the repair below has to stay on raw.
+#
+# Windows-only: every caller gates it, the same contract as the shared `mas`
+# and `winget` roles, so it needs no first_found dispatcher of its own.
+- name: OpenSSH default shell | Read the configured default shell
+  ansible.builtin.raw: >-
+    cmd /c reg query "HKLM\SOFTWARE\OpenSSH" /v DefaultShell
+  register: openssh_default_shell_read
+  changed_when: false
+  failed_when: false
+  # raw is skipped outright in check mode, which would hide the very reason the
+  # module tasks downstream cannot run at all. This read changes nothing.
+  check_mode: false
+
+- name: OpenSSH default shell | Remember whether sshd still runs cmd.exe
+  ansible.builtin.set_fact:
+    openssh_default_shell_broken: >-
+      {{
+        openssh_default_shell_read.rc != 0
+        or 'powershell.exe' not in openssh_default_shell_read.stdout
+      }}
+
+- name: OpenSSH default shell | Point sshd at PowerShell
+  ansible.builtin.raw: >-
+    cmd /c reg add "HKLM\SOFTWARE\OpenSSH" /v DefaultShell /t REG_SZ
+    /d "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" /f
+  when:
+    - not ansible_check_mode
+    - openssh_default_shell_broken | bool
+
+# sshd resolves DefaultShell when it opens a connection, not when it starts a
+# session on an existing one: a master socket that predates the write above
+# keeps spawning cmd.exe for the rest of its ten-minute ControlPersist window,
+# and so does one opened before an out-of-band registry change. Nothing exposes
+# which shell a live connection is holding, and meta tasks ignore `when:`
+# (they warn and run anyway), so the reset is unconditional - one handshake per
+# Windows host per run in exchange for a run that cannot be poisoned by a stale
+# connection.
+- name: OpenSSH default shell | Drop any connection that may still run cmd.exe
+  ansible.builtin.meta: reset_connection
+
+- name: OpenSSH default shell | Report the repair that --check withheld
+  ansible.builtin.debug:
+    msg: >-
+      HKLM\SOFTWARE\OpenSSH\DefaultShell is not set to PowerShell on
+      {{ inventory_hostname }}, which fails every module task against this
+      host. Re-run without --check to repair it.
+  when:
+    - ansible_check_mode
+    - openssh_default_shell_broken | bool

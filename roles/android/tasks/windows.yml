@@ -229,20 +229,61 @@
          | rejectattr('stat.exists')
          | map(attribute='android_package') | list }}
 
+# cmd.exe splits an unquoted argument at ';', which is the separator inside
+# every sdkmanager package name, so a native PowerShell call reaches the batch
+# file as "platforms" + "android-36" and installs neither. Android CLI
+# 1.0.16261425 also ends every Windows run with 0xC0000409, even when it
+# installed everything it was asked for, so the process status cannot gate the
+# task either - the state check below does, the same way the update block above
+# verifies --update instead of trusting rc.
 - name: Android | Install missing SDK packages
   ansible.windows.win_shell: |
+    $sdkmanager = '{{ android_sdk_root_effective }}\cmdline-tools\latest\bin\sdkmanager.bat'
     $sdkmanagerArguments = @(
       '--sdk_root={{ android_sdk_root_effective }}'
     {% for package in android_missing_packages %}
       '{{ package }}'
     {% endfor %}
     )
-    & '{{ android_sdk_root_effective }}\cmdline-tools\latest\bin\sdkmanager.bat' $sdkmanagerArguments
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    $quotedArguments = $sdkmanagerArguments | ForEach-Object { '"' + $_ + '"' }
+    & cmd /c "`"$sdkmanager`" $($quotedArguments -join ' ')"
   environment:
     ANDROID_HOME: "{{ android_sdk_root_effective }}"
     JAVA_HOME: "{{ java_home }}"
   changed_when: true
+  failed_when: false
+  when:
+    - android_cmdline_tools_ready | bool
+    - android_missing_packages | length > 0
+
+- name: Android | Inspect the requested SDK packages after installing them
+  ansible.windows.win_stat:
+    path: >-
+      {{ android_sdk_root_effective }}\{{ android_package | replace(';', '\\') }}\source.properties
+  loop: "{{ android_missing_packages }}"
+  loop_control:
+    loop_var: android_package
+    label: "{{ android_package }}"
+  register: android_sdk_install_markers
+  when:
+    - android_cmdline_tools_ready | bool
+    - android_missing_packages | length > 0
+
+- name: Android | Assert the requested SDK packages are installed
+  ansible.builtin.assert:
+    that:
+      - >-
+        android_sdk_install_markers.results | default([])
+        | rejectattr('skipped', 'defined')
+        | rejectattr('stat.exists') | list | length == 0
+    fail_msg: >-
+      Android CLI did not install
+      {{ android_sdk_install_markers.results | default([])
+         | rejectattr('skipped', 'defined')
+         | rejectattr('stat.exists') | map(attribute='android_package')
+         | join(', ') }}. Every requested package must leave a source.properties
+      under {{ android_sdk_root_effective }}.
+    quiet: true
   when:
     - android_cmdline_tools_ready | bool
     - android_missing_packages | length > 0

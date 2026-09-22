@@ -25,6 +25,13 @@
 # Vendors without either source can be managed through `winget_local_packages`.
 # Those callers provide a checked-in, checksum-pinned multi-file manifest and
 # an Add/Remove Programs identity; local.yml keeps that path inside winget too.
+#
+# A caller that has to *run* a winget-installed tool on Windows includes this
+# role again with `tasks_from: resolve_executable` and the command name in
+# `winget_executable_command`. Portable packages are exposed through symlinks
+# that an elevated process may not traverse when a desktop session created
+# them, and every Ansible task here runs elevated over OpenSSH, so the shim
+# cannot be executed directly. See resolve_executable.yml.
 
 # winget ships with Windows 10 1809+ and Windows 11 as part of the App
 # Installer package, so there is nothing to bootstrap - unlike Chocolatey and

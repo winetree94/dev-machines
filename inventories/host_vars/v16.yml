@@ -1,4 +1,3 @@
 ---
-ansible_become_method: sudo_wrapped
 gui: true
 monitoring_nvidia_enabled: true

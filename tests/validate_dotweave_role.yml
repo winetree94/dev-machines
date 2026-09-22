@@ -112,12 +112,30 @@
             )
           - "'Already up to date' in dotweave_unix_config"
           - "'Already up to date' in dotweave_windows_config"
+          - >-
+            "dotweave_pull.stdout | default('')" in dotweave_unix_config
+          - >-
+            "dotweave_pull.stdout | default('')" in dotweave_windows_config
           - "'dotweave_revision_before.stdout' in dotweave_unix_config"
           - "'dotweave_revision_before.stdout' in dotweave_windows_config"
         fail_msg: >-
           Repeated runs must fetch main over HTTPS, fast-forward only, restore
           tracked files non-interactively, report no change when converged, and
           switch origin to SSH only after pull has restored the key.
+
+    - name: Assert Windows runs the package executable rather than the winget shim
+      ansible.builtin.assert:
+        that:
+          - "'tasks_from: resolve_executable' in dotweave_windows_config"
+          - "'winget_executable_command: dotweave' in dotweave_windows_config"
+          - dotweave_windows_config.count('winget_executable_path') == 2
+          - "'- dotweave\n' not in dotweave_windows_config"
+        fail_msg: >-
+          Windows must run the executable inside the winget package directory for both
+          "dotweave init" and "dotweave pull". The shim in
+          %LOCALAPPDATA%\Microsoft\WinGet\Links is an untrusted mount point for the
+          elevated SSH session, so starting it fails with Win32ErrorCode 448, and on
+          macOS or Ubuntu the Homebrew formula stays the normal path.
 
     - name: Assert inconsistent or unrelated existing setups fail safely
       ansible.builtin.assert:

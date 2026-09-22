@@ -10,6 +10,8 @@
     winget_local_tasks_path: "{{ playbook_dir }}/../roles/winget/tasks/local.yml"
     winget_local_package_path: "{{ playbook_dir }}/../roles/winget/tasks/local_package.yml"
     winget_local_snapshot_path: "{{ playbook_dir }}/../roles/winget/tasks/snapshot_local.yml"
+    winget_resolve_executable_path: >-
+      {{ playbook_dir }}/../roles/winget/tasks/resolve_executable.yml
     winget_defaults_path: "{{ playbook_dir }}/../roles/winget/defaults/main.yml"
     setup_playbook_path: "{{ playbook_dir }}/../playbooks/setup.yml"
     requirements_path: "{{ playbook_dir }}/../requirements.yml"
@@ -29,6 +31,7 @@
         - "{{ winget_local_tasks_path }}"
         - "{{ winget_local_package_path }}"
         - "{{ winget_local_snapshot_path }}"
+        - "{{ winget_resolve_executable_path }}"
         - "{{ winget_defaults_path }}"
 
     - name: Assert the winget role files exist
@@ -50,6 +53,8 @@
           {{ lookup('ansible.builtin.file', winget_local_package_path) }}
         winget_local_snapshot: >-
           {{ lookup('ansible.builtin.file', winget_local_snapshot_path) }}
+        winget_resolve_executable: >-
+          {{ lookup('ansible.builtin.file', winget_resolve_executable_path) }}
         setup_playbook_content: "{{ lookup('ansible.builtin.file', setup_playbook_path) }}"
         requirements_content: "{{ lookup('ansible.builtin.file', requirements_path) }}"
 
@@ -67,6 +72,45 @@
           only the ones whose probe returned non-zero. "winget list" exits 0 when the
           package is installed and -1978335212 (0x8A150014) when it is not, and that
           exit code is the whole idempotency check.
+
+    - name: Assert the portable-shim resolver dereferences instead of executing
+      ansible.builtin.assert:
+        that:
+          - "'winget_executable_command' in winget_resolve_executable"
+          - "'Get-Command' in winget_resolve_executable"
+          - "'-CommandType Application' in winget_resolve_executable"
+          - "'.Target' in winget_resolve_executable"
+          - "'winget_executable_path' in winget_resolve_executable"
+          - "'changed_when: false' in winget_resolve_executable"
+        fail_msg: >-
+          roles/winget/tasks/resolve_executable.yml must publish the executable behind a
+          winget shim. A portable package is exposed through a symlink in
+          %LOCALAPPDATA%\Microsoft\WinGet\Links, Windows marks a link a non-elevated
+          session created as an untrusted mount point, and the elevated session this
+          repository always runs under cannot traverse it - CreateProcessW fails with
+          Win32ErrorCode 448. The resolver reads Get-Item .Target instead of starting the
+          shim, because "(Get-Command <name>).Source" is the untrusted shim itself.
+
+    - name: Assert the roles that run a winget tool resolve the package executable
+      ansible.builtin.assert:
+        that:
+          - "'tasks_from: resolve_executable' in winget_executable_caller_content"
+        fail_msg: >-
+          {{ winget_executable_caller }} runs a tool that winget installed as a portable
+          package, so it must include the shared resolver with
+          "tasks_from: resolve_executable" and run the published path. The shim is an
+          untrusted mount point for the elevated SSH session and fails with
+          Win32ErrorCode 448.
+      loop:
+        - roles/dotweave/tasks/configure_windows.yml
+        - roles/mise/tasks/windows.yml
+        - roles/nvidia_gpu_exporter/tasks/windows.yml
+      loop_control:
+        loop_var: winget_executable_caller
+        label: "{{ winget_executable_caller }}"
+      vars:
+        winget_executable_caller_content: >-
+          {{ lookup('ansible.builtin.file', repo_root ~ '/' ~ winget_executable_caller) }}
 
     - name: Read the winget snapshot tasks
       ansible.builtin.slurp:
@@ -142,6 +186,8 @@
           - "'--silent' in winget_local_package"
           - "'--disable-interactivity' in winget_local_package"
           - "'Font already installed.' in winget_local_package"
+          - "'register: winget_local_manifest_validate' in winget_local_package"
+          - "'until: winget_local_manifest_validate.rc == 0' in winget_local_package"
           - "'ansible_check_mode' in winget_local_package"
           - "'win_file' in winget_local_package"
           - "'state: absent' in winget_local_package"

@@ -122,6 +122,21 @@
           Both implementations must accept licenses non-interactively and
           install only missing SDK packages; Ubuntu must retire its old adb.
 
+    - name: Assert Windows preserves the SDK package separators for cmd.exe
+      ansible.builtin.assert:
+        that:
+          - "'cmd /c' in android_windows"
+          - "'$quotedArguments' in android_windows"
+          - "'ForEach-Object' in android_windows"
+          - "'android_sdk_install_markers' in android_windows"
+          - "'failed_when: false' in android_windows"
+        fail_msg: >-
+          cmd.exe splits an unquoted argument at ';', the separator inside every
+          sdkmanager package name, so "Install missing SDK packages" must quote each
+          argument before the batch file sees it. Android CLI also ends a Windows run
+          with 0xC0000409 whether or not it succeeded, so the task has to verify the
+          installed source.properties instead of trusting the process status.
+
     - name: Assert Windows updates from a disposable SDK manager copy
       ansible.builtin.assert:
         that:

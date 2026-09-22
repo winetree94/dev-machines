@@ -390,6 +390,12 @@
         darwin: gcx
         windows: Grafana.gcx
         windows_source: local_manifest
+      - name: hcloud
+        debian: brew.yml
+        darwin: brew.yml
+        windows: HetznerCloud.CLI
+        shared: brew.yml
+        shared_contains: "name: hcloud"
       - name: syncthing
         debian: "name: syncthing"
         darwin: syncthing
@@ -593,7 +599,7 @@
           because their callers include them instead.
       loop: >-
         {{ role_dirs.files
-           | rejectattr('path', 'search', '/(mas|winget|brew_tap)$')
+           | rejectattr('path', 'search', '/(mas|winget|brew_tap|openssh_default_shell)$')
            | list }}
       loop_control:
         label: "{{ item.path | basename }}"
