@@ -1,4 +1,5 @@
 collections:
   - ansible.windows
   - ansible.posix
+  - community.windows
   - community.general

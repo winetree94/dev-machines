@@ -1,0 +1,6 @@
+---
+# Internal development network used by the active workstation inventory.
+icmp_echo_allowed_remote_addresses:
+  - 10.132.244.0/22
+
+icmp_echo_windows_rule_name: Dev Machines ICMPv4 Echo Request

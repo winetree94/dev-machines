@@ -222,6 +222,8 @@
     # role-ordering assertions in tests/validate_*.yml key off this play name.
     #
     # networking / containers
+    - role: icmp_echo
+      tags: [icmp_echo]
     - role: tailscale
       tags: [tailscale]
       when: vpn | bool

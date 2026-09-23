@@ -1,0 +1,19 @@
+---
+- name: ICMP echo | Allow internal ICMPv4 echo requests
+  community.windows.win_firewall_rule:
+    name: "{{ icmp_echo_windows_rule_name }}"
+    description: Allow ping from the internal development network only.
+    state: present
+    enabled: true
+    direction: in
+    action: allow
+    protocol: icmpv4
+    icmp_type_code:
+      - '8:*'
+    profiles:
+      - private
+    remoteip: "{{ icmp_echo_allowed_remote_addresses | join(',') }}"
+    localip: any
+    program: any
+    service: any
+  become: true

@@ -326,8 +326,8 @@
       ansible.builtin.assert:
         that:
           - "'chocolatey.chocolatey' not in requirements_content"
-          - "'community.windows' not in requirements_content"
           - "'ansible.windows' in requirements_content"
         fail_msg: >-
-          requirements.yml must not pull chocolatey.chocolatey or community.windows any
-          more; the winget role only needs ansible.windows.
+          requirements.yml must not pull chocolatey.chocolatey. The winget role
+          continues to use ansible.windows; community.windows is allowed for the
+          separate Windows firewall policy role.

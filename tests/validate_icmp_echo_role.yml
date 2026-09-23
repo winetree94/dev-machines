@@ -1,0 +1,53 @@
+---
+- name: Validate the ICMP echo role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/icmp_echo"
+    role_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/main.yml') }}"
+    windows_tasks: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    role_defaults: "{{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}"
+    setup_playbook: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}"
+    requirements: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../requirements.yml') }}"
+
+  tasks:
+    - name: Check the Windows task file exists
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/tasks/windows.yml"
+      register: windows_task_file
+
+    - name: Assert the role is a Windows-only dispatcher
+      ansible.builtin.assert:
+        that:
+          - "'include_tasks' in role_tasks"
+          - "'with_first_found' in role_tasks"
+          - windows_task_file.stat.exists
+          - "'debian.yml' not in role_tasks"
+          - "'darwin.yml' not in role_tasks"
+        fail_msg: The ICMP role must dispatch only the Windows firewall change.
+        quiet: true
+
+    - name: Assert the Windows rule is narrowly scoped to internal ICMPv4 echo
+      ansible.builtin.assert:
+        that:
+          - "'community.windows.win_firewall_rule' in windows_tasks"
+          - "'direction: in' in windows_tasks"
+          - "'action: allow' in windows_tasks"
+          - "'protocol: icmpv4' in windows_tasks"
+          - "'8:*' in windows_tasks"
+          - "'private' in windows_tasks"
+          - "'remoteip:' in windows_tasks"
+          - "'icmp_echo_allowed_remote_addresses' in windows_tasks"
+          - "'10.132.244.0/22' in role_defaults"
+          - "'become: true' in windows_tasks"
+        fail_msg: The Windows ICMP rule must allow only private-profile echo requests from the internal CIDR.
+        quiet: true
+
+    - name: Assert the role is wired into Common tooling with a tag
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook is search('Common tooling[\\s\\S]*- role: icmp_echo[\\s\\S]*tags: \[icmp_echo\]')
+          - "'community.windows' in requirements"
+        fail_msg: The ICMP role and its collection dependency must be wired into the setup playbook.
+        quiet: true

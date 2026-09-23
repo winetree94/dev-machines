@@ -1,0 +1,9 @@
+---
+- name: ICMP echo | Include OS-specific tasks
+  ansible.builtin.include_tasks: "{{ icmp_echo_task_file }}"
+  with_first_found:
+    - files:
+        - "{{ ansible_facts['os_family'] | lower }}.yml"
+      skip: true
+  loop_control:
+    loop_var: icmp_echo_task_file
