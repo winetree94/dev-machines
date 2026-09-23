@@ -1,6 +1,7 @@
 ---
 - name: Group hosts by OS
   hosts: all
+  gather_facts: false
   # Windows hosts use OpenSSH, so their WinRM listener facts are unused. The
   # default collector waits ten seconds and warns when WinRM is disabled. The
   # smart gather action resolves through ansible.builtin.setup on every target;
@@ -13,6 +14,25 @@
   # tag-filtered run (`--tags docker`) would skip this play, leave ubuntu/macos/
   # windows empty and silently do nothing at all.
   tags: always
+  pre_tasks:
+    # Xcode's unaccepted licence prevents /usr/bin/python3 from starting, so
+    # identify Darwin hosts with raw before the first fact-gathering module.
+    - name: Probe the host kernel before fact gathering
+      ansible.builtin.raw: /usr/bin/uname -s
+      register: pre_facts_kernel
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Repair an unaccepted Xcode licence before fact gathering
+      ansible.builtin.include_role:
+        name: xcode_license_bootstrap
+      when: pre_facts_kernel.stdout | trim == 'Darwin'
+
+    - name: Gather host facts after platform bootstraps
+      ansible.builtin.setup:
+        gather_subset:
+          - "!winrm"
   tasks:
     # Fail before any role runs: the group_by below funnels every non-Windows,
     # non-macOS host into `ubuntu`, so an unsupported Linux or Ubuntu release

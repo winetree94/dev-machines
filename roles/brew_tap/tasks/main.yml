@@ -47,8 +47,10 @@
           - brew
           - trust
           - --tap
-          - "{{ item }}"
+          - "{{ brew_tap_name }}"
       loop: "{{ brew_tap_names | reject('in', brew_tap_trusted) | list }}"
+      loop_control:
+        loop_var: brew_tap_name
       changed_when: true
       become: false
 
@@ -61,7 +63,9 @@
     # the module's own trust step runs after the tap it would need first.
     - name: Brew tap | Tap the requested repositories
       community.general.homebrew_tap:
-        name: "{{ item }}"
+        name: "{{ brew_tap_name }}"
         state: present
       loop: "{{ brew_tap_names }}"
+      loop_control:
+        loop_var: brew_tap_name
       become: false

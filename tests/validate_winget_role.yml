@@ -166,11 +166,15 @@
           - "'winget_local_package.force_upgrade' in winget_local_package"
           - "'winget_local_force_upgrade_option' in winget_local_package"
           - "'--force' in winget_local_package"
+          - "'winget_local_package.marker_path' in winget_local_package"
+          - "'winget_local_marker_present' in winget_local_package"
         fail_msg: >-
           Packages without a public source must share one cached snapshot of
           the per-user and machine Add/Remove Programs registry views. A local
           manifest may explicitly force its own upgrade when a blocking source
-          pin protects it from the global community-package upgrade.
+          pin protects it from the global community-package upgrade. Packages
+          such as fonts that do not register an ARP entry may use a versioned
+          completion marker so a successful install is not repeated forever.
 
     - name: Assert local manifests stay inside the shared winget workflow
       ansible.builtin.assert:

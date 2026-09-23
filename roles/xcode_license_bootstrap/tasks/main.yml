@@ -1,0 +1,47 @@
+---
+# This bootstrap must remain raw-only until the licence is accepted. On a macOS
+# host with an unaccepted Xcode licence, even /usr/bin/python3 exits before an
+# Ansible module can return JSON, so a normal module cannot repair the host.
+- name: Xcode licence bootstrap | Compare installed and agreed Xcode versions
+  ansible.builtin.raw: |
+    if [ ! -d /Applications/Xcode.app/Contents/Developer ]; then
+      exit 2
+    fi
+    installed=$(/usr/bin/defaults read /Applications/Xcode.app/Contents/Info CFBundleShortVersionString 2>/dev/null || true)
+    agreed=$(/usr/bin/defaults read /Library/Preferences/com.apple.dt.Xcode IDEXcodeVersionForAgreedToGMLicense 2>/dev/null || true)
+    if [ -n "$installed" ] && [ "$installed" = "$agreed" ]; then
+      exit 0
+    fi
+    exit 1
+  register: xcode_license_bootstrap_probe
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Xcode licence bootstrap | Accept the current Xcode licence
+  ansible.builtin.raw: /usr/bin/xcodebuild -license accept
+  become: true
+  when:
+    - not ansible_check_mode
+    - xcode_license_bootstrap_probe.rc == 1
+
+- name: Xcode licence bootstrap | Report the pending licence repair
+  ansible.builtin.raw: >-
+    /usr/bin/printf '%s\n'
+    'Xcode licence is not accepted for the installed version; --check withheld'
+    'the repair. Re-run without --check before Python modules run.'
+  when:
+    - ansible_check_mode
+    - xcode_license_bootstrap_probe.rc == 1
+  changed_when: false
+  check_mode: false
+
+- name: Xcode licence bootstrap | Stop before Python modules in check mode
+  ansible.builtin.fail:
+    msg: >-
+      Xcode licence is not accepted for the installed version on
+      {{ inventory_hostname }}. Check mode does not accept licences; run the
+      same command without --check once, then retry the preview.
+  when:
+    - ansible_check_mode
+    - xcode_license_bootstrap_probe.rc == 1

@@ -606,7 +606,7 @@
           because their callers include them instead.
       loop: >-
         {{ role_dirs.files
-           | rejectattr('path', 'search', '/(mas|winget|brew_tap|openssh_default_shell)$')
+           | rejectattr('path', 'search', '/(mas|winget|brew_tap|openssh_default_shell|xcode_license_bootstrap)$')
            | list }}
       loop_control:
         label: "{{ item.path | basename }}"

@@ -5,6 +5,18 @@
 - name: Ping POSIX hosts
   hosts: all:!windows
   gather_facts: false
+  pre_tasks:
+    - name: Probe the POSIX kernel before running Python modules
+      ansible.builtin.raw: /usr/bin/uname -s
+      register: pre_ping_kernel
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Repair an unaccepted Xcode licence before ping
+      ansible.builtin.include_role:
+        name: xcode_license_bootstrap
+      when: pre_ping_kernel.stdout | trim == 'Darwin'
   tasks:
     - name: Ping host
       ansible.builtin.ping:

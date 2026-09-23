@@ -40,6 +40,9 @@
       - id: NAVER.D2Coding
         version: "{{ d2coding_latest_version }}"
         display_name: NAVER.D2Coding
+        marker_path: >-
+          {{ ansible_facts['env']['LOCALAPPDATA'] }}\.dev-machines-NAVER.D2Coding-{{
+            d2coding_latest_version }}.installed
         manifest_templates:
           - src: winget/NAVER.D2Coding.installer.yaml.j2
             dest: NAVER.D2Coding.installer.yaml

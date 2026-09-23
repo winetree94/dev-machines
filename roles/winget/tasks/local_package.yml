@@ -10,6 +10,12 @@
            )
          | list }}
 
+- name: Winget | Check the local manifest completion marker
+  ansible.windows.win_stat:
+    path: "{{ winget_local_package.marker_path }}"
+  register: winget_local_marker
+  when: winget_local_package.marker_path is defined
+
 - name: Winget | Resolve exact local manifest package state
   ansible.builtin.set_fact:
     winget_local_exact_packages: >-
@@ -26,6 +32,8 @@
                )
            )
          | list }}
+    winget_local_marker_present: >-
+      {{ winget_local_marker.stat.exists | default(false) | bool }}
 
 - name: Winget | Report local manifest package change in check mode
   ansible.builtin.debug:
@@ -37,11 +45,13 @@
   when:
     - ansible_check_mode
     - winget_local_exact_packages | length == 0
+    - not (winget_local_marker_present | bool)
 
 - name: Winget | Apply local manifest package
   when:
     - not ansible_check_mode
     - winget_local_exact_packages | length == 0
+    - not (winget_local_marker_present | bool)
   block:
     - name: Winget | Resolve local manifest upgrade options
       ansible.builtin.set_fact:
@@ -144,6 +154,12 @@
                  | default(winget_local_package.version),
                'publisher': ''
              }] }}
+
+    - name: Winget | Write the local manifest completion marker
+      ansible.windows.win_file:
+        path: "{{ winget_local_package.marker_path }}"
+        state: touch
+      when: winget_local_package.marker_path is defined
 
   always:
     - name: Winget | Remove the temporary local manifest directory

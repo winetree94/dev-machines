@@ -1,0 +1,42 @@
+---
+- name: Validate the raw Xcode licence bootstrap
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_tasks: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../roles/xcode_license_bootstrap/tasks/main.yml') }}"
+    setup_playbook: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}"
+    ping_playbook: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/ping.yml') }}"
+  tasks:
+    - name: Assert the bootstrap stays raw-only before repair
+      ansible.builtin.assert:
+        that:
+          - "'ansible.builtin.raw' in role_tasks"
+          - "'xcodebuild -license accept' in role_tasks"
+          - "'IDEXcodeVersionForAgreedToGMLicense' in role_tasks"
+          - "'CFBundleShortVersionString' in role_tasks"
+          - "'become: true' in role_tasks"
+        fail_msg: >-
+          The Xcode licence repair must compare the version plist values and
+          accept the licence through raw with root privileges, because Python
+          modules fail before they can return JSON.
+
+    - name: Assert the repair is withheld honestly in check mode
+      ansible.builtin.assert:
+        that:
+          - "'check_mode: false' in role_tasks"
+          - "'not ansible_check_mode' in role_tasks"
+          - "'--check withheld' in role_tasks"
+          - "'ansible.builtin.fail' in role_tasks"
+        fail_msg: >-
+          The raw probe must run in check mode, while the licence mutation is
+          withheld and reported rather than causing module deserialization noise.
+
+    - name: Assert both entry points bootstrap before Python modules
+      ansible.builtin.assert:
+        that:
+          - "setup_playbook.find('xcode_license_bootstrap') < setup_playbook.find('- name: Gather host facts after platform bootstraps')"
+          - "ping_playbook.find('xcode_license_bootstrap') < ping_playbook.find('ansible.builtin.ping:')"
+          - "'gather_facts: false' in setup_playbook[0:setup_playbook.find('pre_tasks:')]"
+        fail_msg: >-
+          setup.yml and ping.yml must detect Darwin and repair the licence
+          before their first Python-based module runs.
