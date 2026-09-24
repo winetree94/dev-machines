@@ -1,0 +1,202 @@
+---
+- name: Validate the Sunshine game stream host role
+  hosts: localhost
+  gather_facts: false
+  vars:
+    role_dir: "{{ playbook_dir }}/../roles/sunshine"
+    defaults_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/defaults/main.yml') }}"
+    windows_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/tasks/windows.yml') }}"
+    handlers_content: "{{ lookup('ansible.builtin.file', role_dir ~ '/handlers/main.yml') }}"
+    conf_template: "{{ lookup('ansible.builtin.file', role_dir ~ '/templates/sunshine.conf.j2') }}"
+    apps_template: "{{ lookup('ansible.builtin.file', role_dir ~ '/templates/apps.json.j2') }}"
+    group_vars_content: >-
+      {{ lookup('ansible.builtin.file', playbook_dir ~ '/../inventories/group_vars/all/main.yml') }}
+    setup_playbook: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../playbooks/setup.yml') }}"
+  tasks:
+    - name: Check the role only curates Windows
+      ansible.builtin.stat:
+        path: "{{ role_dir }}/tasks/{{ item }}.yml"
+      register: sunshine_absent_tasks
+      loop:
+        - default
+        - debian
+        - darwin
+
+    - name: Assert Sunshine has no other OS task file
+      ansible.builtin.assert:
+        that:
+          - sunshine_absent_tasks.results | selectattr('stat.exists') | list | length == 0
+        fail_msg: >-
+          roles/sunshine is Windows-only. default.yml is the dispatcher
+          fallback on every OS, and debian.yml/darwin.yml would claim support
+          the role does not implement - the missing files are the curation.
+        quiet: true
+
+    - name: Assert Sunshine installs through the shared winget role
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in windows_content"
+          - "'winget_packages' in windows_content"
+          - "'- LizardByte.Sunshine' in windows_content"
+          - "'- ViGEm.ViGEmBus' in windows_content"
+          - "'winget_upgrade_packages' not in windows_content"
+          - "'win_chocolatey' not in windows_content"
+          - "'win_scoop' not in windows_content"
+        fail_msg: >-
+          The official MSI ships the Sunshine service, its autostart and the
+          firewall rules, and winget manages the ViGEmBus gamepad driver, so
+          every install must go through the shared winget role. Leaving the
+          packages out of winget_upgrade_packages keeps them off the
+          every-run upgrade path.
+        quiet: true
+
+    - name: Assert Sunshine locates and runs the installed binary by absolute path
+      ansible.builtin.assert:
+        that:
+          - "'resolve_executable' not in windows_content"
+          - "'sunshine_windows_exe' in windows_content"
+          - "'ansible.windows.win_stat' in windows_content"
+          - "'sunshine_windows_binary.stat.exists' in windows_content"
+          - "'--creds' in windows_content"
+          - >-
+            windows_content is search(
+              "Assert the installer placed the executable[\\s\\S]{0,700}when: not ansible_check_mode"
+            )
+        fail_msg: >-
+          The MSI installs a real Program Files executable rather than a
+          portable WinGet Links shim, so the role must stat and run
+          %ProgramFiles%\\Sunshine\\sunshine.exe instead of dereferencing a
+          shim, and set the Web UI credentials with --creds.
+        quiet: true
+
+    - name: Assert Sunshine renders both configuration files
+      ansible.builtin.assert:
+        that:
+          - "'ansible.windows.win_template' in windows_content"
+          - "'src: sunshine.conf.j2' in windows_content"
+          - "'src: apps.json.j2' in windows_content"
+          - "'sunshine_windows_config_dir' in windows_content"
+          - "windows_content.count('become: true') >= 3"
+        fail_msg: >-
+          sunshine.conf and apps.json must be rendered from the role's
+          templates into %ProgramFiles%\\Sunshine\\config, which needs an
+          elevated task.
+        quiet: true
+
+    - name: Assert the configuration template keeps the documented options
+      ansible.builtin.assert:
+        that:
+          - "'sunshine_name = ' in conf_template"
+          - "'locale = ' in conf_template"
+          - "'gamepad_driver = ' in conf_template"
+          - "'sunshine_extra_conf' in conf_template"
+          - "'sunshine_gamepad_driver: vigembus' in defaults_content"
+          - "'sunshine_locale: ko' in defaults_content"
+          - "'sunshine_name: ' in defaults_content"
+          - "'inventory_hostname' in defaults_content"
+          - "'sunshine_web_username: winetree94' in defaults_content"
+          - "'sunshine_windows_config_dir:' in defaults_content"
+        fail_msg: >-
+          sunshine.conf must pin the Moonlight host name, the Web UI locale and
+          the ViGEmBus gamepad driver - an unset gamepad_driver makes Sunshine
+          prompt for a driver on every start.
+        quiet: true
+
+    - name: Assert the application list only carries the desktop
+      ansible.builtin.assert:
+        that:
+          - "'\"name\": \"Desktop\"' in apps_template"
+          - "'Steam Big Picture' not in apps_template"
+        fail_msg: >-
+          The role manages apps.json as the single Desktop entry; additions
+          made in the web UI are reverted on the next run, which is the
+          documented contract.
+        quiet: true
+
+    - name: Assert the credentials are compared before they are rewritten
+      ansible.builtin.assert:
+        that:
+          - "'sunshine_state.json' in windows_content"
+          - "'check_mode: false' in windows_content"
+          - "'changed_when: false' in windows_content"
+          - "'no_log: true' in windows_content"
+          - >-
+            "hash('sha256')" in windows_content
+          - >-
+            "regex_findall('..')" in windows_content
+          - "'| reverse' in windows_content"
+          - "'| upper' in windows_content"
+          - "'sunshine_web_password' in windows_content"
+          - "'sunshine_state.salt' in windows_content"
+        fail_msg: >-
+          Sunshine stores the Web UI password as the byte-reversed, uppercase
+          util::hex(crypto::hash(password + salt)) digest with a fresh salt on
+          every write, so an unconditional --creds call could never converge.
+          Read sunshine_state.json without logging it and only write when the
+          stored username or the recomputed digest differs - computing plain
+          lowercase sha256 hex would never match and would rewrite forever.
+        quiet: true
+
+    - name: Assert the credential rewrite is withheld in check mode
+      ansible.builtin.assert:
+        that:
+          - "'not ansible_check_mode' in windows_content"
+          - "'ansible_check_mode' in windows_content"
+          - "'changed_when: true' in windows_content"
+          - "'Restart SunshineService' in windows_content"
+        fail_msg: >-
+          --creds rewrites the credential file and needs a service restart, so
+          the write must be skipped under --check with a debug task reporting
+          the withheld change instead.
+        quiet: true
+
+    - name: Assert the service is restarted through a Windows handler
+      ansible.builtin.assert:
+        that:
+          - "'ansible.windows.win_service' in handlers_content"
+          - "'state: restarted' in handlers_content"
+          - "'not ansible_check_mode' in handlers_content"
+          - "'name: SunshineService' in handlers_content"
+          - "'name: SunshineService' in windows_content"
+          - "'start_mode: auto' in windows_content"
+          - "'state: started' in windows_content"
+        fail_msg: >-
+          Credentials and configuration are only read while Sunshine starts,
+          so the handler has to restart SunshineService, and the role has to
+          leave the service enabled and running.
+        quiet: true
+
+    - name: Assert the role never references a vault name
+      ansible.builtin.assert:
+        that:
+          - "'vault_' not in defaults_content"
+          - "'vault_' not in windows_content"
+        fail_msg: >-
+          Roles read the mapped variable only; vault_* names belong in
+          inventories/hosts.yml or inventories/group_vars/all/main.yml.
+        quiet: true
+
+    - name: Assert the password is mapped from the encrypted vault
+      ansible.builtin.assert:
+        that:
+          - "'sunshine_web_password: ' in group_vars_content"
+          - "'vault_sunshine_web_password' in group_vars_content"
+          - "'145f4039-110d-4fa1-94ed-b4cf007d0657' in group_vars_content"
+          - "vault_sunshine_web_password is defined"
+          - "vault_sunshine_web_password | length == 24"
+        fail_msg: >-
+          The Web UI password lives in Bitwarden (item id recorded next to the
+          mapping) and in the single encrypted vault file, and
+          group_vars/all/main.yml maps it onto sunshine_web_password.
+        quiet: true
+
+    - name: Assert the role is wired into the GUI applications play
+      ansible.builtin.assert:
+        that:
+          - >-
+            setup_playbook is search("GUI applications[\s\S]*- role: sunshine"
+            ~ "[\s\S]{0,80}tags: \\[sunshine\\]")
+        fail_msg: >-
+          Sunshine is a desktop application, so it belongs in the GUI
+          applications play with its own tag for targeted runs.
+        quiet: true

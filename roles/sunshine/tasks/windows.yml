@@ -1,0 +1,129 @@
+---
+- name: Sunshine | Install Sunshine and the virtual gamepad driver (winget)
+  ansible.builtin.include_role:
+    name: winget
+  vars:
+    winget_packages:
+      - LizardByte.Sunshine
+      - ViGEm.ViGEmBus
+
+# The official MSI lays the binaries down in %ProgramFiles%\Sunshine and runs
+# scripts\sunshine-setup.ps1 -Silent, which adds the firewall rules, creates
+# the SunshineService service and configures its autostart. Everything below
+# only fills in what the installer cannot know. The absolute path is used
+# instead of the shared shim resolver because the MSI installs a real Program
+# Files binary rather than a portable WinGet Links symlink.
+- name: Sunshine | Locate the installed executable
+  ansible.windows.win_stat:
+    path: "{{ sunshine_windows_exe }}"
+  register: sunshine_windows_binary
+  check_mode: false
+  become: false
+
+- name: Sunshine | Assert the installer placed the executable
+  ansible.builtin.assert:
+    that:
+      - sunshine_windows_binary.stat.exists
+    fail_msg: >-
+      {{ sunshine_windows_exe }} is missing after installing
+      LizardByte.Sunshine. The winget manifest installs the official MSI, which
+      unpacks into %ProgramFiles%\Sunshine.
+    quiet: true
+  # The winget install above is only reported under --check, so the binary
+  # cannot exist yet on a first run - reporting the remaining changes is the
+  # useful preview there, not failing the host.
+  when: not ansible_check_mode
+
+- name: Sunshine | Write the configuration file
+  ansible.windows.win_template:
+    src: sunshine.conf.j2
+    dest: "{{ sunshine_windows_config_dir }}\\sunshine.conf"
+  become: true
+  notify: Restart SunshineService
+
+- name: Sunshine | Write the application list
+  ansible.windows.win_template:
+    src: apps.json.j2
+    dest: "{{ sunshine_windows_config_dir }}\\apps.json"
+  become: true
+  notify: Restart SunshineService
+
+# Sunshine persists the Web UI credentials in sunshine_state.json next to the
+# configuration file and the running process authenticates against the copy it
+# loaded at startup, so the service has to restart whenever they change.
+# Reading the file first keeps the role idempotent even though the salt is
+# regenerated on every write: the password is only rewritten when the stored
+# username or the stored digest drifted.
+#
+# The digest is *not* plain sha256(password + salt) hex. httpcommon.cpp stores
+# util::hex(crypto::hash(password + salt)), and that Hex formatter walks the
+# digest from its last byte to its first and emits uppercase digits, so the
+# stored value is the byte-reversed SHA-256 digest in uppercase. Splitting the
+# usual lowercase hex into byte pairs, reversing them and upper-casing
+# reproduces it byte for byte - the reversed order is load-bearing here.
+- name: Sunshine | Read the stored Web UI credentials
+  ansible.windows.win_shell: |
+    $path = '{{ sunshine_windows_config_dir }}\sunshine_state.json'
+    if (Test-Path -LiteralPath $path) {
+      Get-Content -LiteralPath $path -Raw
+    }
+  register: sunshine_state_raw
+  changed_when: false
+  check_mode: false
+  become: false
+  no_log: true
+
+- name: Sunshine | Parse the stored Web UI credentials
+  ansible.builtin.set_fact:
+    sunshine_state: >-
+      {{ (sunshine_state_raw.stdout | trim) | from_json
+         if (sunshine_state_raw.stdout | trim) | length > 0 else {} }}
+  no_log: true
+
+- name: Sunshine | Resolve whether the credentials must be rewritten
+  ansible.builtin.set_fact:
+    sunshine_credentials_stale: >-
+      {{ (sunshine_state.username | default('')) != sunshine_web_username
+         or (sunshine_state.password | default('')) !=
+            ((sunshine_web_password ~ (sunshine_state.salt | default('')))
+             | hash('sha256')
+             | regex_findall('..')
+             | reverse
+             | join('')
+             | upper) }}
+  no_log: true
+
+- name: Sunshine | Report the withheld credential change in check mode
+  ansible.builtin.debug:
+    msg: >-
+      The Sunshine Web UI credentials for {{ sunshine_web_username }} would be
+      rewritten and SunshineService restarted.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - sunshine_credentials_stale | bool
+
+- name: Sunshine | Set the Web UI credentials
+  ansible.windows.win_command:
+    argv:
+      - "{{ sunshine_windows_exe }}"
+      - --creds
+      - "{{ sunshine_web_username }}"
+      - "{{ sunshine_web_password }}"
+  when:
+    - not ansible_check_mode
+    - sunshine_credentials_stale | bool
+  changed_when: true
+  become: true
+  no_log: true
+  notify: Restart SunshineService
+
+# Same check-mode contract as the rest of the repository: the installer and
+# therefore the service it registers only exist after a real apply, so a
+# --check preview must not fail the host on a service that is still to come.
+- name: Sunshine | Ensure the service is enabled and running
+  ansible.windows.win_service:
+    name: SunshineService
+    start_mode: auto
+    state: started
+  when: not ansible_check_mode

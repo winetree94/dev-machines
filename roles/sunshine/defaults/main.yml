@@ -1,0 +1,33 @@
+---
+# Sunshine is the self-hosted host side of the Moonlight game stream protocol.
+# Only Windows is managed here: the installer ships the firewall rules, the
+# SunshineService service and its autostart, so the remaining work is settings
+# and credentials. Linux would additionally need the LizardByte Cloudsmith
+# repository, udev rules plus cap_sys_admin from the package postinst, a
+# per-user systemd service and an interactive portal consent dialog, and the
+# macOS build is still experimental and cannot inject gamepads - both are
+# deliberately out of scope rather than approximated.
+sunshine_windows_exe: "{{ ansible_facts['env']['ProgramFiles'] }}\\Sunshine\\sunshine.exe"
+sunshine_windows_config_dir: "{{ ansible_facts['env']['ProgramFiles'] }}\\Sunshine\\config"
+
+# The name Moonlight clients see. Defaulting to the inventory name keeps the
+# host list recognisable instead of exposing the Windows computer name.
+sunshine_name: "{{ inventory_hostname }}"
+
+# Locale of the Sunshine Web UI, not of the streamed desktop.
+sunshine_locale: ko
+
+# ViGEmBus is the only virtual gamepad backend we install, so say so
+# explicitly: while gamepad_driver is unset Sunshine shows a driver selection
+# prompt on every start and falls back to keyboard/mouse injection only.
+sunshine_gamepad_driver: vigembus
+
+# Web UI credentials for https://<host>:47990. The password is mapped from the
+# encrypted inventory vault in group_vars/all/main.yml, so the role only ever
+# reads the variable below.
+sunshine_web_username: winetree94
+sunshine_web_password: ""
+
+# Extra sunshine.conf entries for host-specific tuning, rendered as
+# `key = value`. Anything left out keeps the Sunshine default.
+sunshine_extra_conf: {}

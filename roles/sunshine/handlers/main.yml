@@ -1,0 +1,9 @@
+---
+# Sunshine authenticates the Web UI against the credentials it loaded at
+# startup, and it only reads sunshine.conf while starting, so both setting
+# credentials and rewriting the configuration file require a service restart.
+- name: Restart SunshineService
+  ansible.windows.win_service:
+    name: SunshineService
+    state: restarted
+  when: not ansible_check_mode

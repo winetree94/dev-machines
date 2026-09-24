@@ -447,6 +447,8 @@
       tags: [slack]
     - role: steam
       tags: [steam]
+    - role: sunshine
+      tags: [sunshine]
     - role: telegram
       tags: [telegram]
     - role: thunderbird

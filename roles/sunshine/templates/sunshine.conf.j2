@@ -1,0 +1,10 @@
+# Managed by Ansible - roles/sunshine/templates/sunshine.conf.j2.
+# Options the role does not manage keep Sunshine's own defaults.
+sunshine_name = {{ sunshine_name }}
+locale = {{ sunshine_locale }}
+{% if sunshine_gamepad_driver | length > 0 %}
+gamepad_driver = {{ sunshine_gamepad_driver }}
+{% endif %}
+{% for sunshine_conf_key, sunshine_conf_value in sunshine_extra_conf | dictsort %}
+{{ sunshine_conf_key }} = {{ sunshine_conf_value }}
+{% endfor %}

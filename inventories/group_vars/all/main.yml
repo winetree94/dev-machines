@@ -59,6 +59,13 @@ dotweave_age_identity: "{{ vault_dotweave_age_identity }}"
 # server. The value remains in the repository's single encrypted vault.
 rustdesk_key: "{{ vault_rustdesk_key }}"
 
+# Sunshine protects its Web UI (https://<host>:47990) with a local
+# username and password that the role sets with `sunshine.exe --creds`.
+# The durable copy is the Bitwarden login item
+# 145f4039-110d-4fa1-94ed-b4cf007d0657 ("Sunshine web UI (v16)"); the
+# value stays in the repository's single encrypted vault.
+sunshine_web_password: "{{ vault_sunshine_web_password }}"
+
 # Host hardware monitoring. The dedicated bearer token remains in the
 # repository's single encrypted vault.
 monitoring_enabled: true

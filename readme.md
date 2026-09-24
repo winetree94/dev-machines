@@ -24,10 +24,10 @@ make install-requirements
 
 | host | IP | group | OS |
 |---|---|---|---|
-| desktop | 10.132.247.31 | windows | Windows 10/11 |
+| desktop | 10.132.247.31 | ubuntu | Ubuntu 26.04+ |
 | ubuntu-dev | 10.132.247.36 | ubuntu | Ubuntu 26.04+ |
 | e14 | 10.132.247.40 | ubuntu | Ubuntu 26.04+ |
-| v16 | 10.132.245.41 | ubuntu | Ubuntu 26.04+ |
+| v16 | 10.132.245.41 | windows | Windows 10/11 |
 | mbp | 10.8.0.5 | macos | macOS |
 | localhost | – | (런타임 판별) | 컨트롤 머신 (macOS / Ubuntu) |
 
@@ -38,7 +38,7 @@ make install-requirements
 
 `localhost` 는 macOS 나 Ubuntu 만 될 수 있다. ansible 은 네이티브 Windows 를 컨트롤
 노드로 지원하지 않기 때문에, Windows 머신은 WSL 안에서 ansible 을 돌리더라도 `localhost`
-는 WSL 리눅스 게스트를 가리킨다. Windows 본체는 `desktop` 처럼 SSH 원격 호스트로 잡아야
+는 WSL 리눅스 게스트를 가리킨다. Windows 본체는 `v16` 처럼 SSH 원격 호스트로 잡아야
 한다.
 
 지원하지 않는 OS 는 롤이 하나라도 돌기 전에 걸러진다. `Group hosts by OS` 플레이의
@@ -466,8 +466,31 @@ GUI 인증과 방화벽 규칙은 각 머신에서 별도로 설정한다.
   권한으로 실행한다.
 - `darwin.yml` — Homebrew core의 `syncthing` formula를 설치하고
   `homebrew_services`로 사용자 launchd 서비스를 시작한다.
-- `windows.yml` — 현재 `desktop`에서 사용하는 winget 패키지
+- `windows.yml` — 현재 `v16`에서 사용하는 winget 패키지
   `BillStewart.SyncthingWindowsSetup`을 공유 `winget` 롤로 관리한다.
+
+## Sunshine (게임 스트리밍 호스트)
+
+`v16` 을 Moonlight 클라이언트의 스트리밍 호스트로 쓰기 위한 롤이다. Windows 전용이라
+`windows.yml` 하나만 두고(`debian.yml`/`darwin.yml` 없음), 설치 채널도 공용 `winget` 롤
+하나뿐이다. `LizardByte.Sunshine` MSI 가 방화벽 규칙, `SunshineService` 서비스와 자동
+시작을 스스로 구성하므로 롤은 설정 파일과 웹 UI 자격증명만 채운다. `ViGEm.ViGEmBus` 가
+가상 게임패드 드라이버를 제공한다.
+
+- `C:\Program Files\Sunshine\config\sunshine.conf` — `sunshine_name`(Moonlight 목록에
+  뜨는 이름, 기본값은 인벤토리 호스트명), `locale`, `gamepad_driver = vigembus` 를
+  템플릿으로 관리한다. `gamepad_driver` 를 비워 두면 Sunshine 이 시작할 때마다 드라이버
+  선택 창을 띄운다. 그 밖의 값은 Sunshine 기본값을 그대로 쓴다.
+- `apps.json` — `Desktop` 항목 하나만 관리한다. 웹 UI에서 앱을 추가하면 다음 apply 에서
+  템플릿 상태로 돌아간다.
+- 웹 UI 자격증명(`https://<host>:47990`) — `sunshine_state.json` 의 `username`/`password` 를
+  먼저 읽어 vault 값과 비교하고, 어긋날 때만 `sunshine.exe --creds` 로 다시 쓴 뒤
+  `SunshineService` 를 재시작한다. Sunshine 은 `sha256(password + salt)` digest 를
+  **바이트 순서를 뒤집어 대문자로** 저장하므로(`util::hex` 의 동작), 평범한 소문자 hex 와
+  비교하면 매번 어긋나 끊임없이 다시 쓰게 된다.
+- UPnP 는 Sunshine 기본값(비활성), `origin_web_ui_allowed` 도 기본 `lan` 을 유지하므로
+  인터넷에 새로 노출되는 경로는 없다. 외부 접속은 기존 VPN 을 쓴다.
+- Moonlight 클라이언트 페어링(PIN 입력)과 스트리밍·게임패드 실사용 확인은 손으로 남는다.
 
 ## winget (Windows 패키지 관리)
 
@@ -603,7 +626,7 @@ Windows에서는 `tinyrack.dotweave` winget package로 설치한다. Ubuntu와 m
 
 ## GUI 앱
 
-데스크톱 앱 37개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
+데스크톱 앱 40개가 각각 롤 하나다. `GUI applications` 플레이가 `gui_enabled` 그룹을
 대상으로 돌리므로, 롤마다 `when: gui | bool` 을 붙이지 않는다.
 
 Ubuntu 는 원칙적으로 Flathub, macOS 는 homebrew-cask, Windows 는 공용 `winget` 롤을
@@ -641,6 +664,7 @@ AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자
 | `nordvpn` | 공식 APT `nordvpn-gui` | cask `nordvpn` | `NordSecurity.NordVPN` |
 | `paseo` | 공식 최신 안정 amd64 `.deb` | cask `paseo` | 동적 local winget manifest |
 | `remote_desktop_manager` | 공식 APT `remotedesktopmanager` | cask `remote-desktop-manager` | `Devolutions.RemoteDesktopManager` |
+| `sunshine` | 미지원 | 미지원 | `LizardByte.Sunshine` |
 
 Codex 데스크톱 기능은 2026년 7월부터 ChatGPT 앱에 통합됐으므로 `chatgpt_desktop`은
 폐기 예정인 `codex-app` 대신 현재 `chatgpt` 앱을 설치한다. Ubuntu에서는 OpenAI의

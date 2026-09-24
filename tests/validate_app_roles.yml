@@ -191,6 +191,12 @@
         debian: com.valvesoftware.Steam
         darwin: steam
         windows: Valve.Steam
+      # Windows-only: Linux needs the LizardByte Cloudsmith repository, the
+      # udev rules plus cap_sys_admin the package postinst applies, a per-user
+      # systemd service and an interactive portal consent dialog, and the
+      # macOS build is experimental and cannot inject gamepads.
+      - name: sunshine
+        windows: LizardByte.Sunshine
       - name: telegram
         debian: org.telegram.desktop
         darwin: telegram
