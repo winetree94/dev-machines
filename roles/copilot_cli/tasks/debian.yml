@@ -2,9 +2,19 @@
 # The Homebrew package for Copilot CLI is a cask (macOS binaries only) despite
 # the README mentioning Linux, so Linux uses the vendor installer. It installs
 # under $HOME for a non-root user, which is why nothing here needs become.
+#
+# The installer unconditionally re-downloads and replaces the binary, so it
+# reports success (and "Notice: Replacing copilot binary found at ...") even
+# when the host already runs the latest release. The installed binary is
+# therefore checksummed before and after and the change is reported from that
+# comparison (the same pre/post verification the Android role uses), which is
+# what lets a converged host stay at changed=0. The stat follows a symlink in
+# case a future installer release switches to one.
 - name: Copilot cli | Check whether the Copilot CLI is installed
   ansible.builtin.stat:
     path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/copilot"
+    checksum_algorithm: sha256
+    follow: true
   register: copilot_cli_installed
   become: false
 
@@ -31,5 +41,24 @@
       - setsid
       - --wait
       - /tmp/copilot-cli-install.sh
-  changed_when: true
+  environment:
+    # Same reasoning as roles/codex: with the install directory already on
+    # PATH the installer skips its shell-profile branch entirely instead of
+    # printing the "add this to ~/.zprofile" instructions.
+    PATH: >-
+      {{ ansible_facts['env']['HOME'] }}/.local/bin:{{
+      ansible_facts['env']['PATH'] }}
+  changed_when: false
+  become: false
+
+- name: Copilot cli | Verify the Copilot CLI is current
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/copilot"
+    checksum_algorithm: sha256
+    follow: true
+  register: copilot_cli_install_after
+  changed_when: >-
+    not copilot_cli_installed.stat.exists or
+    copilot_cli_install_after.stat.checksum != copilot_cli_installed.stat.checksum
+  when: not copilot_cli_installed.stat.exists or dev_machines_update_mode | bool
   become: false

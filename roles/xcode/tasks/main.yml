@@ -128,6 +128,10 @@
     - not ansible_check_mode
     - ansible_facts['architecture'] == 'arm64'
   block:
+    # "softwareupdate --list" answers "No new software available." when the
+    # host is current, so an unconditional changed_when reported a change on
+    # every update run. Key off the same offered-update signal the check-mode
+    # report above uses.
     - name: Xcode | Run authenticated softwareupdate
       ansible.builtin.command:
         argv:
@@ -140,8 +144,10 @@
           - --stdinpass
         stdin: "{{ ansible_become_password }}"
       become: true
-      changed_when: true
       no_log: true
+      changed_when: >-
+        '* Label:' in xcode_macos_updates.stdout
+        or '\n* ' in xcode_macos_updates.stdout
   rescue:
     - name: Xcode | Report authenticated softwareupdate failure
       ansible.builtin.fail:
@@ -164,7 +170,9 @@
       - --all
       - --verbose
   become: true
-  changed_when: true
+  changed_when: >-
+    '* Label:' in xcode_macos_updates.stdout
+    or '\n* ' in xcode_macos_updates.stdout
   when:
     - dev_machines_update_mode | bool
     - not ansible_check_mode

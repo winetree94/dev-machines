@@ -591,7 +591,7 @@ SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 2
 | `claude_code` | 공식 `claude.ai/install.sh` | cask `claude-code` | `Anthropic.ClaudeCode` |
 | `codex` | 공식 `chatgpt.com/codex/install.sh` | cask `codex` | `OpenAI.Codex` |
 | `copilot_cli` | 공식 `gh.io/copilot-install` | cask `copilot-cli` | `GitHub.Copilot` |
-| `opencode` | brew `anomalyco/tap/opencode` | 같음 | `SST.opencode` |
+| `opencode` | brew `anomalyco/tap/opencode-v2` | 같음 | `SST.opencode` |
 | `oh_my_pi` | brew `can1357/tap/omp` | 같음 | `can1357.oh-my-pi` |
 
 - 앞의 셋은 Homebrew 패키지가 **cask** 이고 cask 는 macOS 전용이라 Ubuntu 에서 쓸 수 없다.
@@ -599,11 +599,18 @@ SDK 라이선스는 무인 실행을 위해 자동 수락한다. 기본 JDK가 2
   받아서 별도 태스크로 실행하며, `~/.local/bin/<tool>` 을 `stat` 으로 검사해 멱등성을 지킨다.
   Claude Code 는 공식 APT 저장소도 있지만 서드파티 apt 저장소를 늘리지 않는 방침이라 쓰지 않는다.
 - `opencode` 와 `oh_my_pi` 는 Linux 에서도 도는 formula 라서 `brew.yml` 하나를
-  `debian.yml` 과 `darwin.yml` 이 함께 include 한다. `opencode` 는 homebrew-core 에도 같은
-  이름의 formula 가 생겨 brew 가 shadow 경고를 내므로 토큰은 `anomalyco/tap/opencode` 로
-  정규화해서 쓴다. `sst/tap` 은 `anomalyco/tap` 으로 이름이 바뀌었고, winget 퍼블리셔만 예전
-  `SST` 로 남아 있다. `oh_my_pi` 는 formula 이름이 `omp`(바이너리도 `omp`)이고 tap 은
-  `can1357/tap` 이다.
+  `debian.yml` 과 `darwin.yml` 이 함께 include 한다. `anomalyco/tap` 은 `bin/opencode` 를
+  설치하는 formula 를 둘 발행한다 - 1.x 계열 `opencode` 와 현재 CLI 인 `opencode-v2`
+  (2.x) - 그리고 `opencode-v2` 가 `conflicts_with "opencode"` 를 선언하므로 한 호스트에
+  둘 중 하나만 링크될 수 있다. 그래서 롤은 `anomalyco/tap/opencode-v2` 를 설치하고, 그
+  전에 legacy `opencode` formula 를 제거한다. `brew uninstall opencode` 뒤
+  `brew install anomalyco/tap/opencode-v2` 로 손수 올린 호스트는 1.x keg 이 이미 없어
+  바뀌는 것이 없고, 롤이 1.x 를 먼저 되살려 둔 호스트도 여기서 수렴한다. 설치 토큰은
+  homebrew-core 의 동명 `opencode`(같은 1.x 계열이고 버전은 뒤처진다)와 섞이지 않도록
+  계속 정규화해서 쓰고, 게이트는 `brew list --formula` 가 출력하는 이름
+  (`opencode-v2`)으로 건다. `sst/tap` 은 `anomalyco/tap` 으로 이름이 바뀌었고, winget
+  퍼블리셔만 예전 `SST` 로 남아 있다. `oh_my_pi` 는 formula 이름이 `omp`(바이너리도
+  `omp`)이고 tap 은 `can1357/tap` 이다.
 - 서드파티 tap 등록은 공용 `brew_tap` 롤(`roles/brew_tap`)이 전담한다. Homebrew 6 은 신뢰하지
   않는 tap 을 로드하지 않고, tap 을 복제하면서 그 안의 formula 까지 검증하므로 아직 신뢰되지
   않은 tap 은 `brew tap` 자체가 `Refusing to load formula … from untrusted tap` 으로
@@ -680,6 +687,11 @@ suite `stable`)를 `deb822_repository` + `signed_by`로 추가하고 amd64/arm64
 `3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4`로 keyserver.ubuntu.com에서 받는다.
 `get_url`이 `--check`에서 보내는 HEAD 프로브를 keyserver가 405로 거부하므로 키
 다운로드는 `not ansible_check_mode`로 건너뛰고 `debug` 태스크가 변경 예정을 보고한다.
+keyserver.ubuntu.com은 Hockeypuck 백엔드 풀이라 ASCII armor 헤더 순서
+(`Comment:`/`Version:`)가 노드마다 달라 매 실행마다 파일이 바뀐 것처럼 보이므로,
+키는 스크래치 경로로 받아 `gpg --dearmor`로 바이너리 키링으로 변환한 뒤
+`copy`(checksum 기반 멱등)로 설치한다. 설치 파일명은 패키지 `postinst`가 덮어쓰는
+`chatgpt-archive-keyring.gpg` 대신 `chatgpt-desktop-archive-keyring.gpg`를 쓴다.
 
 `bottles`, `flatseal`, `gear_lever`, `xclicker`, `remmina` 다섯 개는 macOS/Windows 패키지가 아예 없는
 Linux 전용 프로젝트다. `debian.yml` 만 두고 나머지는 만들지 않는다 - 비슷한 다른 앱으로

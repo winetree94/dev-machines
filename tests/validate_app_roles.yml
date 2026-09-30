@@ -31,7 +31,7 @@
         darwin: brew.yml
         windows: SST.opencode
         shared: brew.yml
-        shared_contains: anomalyco/tap/opencode
+        shared_contains: anomalyco/tap/opencode-v2
         tap: anomalyco/tap
       - name: oh_my_pi
         debian: brew.yml
@@ -56,7 +56,7 @@
         debian: "name: chatgpt"
         debian_channel: apt_repository
         debian_repository: https://persistent.oaistatic.com/codex-app-prod/linux/deb
-        debian_signing_key: chatgpt-archive-keyring.asc
+        debian_signing_key: chatgpt-desktop-archive-keyring.gpg
         darwin: chatgpt
         windows: 9PLM9XGG6VKS
         windows_source: msstore
@@ -817,12 +817,24 @@
           - "'3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4' in chatgpt_desktop_content"
           - "'options=mr' in chatgpt_desktop_content"
           - "'when: not ansible_check_mode' in chatgpt_desktop_content"
+          - "'--dearmor' in chatgpt_desktop_content"
+          - "'ansible.builtin.copy' in chatgpt_desktop_content"
+          - "'remote_src: true' in chatgpt_desktop_content"
+          - "'/usr/share/keyrings/chatgpt-desktop-archive-keyring.gpg' in chatgpt_desktop_content"
+          - "'dest: /usr/share/keyrings/chatgpt-archive-keyring.gpg' not in chatgpt_desktop_content"
+          - "'signed_by: /usr/share/keyrings/chatgpt-desktop-archive-keyring.gpg' in chatgpt_desktop_content"
+          - "'dest: /usr/share/keyrings/chatgpt-archive-keyring.asc' not in chatgpt_desktop_content"
         fail_msg: >-
           roles/chatgpt_desktop/tasks/debian.yml must turn off the repository
           the ChatGPT package adds for itself, fetch the signing key by
           fingerprint (OpenAI publishes no key URL), and keep that download out
           of a check-mode run: keyserver.ubuntu.com answers the HEAD probe
-          get_url uses under --check with 405.
+          get_url uses under --check with 405. The keyserver also reorders its
+          ASCII armor header between backends, so the download must go to a
+          scratch path, be dearmored, and be installed with copy - a get_url
+          straight into /usr/share/keyrings reported a change every run. The
+          keyring must not use the "chatgpt-archive-keyring.gpg" name the
+          package's postinst overwrites.
       vars:
         chatgpt_desktop_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/chatgpt_desktop/tasks/debian.yml') }}"
 
@@ -956,6 +968,28 @@
         label: "{{ item.name }}"
       vars:
         shared_content: "{{ lookup('ansible.builtin.file', roles_dir ~ '/' ~ item.name ~ '/tasks/' ~ item.shared) }}"
+
+    - name: Assert opencode migrates off the legacy 1.x formula
+      ansible.builtin.assert:
+        that:
+          - "'name: anomalyco/tap/opencode-v2' in opencode_brew"
+          - "\"'opencode-v2' not in (brew_installed_formulae\" in opencode_brew"
+          - "'state: absent' in opencode_brew"
+          - >-
+            opencode_brew is search("state: absent[\s\S]*"
+            "name: anomalyco/tap/opencode-v2")
+        fail_msg: >-
+          The tap publishes both opencode (1.x) and opencode-v2 (2.x), and
+          opencode-v2 declares conflicts_with opencode, so only one of them can
+          be linked and a host carrying the other one fails with "The `brew
+          link` step did not complete successfully". roles/opencode must install
+          anomalyco/tap/opencode-v2, gate on the "opencode-v2" name that
+          `brew list --formula` prints, and remove the legacy formula before the
+          install - a hand-migrated host otherwise keeps an unlinked 1.x keg
+          that the next `brew upgrade --formula` would try to re-link.
+      vars:
+        opencode_brew: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/opencode/tasks/brew.yml') }}
 
     - name: Assert every third-party Homebrew tap is added through the shared brew_tap role
       ansible.builtin.assert:

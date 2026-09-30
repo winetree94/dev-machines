@@ -9,7 +9,19 @@
 # repository's InRelease; the keys.openpgp.org copy of the same fingerprint is
 # stripped and cannot be used. Key: "Codex Linux Repository"
 # 3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4.
-
+#
+# keyserver.ubuntu.com is a pool of Hockeypuck backends whose ASCII armor
+# headers are not byte-stable - "Comment:" and "Version:" swap order between
+# nodes - so a get_url straight into /usr/share/keyrings reported a change on
+# nearly every run. The key is fetched to a scratch path, converted with
+# "gpg --dearmor" (the armor header is dropped, so the binary keyring is
+# byte-identical whenever the key itself has not changed) and installed with
+# copy, which is idempotent by checksum.
+#
+# The installed keyring is deliberately named "chatgpt-desktop-...", not
+# "chatgpt-...": the ChatGPT package's own postinst writes
+# /usr/share/keyrings/chatgpt-archive-keyring.gpg on every install, and a file
+# with that name would be overwritten behind Ansible's back.
 - name: ChatGPT Desktop | Ensure the keyring directory exists
   ansible.builtin.file:
     path: /usr/share/keyrings
@@ -19,29 +31,62 @@
 
 - name: ChatGPT Desktop | Read the installed signing key
   ansible.builtin.stat:
-    path: /usr/share/keyrings/chatgpt-archive-keyring.asc
+    path: /usr/share/keyrings/chatgpt-desktop-archive-keyring.gpg
   register: chatgpt_desktop_keyring
   become: false
 
 - name: ChatGPT Desktop | Download the APT signing key
   ansible.builtin.get_url:
     url: "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x3BFA0E4AE8B8CC16A2D9BA684A3B4A566C4660E4&options=mr"
-    dest: /usr/share/keyrings/chatgpt-archive-keyring.asc
+    dest: /tmp/chatgpt-desktop-archive-keyring.asc
     mode: "0644"
-  become: true
+  become: false
   # get_url probes the URL with HEAD under --check, and the Hockeypuck software
   # behind keyserver.ubuntu.com answers HEAD with 405 - the download itself is
   # a plain GET and works, so only a dry run hits this. Skipping it there keeps
   # "make check" honest: a real run is the only thing that writes into
   # /usr/share/keyrings, and the report below still shows the pending change.
+  # The scratch file is not the managed artifact (the binary keyring is), and
+  # the keyserver rewrites it with a different armor header order between
+  # backends, so this task never reports a change.
   when: not ansible_check_mode
+  changed_when: false
+
+- name: ChatGPT Desktop | Convert the signing key to a binary keyring
+  ansible.builtin.command:
+    argv:
+      - gpg
+      - --batch
+      - --yes
+      - --dearmor
+      - --output
+      - /tmp/chatgpt-desktop-archive-keyring.gpg
+      - /tmp/chatgpt-desktop-archive-keyring.asc
+  when: not ansible_check_mode
+  changed_when: false
+  become: false
+
+- name: ChatGPT Desktop | Install the binary signing key
+  ansible.builtin.copy:
+    src: /tmp/chatgpt-desktop-archive-keyring.gpg
+    dest: /usr/share/keyrings/chatgpt-desktop-archive-keyring.gpg
+    remote_src: true
+    mode: "0644"
+  when: not ansible_check_mode
+  become: true
+
+- name: ChatGPT Desktop | Remove the superseded ASCII signing key
+  ansible.builtin.file:
+    path: /usr/share/keyrings/chatgpt-archive-keyring.asc
+    state: absent
+  become: true
 
 - name: ChatGPT Desktop | Report the signing key download in check mode
   ansible.builtin.debug:
     msg: >-
       The ChatGPT Desktop signing key would be fetched from
-      keyserver.ubuntu.com by fingerprint into
-      /usr/share/keyrings/chatgpt-archive-keyring.asc.
+      keyserver.ubuntu.com by fingerprint and converted to
+      /usr/share/keyrings/chatgpt-desktop-archive-keyring.gpg.
   changed_when: true
   when:
     - ansible_check_mode
@@ -73,7 +118,7 @@
       - stable
     components:
       - main
-    signed_by: /usr/share/keyrings/chatgpt-archive-keyring.asc
+    signed_by: /usr/share/keyrings/chatgpt-desktop-archive-keyring.gpg
     state: present
   become: true
 

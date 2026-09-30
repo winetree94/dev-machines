@@ -19,15 +19,15 @@
     - dev_machines_update_mode | bool
     - not ansible_check_mode
 
+# Same stdout/stderr split as the Unix implementations: only the "Upgraded N
+# tools:" summary on stdout means mise changed anything.
 - name: Mise | Upgrade managed runtimes
   ansible.windows.win_command:
     argv:
       - "{{ winget_executable_path }}"
       - upgrade
   register: mise_runtime_upgrade
-  changed_when: >-
-    'already installed' not in mise_runtime_upgrade.stdout
-    and 'nothing to upgrade' not in mise_runtime_upgrade.stdout | lower
+  changed_when: "'Upgraded' in mise_runtime_upgrade.stdout"
   when:
     - dev_machines_update_mode | bool
     - not ansible_check_mode

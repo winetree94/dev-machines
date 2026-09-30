@@ -8,6 +8,12 @@
     apt_tasks: "{{ lookup('ansible.builtin.file', '../roles/apt_update/tasks/main.yml') }}"
     android_defaults: "{{ lookup('ansible.builtin.file', '../roles/android/defaults/main.yml') }}"
     android_unix: "{{ lookup('ansible.builtin.file', '../roles/android/tasks/unix.yml') }}"
+    snap_tasks: "{{ lookup('ansible.builtin.file', '../roles/snap/tasks/main.yml') }}"
+    mise_debian: "{{ lookup('ansible.builtin.file', '../roles/mise/tasks/debian.yml') }}"
+    mise_darwin: "{{ lookup('ansible.builtin.file', '../roles/mise/tasks/darwin.yml') }}"
+    mise_windows: "{{ lookup('ansible.builtin.file', '../roles/mise/tasks/windows.yml') }}"
+    codex_debian: "{{ lookup('ansible.builtin.file', '../roles/codex/tasks/debian.yml') }}"
+    copilot_cli_debian: "{{ lookup('ansible.builtin.file', '../roles/copilot_cli/tasks/debian.yml') }}"
   tasks:
     - name: Update | Assert the update playbook reuses setup in update mode
       ansible.builtin.assert:
@@ -32,3 +38,38 @@
           - "'  - \"36.0.0\"' in android_defaults"
           - "'  - platform-tools' in android_defaults"
           - "'      - --update' in android_unix"
+          - "'cmdline-tools/.ansible-source-build' in android_unix"
+          - "'cmdline-tools/latest/.ansible-source-build' not in android_unix"
+
+    - name: Update | Assert bulk refreshes report only real changes
+      ansible.builtin.assert:
+        that:
+          - "\"snap_refresh.stdout ~ snap_refresh.stderr\" in snap_tasks"
+          - "\"'Upgraded' in mise_runtime_upgrade.stdout\" in mise_debian"
+          - "\"'Upgraded' in mise_runtime_upgrade.stdout\" in mise_darwin"
+          - "\"'Upgraded' in mise_runtime_upgrade.stdout\" in mise_windows"
+          - "'nothing to upgrade' not in mise_debian"
+          - "'nothing to upgrade' not in mise_windows"
+        fail_msg: >-
+          snap prints "All snaps up to date." and mise prints its upgrade
+          progress on stderr, so comparing only stdout reported a change on
+          every update run. snap has to fold stderr into its comparison and
+          mise has to key off the "Upgraded N tools:" summary it writes to
+          stdout.
+
+    - name: Update | Assert vendor installers report only real changes
+      ansible.builtin.assert:
+        that:
+          - "'checksum_algorithm: sha256' in codex_debian"
+          - "'checksum_algorithm: sha256' in copilot_cli_debian"
+          - "'codex_install_after.stat.checksum != codex_installed.stat.checksum' in codex_debian"
+          - "'copilot_cli_install_after.stat.checksum != copilot_cli_installed.stat.checksum' in copilot_cli_debian"
+          - "'changed_when: false' in codex_debian"
+          - "'changed_when: false' in copilot_cli_debian"
+          - "'changed_when: true' not in codex_debian"
+          - "'changed_when: true' not in copilot_cli_debian"
+        fail_msg: >-
+          The Codex and Copilot installers always exit 0 and always rewrite
+          their binary, so "changed_when: true" reported a change on every
+          update run. Both now checksum the installed binary before and after
+          and report the change from that comparison.

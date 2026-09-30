@@ -15,7 +15,10 @@
     name: grafana/grafana/alloy
     state: present
   become: false
-  when: "'grafana/grafana/alloy' not in (brew_installed_formulae | default([]))"
+  # The gate names the formula, not the token: "brew list --formula" prints
+  # grafana/grafana/alloy as "alloy", so a qualified comparison never matches
+  # and the module would run on every pass.
+  when: "'alloy' not in (brew_installed_formulae | default([]))"
 
 - name: Alloy | Resolve the Homebrew prefix
   ansible.builtin.command: brew --prefix

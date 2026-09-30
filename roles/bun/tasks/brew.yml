@@ -13,8 +13,11 @@
     brew_tap_names:
       - oven-sh/bun
 
+# The gate names the formula, not the token: "brew list --formula" prints
+# oven-sh/bun/bun as "bun", so a qualified comparison never matches and the
+# module would run on every pass.
 - name: Bun | Install Bun (brew)
-  when: "'oven-sh/bun/bun' not in (brew_installed_formulae | default([]))"
+  when: "'bun' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: oven-sh/bun/bun
     state: present

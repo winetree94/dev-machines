@@ -77,6 +77,18 @@
       - type: boot
     username: SYSTEM
     run_level: highest
+    # Task Scheduler creates a new task with "Stop the task if the computer
+    # switches to battery power" and "Don't start the task if the computer is
+    # running on batteries" enabled, and the module leaves those defaults alone
+    # when the two options are not passed. On a laptop that takes the exporter
+    # dark the moment it is unplugged, and the "Ensure ... is running" task
+    # below then reports a change on every run while it is unplugged. Restart
+    # on failure keeps a crashed exporter self-healing instead of waiting for
+    # the next Ansible run.
+    disallow_start_if_on_batteries: false
+    stop_if_going_on_batteries: false
+    restart_count: 3
+    restart_interval: PT1M
     enabled: true
     state: present
   notify: Restart smartctl exporter on Windows

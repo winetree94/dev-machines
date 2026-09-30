@@ -137,6 +137,37 @@
           with 0xC0000409 whether or not it succeeded, so the task has to verify the
           installed source.properties instead of trusting the process status.
 
+    - name: Assert the Command-line Tools marker survives sdkmanager updates
+      ansible.builtin.assert:
+        that:
+          - "'cmdline-tools/.ansible-source-build' in android_unix"
+          - "'cmdline-tools/latest/.ansible-source-build' not in android_unix"
+          - '"cmdline-tools\\\\.ansible-latest-source-build" in android_windows'
+        fail_msg: >-
+          sdkmanager --update replaces cmdline-tools/latest wholesale when it
+          supersedes the archive-installed build, so a marker stored inside
+          that directory is deleted on every update: the next run sees no
+          marker, reinstalls the archive, and the role never converges. Keep
+          the marker in the parent cmdline-tools directory, as Windows does.
+
+    - name: Assert Unix verifies the SDK update against the pre-update listing
+      ansible.builtin.assert:
+        that:
+          - "'--list_installed' in android_unix"
+          - "'android_sdk_update_before.stdout' in android_unix"
+          - "'android_sdk_update_after.stdout != android_sdk_update_before.stdout' in android_unix"
+          - "'No updates available' not in android_unix"
+          - "' -> ' not in android_unix"
+        fail_msg: >-
+          The Android CLI based sdkmanager prints nothing at all when every
+          installed package is current, so a changed_when that looks for the
+          retired no-updates message reports a change on every update run.
+          Neither is the "--list_installed" arrow a safe substitute: it keeps
+          advertising an unresolvable "cmdline-tools/latest unknown -> 23.0.0"
+          update and a permanent downgrade arrow for a beta system image. Take
+          the installed listing before and after the update and report changed
+          only when the two differ.
+
     - name: Assert Windows updates from a disposable SDK manager copy
       ansible.builtin.assert:
         that:

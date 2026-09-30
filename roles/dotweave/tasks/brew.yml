@@ -6,8 +6,11 @@
     brew_tap_names:
       - tinyrack-net/tap
 
+# Both gates name the formula, not the token: "brew list --formula" prints
+# tinyrack-net/tap/dotweave as "dotweave", so a qualified comparison never
+# matches and the two tasks would both run on every pass.
 - name: Dotweave | Install dotweave from Homebrew
-  when: "'tinyrack-net/tap/dotweave' not in (brew_installed_formulae | default([]))"
+  when: "'dotweave' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: tinyrack-net/tap/dotweave
     state: latest
@@ -15,7 +18,7 @@
   become: false
 
 - name: Dotweave | Upgrade the installed dotweave formula
-  when: "'tinyrack-net/tap/dotweave' in (brew_installed_formulae | default([]))"
+  when: "'dotweave' in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: tinyrack-net/tap/dotweave
     state: latest

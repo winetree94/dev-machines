@@ -2,9 +2,19 @@
 # The Homebrew package for Codex is a cask, so it is macOS-only and Linux uses
 # the vendor installer. Downloaded and then executed rather than piped into a
 # shell, so the fetch and the run stay separate, inspectable steps.
+#
+# The installer always exits 0 and always rewrites its release link, so the run
+# itself cannot tell an upgrade from a no-op - it reports success even when the
+# host already runs the resolved version. The installed binary is therefore
+# checksummed before and after and the change is reported from that comparison
+# (the same pre/post verification the Android role uses), which is what lets a
+# converged host stay at changed=0. The stat follows the symlink because
+# ~/.local/bin/codex is a link into the versioned standalone release.
 - name: Codex | Check whether the Codex CLI is installed
   ansible.builtin.stat:
     path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/codex"
+    checksum_algorithm: sha256
+    follow: true
   register: codex_installed
   become: false
 
@@ -37,5 +47,27 @@
       - /tmp/codex-install.sh
   environment:
     CODEX_NON_INTERACTIVE: "1"
-  changed_when: true
+    # The installer appends its "# >>> Codex installer >>>" PATH block to
+    # ~/.zshrc whenever its install directory is missing from PATH, and
+    # dotweave owns that file: dotweave restores the tracked copy on every run,
+    # the installer re-adds the block, and the two never converge. Put the
+    # install directory on PATH for the installer instead - it is where the
+    # binary lands and what the stat check above looks at - and the installer
+    # reports "is already on PATH" and leaves the shell configuration alone.
+    PATH: >-
+      {{ ansible_facts['env']['HOME'] }}/.local/bin:{{
+      ansible_facts['env']['PATH'] }}
+  changed_when: false
+  become: false
+
+- name: Codex | Verify the Codex CLI is current
+  ansible.builtin.stat:
+    path: "{{ ansible_facts['env']['HOME'] }}/.local/bin/codex"
+    checksum_algorithm: sha256
+    follow: true
+  register: codex_install_after
+  changed_when: >-
+    not codex_installed.stat.exists or
+    codex_install_after.stat.checksum != codex_installed.stat.checksum
+  when: not codex_installed.stat.exists or dev_machines_update_mode | bool
   become: false

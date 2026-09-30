@@ -342,6 +342,24 @@
           assert now lives in roles/winget/tasks/main.yml, so there is only one winget
           role to include.
 
+    - name: Assert the bulk upgrades report a change only when they upgraded
+      ansible.builtin.assert:
+        that:
+          - >-
+            winget_tasks is search("register: winget_all_community_upgrade[\\s\\S]{0,200}'Successfully installed' in winget_all_community_upgrade.stdout")
+          - >-
+            winget_tasks is search("register: winget_all_store_upgrade[\\s\\S]{0,200}'Successfully installed' in winget_all_store_upgrade.stdout")
+          - "'No installed package found matching input criteria' not in winget_tasks"
+        fail_msg: >-
+          winget keeps listing packages --all cannot upgrade (Microsoft Edge's
+          Enterprise MSI cannot replace the preinstalled consumer build, and
+          Discord/Slack need explicit targeting), so "No installed package
+          found matching input criteria." only appears when the listing is
+          empty and a changed_when keyed on it reports a change on nearly every
+          run. Only "Successfully installed" - printed once per package winget
+          actually installed or upgraded - may decide whether the run changed
+          anything.
+
     - name: Assert the retired collections are no longer required
       ansible.builtin.assert:
         that:

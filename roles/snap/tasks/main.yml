@@ -24,10 +24,13 @@
     - snap_refreshes.rc == 0
     - snap_refreshes.stdout_lines | default([]) | length > 1
 
+# snap prints "All snaps up to date." on stderr, so a stdout-only comparison
+# reported a refresh on every run even when it refreshed nothing.
 - name: Snap | Refresh all installed packages
   ansible.builtin.command: snap refresh
   register: snap_refresh
-  changed_when: "'All snaps up to date' not in snap_refresh.stdout"
+  changed_when: >-
+    'All snaps up to date' not in (snap_refresh.stdout ~ snap_refresh.stderr)
   become: true
   when:
     - dev_machines_update_mode | bool

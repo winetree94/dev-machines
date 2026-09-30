@@ -57,6 +57,24 @@
           trust only the installed Crush formula, and update casks separately with
           sudo_password so pkg and privileged app casks work without a terminal.
 
+    # Homebrew 7.0.7 self-conflicts on the rack lock when a formula and one of
+    # its dependencies are upgraded together ("A `brew upgrade --formula`
+    # process has already locked ..."). The retry is scoped to that error, so
+    # it has to stay on the global upgrade task.
+    - name: Assert the global Homebrew upgrade retries the rack-lock error
+      ansible.builtin.assert:
+        that:
+          - "'has already locked' in brew_snapshot"
+          - "'retries: 3' in brew_snapshot"
+          - "'until: >-' in brew_snapshot"
+        fail_msg: >-
+          The `brew upgrade --formula` task must retry when Homebrew aborts on
+          its own rack lock, because one pass upgrades every formula that comes
+          before the conflicting one and the retry then converges. Keep the
+          retry conditioned on 'has already locked' so unrelated failures still
+          stop the run immediately.
+        quiet: true
+
     - name: Assert the brew snapshot publishes both facts and never installs
       ansible.builtin.assert:
         that:
@@ -138,4 +156,34 @@
           Gate them with `when: "'<token>' not in (<fact> | default([]))"` - the
           default([]) is what makes the role still work when the snapshot did not run,
           for instance under a tag-filtered invocation.
+        quiet: true
+
+    # `brew list` prints the formula's own name, never the qualified tap token:
+    # oven-sh/bun/bun is listed as "bun" and grafana/grafana/alloy as "alloy".
+    # A gate written with the token therefore never matches and the role falls
+    # back to its own module call on every pass, which is exactly what the
+    # snapshot exists to avoid.
+    - name: Find the snapshot gates that compare a fully qualified tap token
+      ansible.builtin.find:
+        paths: "{{ repo_root }}/roles"
+        patterns: "*.yml"
+        recurse: true
+        # Either order: the gate reads "'<token>' not in (fact ...)", so the
+        # slash is normally *before* the fact name. `find.contains` runs
+        # re.match per line, hence the leading .*.
+        contains: '.*(brew_installed_formulae|brew_installed_casks).*/.*|.*/.*(brew_installed_formulae|brew_installed_casks).*'
+      register: qualified_token_gates
+
+    - name: Assert no snapshot gate compares a fully qualified tap token
+      ansible.builtin.assert:
+        that:
+          - qualified_token_gates.files | length == 0
+        fail_msg: >-
+          These task files gate on a fully qualified Homebrew token:
+          {{ qualified_token_gates.files | map(attribute='path')
+             | map('regex_replace', '^.*/roles/', 'roles/') | join(', ') }}.
+          Install with the qualified token, but gate on the name the snapshot
+          prints - "brew list --formula" reports oven-sh/bun/bun as "bun" and
+          grafana/grafana/alloy as "alloy", so a qualified comparison never
+          matches and the module runs on every pass.
         quiet: true

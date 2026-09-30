@@ -47,6 +47,18 @@
       'charmbracelet/tap/crush'
       not in ((brew_trust.stdout | from_json).formulae | default([]))
 
+# Homebrew 7.0.7 can lock the same rack twice inside one process and abort with
+# "A `brew upgrade --formula` process has already locked
+# /home/linuxbrew/.linuxbrew/Cellar/openssl@3" when a formula and one of its
+# dependencies are both upgraded by the same invocation (mise depends on
+# openssl@3). flock() locks belong to the open file description, so a second
+# descriptor for the same rack conflicts even inside one process - the message
+# names the current command because the current process is the holder.
+#
+# Every pass upgrades the formulae that come before the conflicting one, so a
+# bounded retry converges: the retry no longer has the dependency in its
+# upgrade set and never takes its lock. Only that specific error is retried, so
+# a real failure still stops the run on the first attempt.
 - name: Brew | Update Homebrew and all formulae
   community.general.homebrew:
     update_homebrew: true
@@ -56,6 +68,11 @@
     upgrade_options: [formula]
   register: brew_formula_upgrade
   become: false
+  retries: 3
+  delay: 5
+  until: >-
+    brew_formula_upgrade is not failed
+    or 'has already locked' not in (brew_formula_upgrade.msg | default(''))
   when: dev_machines_update_mode | bool
 
 - name: Brew | List outdated casks
@@ -133,6 +150,12 @@
   check_mode: false
   become: false
 
+# Both facts hold what "brew list" prints, which is the formula's or cask's own
+# name - never the fully qualified tap token. `brew list --formula` reports
+# oven-sh/bun/bun as "bun" and grafana/grafana/alloy as "alloy", so a consumer
+# that gates on a qualified token never matches and silently falls back to its
+# own module call on every pass. Install with the qualified token, gate on the
+# name.
 - name: Brew | Remember the installed formulae and casks
   ansible.builtin.set_fact:
     brew_installed_formulae: >-

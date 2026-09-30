@@ -10,10 +10,13 @@
     brew_tap_names:
       - can1357/tap
 
-# The token stays fully qualified so it can never resolve to a same-named
-# formula from another tap. The project ships the binary as "omp".
+# The install token stays fully qualified so it can never resolve to a
+# same-named formula from another tap; the project ships the binary as "omp".
+# The gate names the formula, not the token, because "brew list --formula"
+# prints can1357/tap/omp as "omp" - a qualified comparison never matches and
+# the module would run on every pass.
 - name: Oh My Pi | Install omp (Homebrew)
-  when: "'can1357/tap/omp' not in (brew_installed_formulae | default([]))"
+  when: "'omp' not in (brew_installed_formulae | default([]))"
   community.general.homebrew:
     name: can1357/tap/omp
     state: present

@@ -10,12 +10,39 @@
     brew_tap_names:
       - anomalyco/tap
 
-# The token stays fully qualified: homebrew-core now carries its own "opencode"
-# formula and brew warns that the tap shadows it. The vendor recommends the tap
-# and ships releases there first.
-- name: Opencode | Install opencode (Homebrew)
-  when: "'anomalyco/tap/opencode' not in (brew_installed_formulae | default([]))"
+# The tap publishes two formulae that both install bin/opencode: the legacy
+# "opencode" (1.x) and "opencode-v2" (2.x). opencode-v2 declares
+# `conflicts_with "opencode"`, so only one of them can be linked, and a host
+# that already carries the other one fails with "The `brew link` step did not
+# complete successfully". The current CLI is opencode-v2, so the legacy formula
+# is removed first and the v2 token installed after.
+#
+# The removal is what makes a hand-upgraded host converge: running
+# `brew uninstall opencode` and `brew install anomalyco/tap/opencode-v2` (the
+# documented migration) leaves no legacy keg behind, but a host where the role
+# re-installed opencode 1.x first keeps one, unlinked. `brew upgrade --formula`
+# in update mode would then try to re-link it on the next 1.x release and break
+# the whole run.
+#
+# The gate only saves the `brew info` call the snapshot already answered; it
+# deliberately falls through when the snapshot did not run (a tag-filtered
+# invocation), because the legacy formula has to be gone before v2 can link and
+# the module is idempotent when there is nothing to remove.
+- name: Opencode | Remove the legacy opencode formula
+  when: >-
+    brew_installed_formulae is not defined
+    or 'opencode' in (brew_installed_formulae | default([]))
   community.general.homebrew:
     name: anomalyco/tap/opencode
+    state: absent
+  become: false
+
+# The token stays fully qualified so it can never resolve to homebrew-core's
+# own "opencode" formula: that one tracks the same 1.x line the tap keeps for
+# backwards compatibility, and lags behind the tap.
+- name: Opencode | Install opencode (Homebrew)
+  when: "'opencode-v2' not in (brew_installed_formulae | default([]))"
+  community.general.homebrew:
+    name: anomalyco/tap/opencode-v2
     state: present
   become: false

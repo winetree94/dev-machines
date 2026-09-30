@@ -99,12 +99,21 @@
       winget_all_community_available.stdout_lines | default([]) | length > 2
       or winget_all_store_available.stdout_lines | default([]) | length > 2
 
+# winget keeps listing packages that --all cannot actually upgrade: Microsoft
+# Edge is preinstalled and its Enterprise MSI cannot replace the consumer build
+# (the install technology differs), and Discord and Slack need explicit
+# targeting, which this role deliberately does not do. So "No installed package
+# found matching input criteria." only appears when the listing is completely
+# empty, and a changed_when keyed on it (or an unconditional one) claims a
+# change on every run while Edge is listed - which is almost always. The only
+# reliable signal that the run did something is "Successfully installed", the
+# message winget prints once per package it actually installed or upgraded.
 - name: Winget | Upgrade all community-source packages
   ansible.windows.win_shell: >-
     winget upgrade --all --source winget --silent --disable-interactivity
     --accept-source-agreements --accept-package-agreements
   register: winget_all_community_upgrade
-  changed_when: true
+  changed_when: "'Successfully installed' in winget_all_community_upgrade.stdout"
   when:
     - dev_machines_update_mode | bool
     - winget_global_update | bool
@@ -116,7 +125,7 @@
     winget upgrade --all --source msstore --silent --disable-interactivity
     --accept-source-agreements --accept-package-agreements
   register: winget_all_store_upgrade
-  changed_when: true
+  changed_when: "'Successfully installed' in winget_all_store_upgrade.stdout"
   when:
     - dev_machines_update_mode | bool
     - winget_global_update | bool

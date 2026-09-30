@@ -150,11 +150,14 @@
     # cmdline-tools/latest as part of --update. Windows cannot replace that
     # directory while its executable and JARs are open, so run a disposable
     # copy against the real SDK root.
+    # The staged copy is scaffolding that is removed again in the always
+    # block, so it must not make an otherwise up-to-date host look changed.
     - name: Android | Create a temporary SDK manager directory
       ansible.windows.win_tempfile:
         state: directory
         prefix: ansible-android-update-
       register: android_sdk_update_dir
+      changed_when: false
 
     - name: Android | Stage the SDK manager outside the managed SDK
       ansible.windows.win_shell: >-
@@ -206,6 +209,7 @@
       ansible.windows.win_file:
         path: "{{ android_sdk_update_dir.path }}"
         state: absent
+      changed_when: false
       when:
         - android_sdk_update_dir is defined
         - android_sdk_update_dir.path is defined

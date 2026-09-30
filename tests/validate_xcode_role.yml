@@ -107,6 +107,19 @@
           through --stdinpass under no_log, and keep a separate root-only Intel
           invocation because Intel macOS does not support those options.
 
+    - name: Assert macOS updates report a change only when one is offered
+      ansible.builtin.assert:
+        that:
+          - >-
+            xcode_main is search("Run authenticated softwareupdate[\\s\\S]{0,600}changed_when:[\\s\\S]{0,160}xcode_macos_updates\\.stdout")
+          - >-
+            xcode_main is search("Install all recommended macOS updates on Intel[\\s\\S]{0,400}changed_when:[\\s\\S]{0,160}xcode_macos_updates\\.stdout")
+        fail_msg: >-
+          softwareupdate answers "No new software available." when the host is
+          current, so an unconditional changed_when reports a change on every
+          update run. Both invocations must key off the offered-update listing
+          the check-mode report already reads.
+
     - name: Assert mas comes from the shared mas role
       ansible.builtin.assert:
         that:
