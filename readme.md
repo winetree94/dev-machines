@@ -520,6 +520,12 @@ winget 은 설치 여부를 **Add/Remove Programs 레지스트리**로 판단하
 - 커뮤니티 패키지는 `winget_packages` / `--source winget`, Microsoft Store 제품은
   `winget_msstore_packages` / `--source msstore` 로 분리한다. Store 호출은 source 와
   package 약관을 명시적으로 수락하며, 어느 경우에도 소스 자동 선택에 맡기지 않는다.
+- 설치 범위(scope)는 기본적으로 winget 의 선택에 맡긴다. 공용 롤에 `winget_scope` 를
+  넘길 때만 community·Store install/upgrade 명령에 `--scope <값>`(보통 `machine`)이
+  붙는다. 매니페스트가 machine·user 엔트리를 함께 배포하면 winget 은 scope 를 지정하지
+  않았을 때 user 엔트리를 고르므로, 범위가 결과를 바꾸는 롤(`parsec` - 로그인 화면에서도
+  접근해야 하는 원격 접속 호스트)만 명시한다. 읽기 전용 `winget list` 조회에는 scope 를
+  붙이지 않는다. 걸러 버리면 설치하려는 패키지를 찾지 못한다.
 - vendor가 공식 설치 파일은 제공하지만 source manifest가 없으면
   `winget_local_packages`를 사용한다. 공용 롤은 `LocalManifestFiles`를 필요할 때만
   활성화하고, manifest를 원격 임시 디렉터리에서 검증한 뒤 install/upgrade한다.
@@ -703,6 +709,37 @@ cask 가 하던 부가 작업도 재현한다: `/usr/local/bin/alacritty` 심볼
 
 pkg 기반 cask 는 `parsec` 와 `karabiner_elements` 둘뿐이라(테이블에서 `pkg: true` 로
 표시), 이 둘만 `sudo_password` 를 넘긴다. 나머지는 `.app` 드래그 설치라 sudo 가 필요 없다.
+
+`parsec` 은 cask 옆에 macOS 로그인 화면 호스팅용 벤더 설치 프로그램
+([`parsec-macos-startup.pkg`](https://builds.parsecgaming.com/package/parsec-macos-startup.pkg),
+가이드 "Access Login Screen on macOS")을 `installer -pkg <file> -target /` 로 무인
+설치한다. "Parsec App for macOS" 가 macOS 설치 프로그램의 command line 옵션을 지원하지
+않는다고 명시하므로 앱 설치의 유일한 무인 경로는 cask 의 pkg 아티팩트이고, 로그인 화면
+런처를 만드는 것은 그 cask 가 아니라 두 번째 설치 프로그램이다. 두 pkg 은 같은 앱
+페이로드를 담고 preinstall 스크립트만 다르다 - 앱 pkg 은
+`/Library/LaunchAgents/com.parsec.app.plist` 와 `/Users/Shared/.parsec` 을 지우고, 로그인
+화면 pkg 은 같은 plist(0644)와 `/Users/Shared/.parsec`(0777)을 만든다. 그래서 순서가
+중요하다: cask 를 먼저, 로그인 화면 설치 프로그램을 마지막에 둔다. `make update` 의 cask
+업그레이드가 앱 pkg 의 preinstall 을 돌려 런처를 지우면 같은 실행에서 이 task 가 다시
+복구한다. 게이트는 plist 의 존재 여부이고, 벤더 요구사항인 FileVault Off 를 만족하지
+않으면 설치를 건너뛰고 debug 로 보고한다(유선 이더넷 요구는 문서로만 남긴다). 공급자가
+digest API 를 제공하지 않아 체크섬 대신 `pkgutil --check-signature` 로 Developer ID
+Installer 서명(`Parsec Cloud, Inc. (Y9MY52XZDB)`)과 notarization 을 검증한 뒤에만
+실행한다. 로그인 화면 모드는 자산 디렉터리가 `/Users/Shared/.parsec` 로 바뀌므로 Parsec
+재로그인이 필요할 수 있고, 화면 기록·접근성·마이크 권한 부여와 `launchctl unload -w` 로
+꺼 둔 런처의 `launchctl load -w` 재활성화는 손작업으로 남는다.
+
+Windows 의 `parsec` 은 공용 winget 롤에 `winget_scope: machine` 을 넘긴다. 매니페스트가
+x64 machine 엔트리(`/allusers`, `ElevationRequirement: elevationRequired`)와 user
+엔트리(`/currentuser`)를 함께 배포하고 winget 은 scope 없이 user 엔트리를 고르는데,
+Program Data 를 자산 디렉터리로 쓰고 Windows 로그인 화면에서도 접근 가능한 것은
+per-computer 설치뿐이기 때문이다. winget 이 실제로 넘기는 `/allusers` 는 공급자 문서에
+없는 플래그이고 문서가 안내하는 이름은 `/percomputer`("Equivalent to legacy /shared
+flag")이므로, 이 롤의 합격 기준은 플래그 이름이 아니라 결과 레이아웃이다 -
+`C:\ProgramData\Parsec` 이 있고 `%APPDATA%\Parsec` 이 없어야 한다. machine 엔트리는
+승격이 필요하므로 이 저장소의 OpenSSH 세션(관리자, High Mandatory Level)을 전제로 한다.
+이미 per-user 로 설치된 호스트는 winget 스냅샷이 "설치됨"으로 판단해 자동 변환하지
+않으므로 먼저 지우고 다시 적용해야 한다.
 
 **Microsoft Edge 는 Windows 에서 설치하지 않는다.** winget 매니페스트는 Edge Enterprise
 MSI(`InstallerType: wix`, machine scope)인데 Windows 11 기본 탑재 Edge 는 설치 기술이 다른

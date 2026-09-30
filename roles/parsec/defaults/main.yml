@@ -1,0 +1,22 @@
+---
+# Parsec's macOS login-screen installer, linked from the vendor guide
+# "Access Login Screen on macOS" (support.parsec.app article 32381618319124).
+# It is a different artifact from the app package the Homebrew cask installs:
+# the same Parsec.app payload, but its preinstall script also writes
+# /Library/LaunchAgents/com.parsec.app.plist and creates /Users/Shared/.parsec
+# with mode 0777, which is what lets parsecd host from the macOS login window.
+# The app package's preinstall script deletes both, so this installer has to be
+# applied after the cask.
+parsec_macos_startup_pkg_url: >-
+  https://builds.parsecgaming.com/package/parsec-macos-startup.pkg
+
+# Login-screen install marker. It is also the file the vendor documents for
+# turning the launcher off and back on:
+#   launchctl unload -w /Library/LaunchAgents/com.parsec.app.plist
+#   launchctl load -w /Library/LaunchAgents/com.parsec.app.plist
+parsec_macos_launch_agent: /Library/LaunchAgents/com.parsec.app.plist
+
+# Asset directory of a login-screen install (the vendor's preinstall creates it
+# with mode 0777). A regular install uses ~/.parsec per user instead, so a host
+# that switches to login-screen mode has to sign in to Parsec again.
+parsec_macos_shared_assets: /Users/Shared/.parsec

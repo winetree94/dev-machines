@@ -3,6 +3,14 @@
 # the availability assert in tasks/main.yml.
 winget_packages: []
 
+# Empty means winget's own default, which prefers the user-scope installer
+# entry when a manifest publishes both. Callers that need the machine-wide
+# artifact - a per-computer install the Windows login screen can also reach -
+# set this to "machine" so every community and Store install/upgrade this
+# include issues pins "--scope machine" and selects the manifest's machine
+# entry instead of its user entry.
+winget_scope: ''
+
 # Enabled only by the Windows bootstrap include. Package roles leave this off
 # so an update filtered by an application tag upgrades only that application.
 winget_global_update: false

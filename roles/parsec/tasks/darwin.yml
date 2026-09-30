@@ -5,6 +5,12 @@
 # throwaway SUDO_ASKPASS helper, which is what makes Homebrew call "sudo -A".
 # Same shape as roles/tailscale/tasks/darwin.yml. Homebrew itself must stay
 # unprivileged: it refuses to run as root.
+#
+# This is also the only unattended macOS path the vendor allows: "Parsec App
+# for macOS" (support.parsec.app article 32381394408596) states outright that
+# command line options are not supported for the macOS installer. The cask
+# artifact is that same official .pkg, so "brew install --cask parsec" is a
+# scripted "installer -pkg" and nothing else.
 - name: Parsec | Install Parsec (Homebrew cask)
   when: "'parsec' not in (brew_installed_casks | default([]))"
   community.general.homebrew_cask:
@@ -12,3 +18,151 @@
     state: present
     sudo_password: "{{ ansible_become_password }}"
   become: false
+
+# Login-screen hosting needs the vendor's second installer, which places the
+# same Parsec.app but also writes /Library/LaunchAgents/com.parsec.app.plist and
+# creates /Users/Shared/.parsec (mode 0777). It runs unattended: "installer
+# -pkg <file> -target /" is the scripted form of the GUI walkthrough, the
+# package has a preinstall script only, and `installer` validates the Developer
+# ID Installer signature the assert below also pins. Nothing is checksum-pinned
+# because Parsec publishes no digest for this floating URL - the same tradeoff
+# the cask itself makes with its ":no_check" artifact.
+#
+# Order is load-bearing: the app package's preinstall script deletes the launch
+# agent and the shared asset directory, so the cask has to run first and this
+# has to run last. That is also what makes "make update" converge - the Brew
+# role upgrades the cask (running the app package's preinstall) and this task
+# restores the launcher in the same run.
+- name: Parsec | Check the login-screen launch agent
+  ansible.builtin.stat:
+    path: "{{ parsec_macos_launch_agent }}"
+  register: parsec_macos_launch_agent_stat
+  # An inert read that has to answer the same way in check mode, like the
+  # openssh_default_shell probe.
+  check_mode: false
+  become: false
+
+- name: Parsec | Read the FileVault status
+  ansible.builtin.command:
+    argv:
+      - fdesetup
+      - status
+  register: parsec_macos_filevault
+  changed_when: false
+  check_mode: false
+  become: false
+  when: not parsec_macos_launch_agent_stat.stat.exists
+
+# "Ensure FileVault is disabled" is a vendor requirement for login-screen
+# hosting, not something this role may change, so a FileVault host keeps a
+# working regular install and only skips the launcher.
+- name: Parsec | Resolve whether login-screen hosting is needed
+  ansible.builtin.set_fact:
+    parsec_macos_needs_launcher: >-
+      {{ not parsec_macos_launch_agent_stat.stat.exists
+         and ('FileVault is Off' in (parsec_macos_filevault.stdout | default(''))) }}
+
+- name: Parsec | Report the skipped login-screen install
+  ansible.builtin.debug:
+    msg: >-
+      Parsec login-screen hosting was skipped: the vendor requires FileVault to
+      be disabled (fdesetup status: {{ parsec_macos_filevault.stdout | trim }}).
+  when:
+    - not parsec_macos_launch_agent_stat.stat.exists
+    - not parsec_macos_needs_launcher | bool
+
+- name: Parsec | Report the pending login-screen install in check mode
+  ansible.builtin.debug:
+    msg: >-
+      The vendor login-screen installer ({{ parsec_macos_startup_pkg_url }})
+      would replace /Applications/Parsec.app, write
+      {{ parsec_macos_launch_agent }} and create
+      {{ parsec_macos_shared_assets }} with mode 0777.
+  changed_when: true
+  when:
+    - ansible_check_mode
+    - parsec_macos_needs_launcher | bool
+
+- name: Parsec | Install the login-screen launcher from the vendor installer
+  when:
+    - not ansible_check_mode
+    - parsec_macos_needs_launcher | bool
+  block:
+    - name: Parsec | Create a temporary working directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: -parsec
+      register: parsec_macos_temp
+      become: false
+
+    - name: Parsec | Download the vendor login-screen installer
+      ansible.builtin.get_url:
+        url: "{{ parsec_macos_startup_pkg_url }}"
+        dest: "{{ parsec_macos_temp.path }}/parsec-macos-startup.pkg"
+        mode: "0600"
+        timeout: 600
+      become: false
+
+    - name: Parsec | Read the installer signature
+      ansible.builtin.command:
+        argv:
+          - pkgutil
+          - --check-signature
+          - "{{ parsec_macos_temp.path }}/parsec-macos-startup.pkg"
+      register: parsec_macos_signature
+      changed_when: false
+      become: false
+
+    - name: Parsec | Assert the installer is signed and notarized by Parsec
+      ansible.builtin.assert:
+        that:
+          - >-
+            'Developer ID Installer: Parsec Cloud, Inc. (Y9MY52XZDB)'
+            in parsec_macos_signature.stdout
+          - >-
+            'signed by a developer certificate issued by Apple'
+            in parsec_macos_signature.stdout
+          - >-
+            'Notarization: trusted by the Apple notary service'
+            in parsec_macos_signature.stdout
+        fail_msg: >-
+          {{ parsec_macos_startup_pkg_url }} is not the notarized Parsec Cloud
+          (Y9MY52XZDB) login-screen installer this role expects, so it was not
+          run.
+        quiet: true
+
+    - name: Parsec | Install the login-screen launcher
+      ansible.builtin.command:
+        argv:
+          - installer
+          - -pkg
+          - "{{ parsec_macos_temp.path }}/parsec-macos-startup.pkg"
+          - -target
+          - /
+      changed_when: true
+      become: true
+
+    - name: Parsec | Verify the login-screen install
+      ansible.builtin.stat:
+        path: "{{ parsec_macos_launch_agent }}"
+      register: parsec_macos_launch_agent_installed
+      become: false
+
+    - name: Parsec | Assert the login-screen launcher now exists
+      ansible.builtin.assert:
+        that:
+          - parsec_macos_launch_agent_installed.stat.exists
+        fail_msg: >-
+          {{ parsec_macos_startup_pkg_url }} completed but
+          {{ parsec_macos_launch_agent }} is still missing.
+        quiet: true
+
+  always:
+    - name: Parsec | Remove the temporary working directory
+      ansible.builtin.file:
+        path: "{{ parsec_macos_temp.path }}"
+        state: absent
+      become: false
+      when:
+        - parsec_macos_temp is defined
+        - parsec_macos_temp.path is defined

@@ -1,7 +1,28 @@
 ---
-- name: Install Parsec (winget)
+# Parsec's Windows installer is an NSIS installer whose manifest Silent
+# switches are "/silent /norun /nocleanuser", so winget installs it with no UI
+# and does not launch it afterwards. Nothing about the install is interactive.
+#
+# What is not default is the scope. Parsec.Parsec publishes two x64 installer
+# entries - Scope: machine with the custom switch "/allusers" and
+# ElevationRequirement: elevationRequired, and Scope: user with
+# "/currentuser" - and winget picks the user entry unless a scope is named.
+# Parsec is a remote-access host: only the per-computer (machine) install uses
+# Program Data as its asset directory and is reachable from the Windows login
+# screen, so the scope is pinned here. Note that /allusers is what the winget
+# manifest passes, while Parsec documents the flag as /percomputer
+# ("Equivalent to legacy /shared flag"), so the acceptance check for this role
+# is the resulting layout - C:\ProgramData\Parsec present and %APPDATA%\Parsec
+# absent - not the flag name (see readme.md).
+#
+# The machine entry requires elevation, which this repository's OpenSSH
+# sessions of an administrator account already have. A pre-existing per-user
+# install is reported as installed by the winget snapshot and is therefore not
+# converted here; uninstall it first and re-apply.
+- name: Parsec | Install Parsec (winget, machine scope)
   ansible.builtin.include_role:
     name: winget
   vars:
     winget_packages:
       - Parsec.Parsec
+    winget_scope: machine

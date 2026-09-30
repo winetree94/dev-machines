@@ -181,6 +181,7 @@
     winget install --id {{ item.item }} --exact --source winget --silent
     --disable-interactivity --accept-source-agreements
     --accept-package-agreements
+    {{ '--scope ' ~ winget_scope if winget_scope | length > 0 else '' }}
   # default([]) because the task above is skipped outright when the snapshot
   # accounted for every package, and a skipped loop registers no "results".
   loop: "{{ winget_present.results | default([]) }}"
@@ -237,6 +238,7 @@
     --exact --source winget --silent
     --disable-interactivity --accept-source-agreements
     --accept-package-agreements
+    {{ '--scope ' ~ winget_scope if winget_scope | length > 0 else '' }}
   loop: "{{ winget_upgrade_available.results | default([]) }}"
   loop_control:
     loop_var: winget_upgrade_result
@@ -274,6 +276,7 @@
     winget install --id {{ item.item }} --exact --source msstore --silent
     --disable-interactivity --accept-source-agreements
     --accept-package-agreements
+    {{ '--scope ' ~ winget_scope if winget_scope | length > 0 else '' }}
   loop: "{{ winget_msstore_present.results | default([]) }}"
   loop_control:
     label: "{{ item.item }}"

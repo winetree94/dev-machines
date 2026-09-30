@@ -1091,6 +1091,56 @@
         parsec_debian: >-
           {{ lookup('ansible.builtin.file', roles_dir ~ '/parsec/tasks/debian.yml') }}
 
+    - name: Assert Parsec installs the macOS login-screen launcher unattended
+      ansible.builtin.assert:
+        that:
+          - "'community.general.homebrew_cask' in parsec_darwin"
+          - "'sudo_password' in parsec_darwin"
+          - "'https://builds.parsecgaming.com/package/parsec-macos-startup.pkg' in parsec_darwin_defaults"
+          - "'/Library/LaunchAgents/com.parsec.app.plist' in parsec_darwin_defaults"
+          - "'/Users/Shared/.parsec' in parsec_darwin_defaults"
+          - "'--check-signature' in parsec_darwin"
+          - "'Developer ID Installer: Parsec Cloud, Inc. (Y9MY52XZDB)' in parsec_darwin"
+          - "'- installer' in parsec_darwin"
+          - "'- -pkg' in parsec_darwin"
+          - "'- -target' in parsec_darwin"
+          - "'become: true' in parsec_darwin"
+          - "'fdesetup' in parsec_darwin"
+          - "'FileVault is Off' in parsec_darwin"
+          - "'ansible_check_mode' in parsec_darwin"
+          - >-
+            parsec_darwin is search("community[.]general[.]homebrew_cask[\s\S]*"
+            "parsec-macos-startup[.]pkg")
+        fail_msg: >-
+          Parsec on macOS keeps the Homebrew cask - the only unattended app
+          install the vendor allows, since "Parsec App for macOS" states that
+          command line options are not supported for the macOS installer - and
+          adds the vendor login-screen installer as a signature-verified
+          "installer -pkg" run. The cask has to come first and the login-screen
+          installer last, because the app package's preinstall script deletes
+          the launch agent the login-screen package installs.
+      vars:
+        parsec_darwin: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/parsec/tasks/darwin.yml') }}
+        parsec_darwin_defaults: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/parsec/defaults/main.yml') }}
+
+    - name: Assert Parsec pins the winget machine scope on Windows
+      ansible.builtin.assert:
+        that:
+          - "'name: winget' in parsec_windows"
+          - "'- Parsec.Parsec' in parsec_windows"
+          - "'winget_scope: machine' in parsec_windows"
+        fail_msg: >-
+          roles/parsec/tasks/windows.yml must pass winget_scope: machine.
+          Parsec's manifest publishes a machine entry (/allusers) and a user
+          entry (/currentuser), and winget installs the user one unless the
+          scope is named - only the per-computer install uses Program Data as
+          its asset directory and is reachable from the Windows login screen.
+      vars:
+        parsec_windows: >-
+          {{ lookup('ansible.builtin.file', roles_dir ~ '/parsec/tasks/windows.yml') }}
+
     - name: Assert each CLI role's macOS file names the expected package
       ansible.builtin.assert:
         that:

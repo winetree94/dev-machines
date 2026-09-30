@@ -225,6 +225,26 @@
           community winget source or Microsoft Store. Installs must remain
           non-interactive and accept the required source/package agreements.
 
+    - name: Assert the install scope is opt-in and never applied to a lookup
+      ansible.builtin.assert:
+        that:
+          - "'winget_scope: ' in winget_defaults"
+          - "winget_tasks.count(\"'--scope ' ~ winget_scope\") == 3"
+          - "winget_tasks.count('--scope') == 3"
+          - >-
+            not (winget_tasks is search('winget list[^\n]*--scope'))
+        fail_msg: >-
+          winget_scope must default to empty and only widen the commands that
+          install or upgrade a package, so the three source-pinned
+          install/upgrade calls carry the conditional "--scope" and no
+          read-only "winget list" probe ever filters by scope - a scope-filtered
+          list would hide exactly the package the role is about to install.
+      vars:
+        winget_tasks: >-
+          {{ lookup('ansible.builtin.file', winget_tasks_path) }}
+        winget_defaults: >-
+          {{ lookup('ansible.builtin.file', winget_defaults_path) }}
+
     - name: Assert package upgrades are explicit and idempotent
       ansible.builtin.assert:
         that:
