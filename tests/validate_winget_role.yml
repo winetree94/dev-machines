@@ -162,12 +162,17 @@
           - "'HKLM:' in winget_local_snapshot"
           - "'WOW6432Node' in winget_local_snapshot"
           - "'winget_arp_installed_packages' in winget_local_snapshot"
+          - "'uninstall_string' in winget_local_snapshot"
+          - "'key_name' in winget_local_snapshot"
           - "'winget_local_package.arp_version' in winget_local_package"
           - "'winget_local_package.force_upgrade' in winget_local_package"
           - "'winget_local_force_upgrade_option' in winget_local_package"
           - "'--force' in winget_local_package"
           - "'winget_local_package.marker_path' in winget_local_package"
           - "'winget_local_marker_present' in winget_local_package"
+          - "'winget_local_product_codes' in winget_local_package"
+          - "'--product-code' in winget_local_package"
+          - "'uninstall --name' not in winget_local_package"
         fail_msg: >-
           Packages without a public source must share one cached snapshot of
           the per-user and machine Add/Remove Programs registry views. A local

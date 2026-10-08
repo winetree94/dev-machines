@@ -179,7 +179,7 @@
         debian: rustdesk_latest_asset.browser_download_url
         debian_channel: direct_deb
         debian_architecture_marker: >-
-          ansible_facts['architecture'] in rustdesk_linux_architectures
+          ansible_facts['architecture'] in rustdesk_linux_packages
         darwin: rustdesk
         windows: RustDesk.RustDesk
         windows_source: local_manifest

@@ -118,14 +118,57 @@
         - "'No installed package found matching input criteria.' not in winget_local_install.stdout"
       changed_when: winget_local_install.rc == 0
 
-    - name: Winget | Remove an existing ARP package that winget cannot upgrade
-      ansible.windows.win_shell: >-
-        winget uninstall --name
-        "{{ winget_local_matching_packages[0].display_name }}" --exact --silent
-        --disable-interactivity
+    # A RustDesk MSI upgrade rotates its product code, so winget cannot match the
+    # new manifest against the old install ("No installed package found matching
+    # input criteria.") and falls through to this path. Remove the old MSI by the
+    # product code carried in its Add/Remove Programs UninstallString. `--name`
+    # cannot be used: the vendor MSI also registers a key under the bare
+    # DisplayName, so `--name --exact` dies with "Multiple installed packages
+    # found matching input criteria." An absorbed failure is fine - the install
+    # below is the safety net, and the vendor MSI's own major upgrade removes any
+    # product this loop could not.
+    - name: Winget | Resolve the MSI product codes of the existing ARP packages
+      ansible.builtin.set_fact:
+        winget_local_product_codes: >-
+          {{ winget_local_matching_packages
+             | map(attribute='uninstall_string', default='')
+             | map('regex_findall', '[{][0-9A-Fa-f-]{36}[}]')
+             | flatten
+             | map('upper')
+             | unique
+             | list }}
       when:
         - winget_local_install.rc != 0
         - "'No installed package found matching input criteria.' in winget_local_install.stdout"
+
+    - name: Winget | Remove existing ARP packages winget cannot match by product code
+      ansible.windows.win_shell: >-
+        winget uninstall --product-code "{{ winget_local_product_code }}" --silent
+        --disable-interactivity
+      loop: "{{ winget_local_product_codes | default([]) }}"
+      loop_control:
+        loop_var: winget_local_product_code
+        label: "{{ winget_local_product_code }}"
+      register: winget_local_product_code_uninstall
+      changed_when: false
+      failed_when: false
+      when:
+        - winget_local_install.rc != 0
+        - "'No installed package found matching input criteria.' in winget_local_install.stdout"
+
+    - name: Winget | Report product-code removals that did not succeed
+      ansible.builtin.debug:
+        msg: >-
+          winget could not remove
+          {{ winget_local_uninstall.winget_local_product_code }} by product code
+          (rc={{ winget_local_uninstall.rc }}):
+          {{ winget_local_uninstall.stdout | default('') | trim }}
+      loop: "{{ winget_local_product_code_uninstall.results | default([]) }}"
+      loop_control:
+        loop_var: winget_local_uninstall
+        label: "{{ winget_local_uninstall.winget_local_product_code | default('unknown') }}"
+      changed_when: false
+      when: winget_local_uninstall.rc | default(0) != 0
 
     - name: Winget | Reinstall when the existing ARP entry was not linked to winget
       ansible.windows.win_shell: >-

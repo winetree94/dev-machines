@@ -2,10 +2,15 @@
 # RustDesk keeps the official Debian package because its service integration
 # differs from sandboxed alternatives. The release and digest are resolved at
 # run time for these vendor-supported architectures.
-rustdesk_linux_architectures:
-  - x86_64
-  - aarch64
-  - armv7l
+#
+# Only the unattended-Wayland variant is published, and only for x86_64: the
+# vendor ships plain `rustdesk` and `rustdesk-*-sciter` packages for aarch64 and
+# armv7l but no unattended package. A mapping keyed by architecture makes an
+# unsupported Ubuntu architecture a deliberate no-op instead of falling back to
+# a different variant - the two Debian packages `Conflicts`/`Replaces` each
+# other, so alternating between them breaks apt.
+rustdesk_linux_packages:
+  x86_64: rustdesk-unattended-wayland
 
 # Every managed client uses the same self-hosted ID/relay server. The key is
 # mapped from the encrypted inventory vault in group_vars/all/main.yml.

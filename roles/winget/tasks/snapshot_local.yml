@@ -18,6 +18,8 @@
             display_name = [string]$_.DisplayName
             display_version = [string]$_.DisplayVersion
             publisher = [string]$_.Publisher
+            uninstall_string = [string]$_.UninstallString
+            key_name = [string]$_.PSChildName
           }
         }
     )

@@ -26,7 +26,9 @@
           - "'releases/latest' in debian"
           - "'github_api_headers' in debian"
           - "'rustdesk_latest_asset.digest' in debian"
-          - "'armv7-sciter' in debian"
+          - "'rustdesk_linux_packages' in debian"
+          - "'equalto' in debian"
+          - "'-f=${Status}|${Version}' in debian"
           - "'allow_downgrade: false' in debian"
           - "'name: rustdesk' in darwin"
           - "'releases/latest' in windows"
@@ -37,6 +39,20 @@
           - "'Architecture: x64' in installer"
           - "'Architecture: arm64' in installer"
           - "'digest' in installer"
+
+    - name: Assert RustDesk installs the unattended-Wayland package on x86_64 only
+      ansible.builtin.assert:
+        that:
+          - "'x86_64: rustdesk-unattended-wayland' in defaults"
+          - "'rustdesk_linux_architectures' not in defaults"
+          - "'state: absent' in debian"
+          - "'name: rustdesk' in debian"
+        fail_msg: >-
+          roles/rustdesk must map x86_64 to the rustdesk-unattended-wayland
+          Debian package, leave every other architecture a no-op, and remove the
+          plain `rustdesk` package before installing the variant it Conflicts
+          with. The old rustdesk_linux_architectures list is gone because only
+          the unattended variant is published, and only for x86_64.
 
     - name: Assert RustDesk configures the self-hosted server idempotently
       ansible.builtin.assert:
