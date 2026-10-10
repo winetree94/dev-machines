@@ -1,3 +1,0 @@
----
-ansible_become_method: sudo_wrapped
-gui: true

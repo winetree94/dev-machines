@@ -24,22 +24,22 @@ make install-requirements
 
 | host | IP | group | OS |
 |---|---|---|---|
-| desktop | 10.132.247.31 | ubuntu | Ubuntu 26.04+ |
-| ubuntu-dev | 10.132.247.36 | ubuntu | Ubuntu 26.04+ |
-| e14 | 10.132.247.40 | ubuntu | Ubuntu 26.04+ |
-| v16 | 10.132.245.41 | windows | Windows 10/11 |
-| mbp | 10.8.0.5 | macos | macOS |
-| localhost | – | (런타임 판별) | 컨트롤 머신 (macOS / Ubuntu) |
+| desktop_wsl | localhost | ubuntu | Ubuntu 26.04+ (WSL 게스트) |
+| desktop | 10.132.247.31 | windows | Windows 10/11 |
+| mbp | 10.132.247.35 | macos | macOS |
 
 원격 머신은 `inventories/hosts.yml` 의 정적 OS 그룹에 들어있다. `group_vars/<group>.yml` 의
 접속 변수(`ansible_shell_type`, `ansible_become_method`)가 첫 접속 *이전*에 결정되어야 하기
-때문이다. `localhost` 만 그룹 없이 두고 `playbooks/setup.yml` 의 `Group hosts by OS` 플레이가
-런타임에 분류한다.
+때문이다.
 
 `localhost` 는 macOS 나 Ubuntu 만 될 수 있다. ansible 은 네이티브 Windows 를 컨트롤
 노드로 지원하지 않기 때문에, Windows 머신은 WSL 안에서 ansible 을 돌리더라도 `localhost`
-는 WSL 리눅스 게스트를 가리킨다. Windows 본체는 `v16` 처럼 SSH 원격 호스트로 잡아야
-한다.
+는 WSL 리눅스 게스트를 가리킨다. Windows 본체는 `desktop` 처럼 SSH 원격 호스트로 잡아야
+한다. 이 저장소의 컨트롤 노드도 그 WSL 게스트이므로 `ansible_host: localhost` 인
+`desktop_wsl` 호스트로 등록해 ubuntu 그룹 변수(`sudo_wrapped`)를 그대로 받는다.
+
+컨트롤 머신이 macOS 나 WSL 이 아닌 Ubuntu 라면 `hosts.yml` 의 주석 처리된 그룹 없는
+`localhost` 항목처럼 `Group hosts by OS` 플레이의 런타임 분류에 맡길 수 있다.
 
 지원하지 않는 OS 는 롤이 하나라도 돌기 전에 걸러진다. `Group hosts by OS` 플레이의
 `Assert the host runs a supported OS` 가 Windows / macOS / **Ubuntu 26.04+** 가 아닌
@@ -52,11 +52,11 @@ make install-requirements
 
 ```bash
 make ping  ANSIBLE_ARGS="--limit mbp"
-make check ANSIBLE_ARGS="--limit ubuntu-dev"
-make apply ANSIBLE_ARGS="--limit ubuntu-dev,mbp"
-make apply ANSIBLE_ARGS="--limit localhost"
-make update-check ANSIBLE_ARGS="--limit ubuntu-dev"
-make update ANSIBLE_ARGS="--limit ubuntu-dev,mbp"
+make check ANSIBLE_ARGS="--limit desktop_wsl"
+make apply ANSIBLE_ARGS="--limit desktop_wsl,mbp"
+make apply ANSIBLE_ARGS="--limit desktop"
+make update-check ANSIBLE_ARGS="--limit desktop_wsl"
+make update ANSIBLE_ARGS="--limit desktop_wsl,mbp"
 ```
 
 `make apply` 는 빠른 멱등 설치 경로이고, `make update` 는 설치 누락을 보완하면서 각
@@ -181,7 +181,7 @@ SSH 개인키는 파일 경로가 아니라 **내용**으로 `vault_ssh_private_
    ```
 2. `ansible-vault edit inventories/group_vars/all/vault.yml` 로
    `vault_my_box_username` / `vault_my_box_become_password` 를 추가한다.
-   (호스트명의 하이픈은 밑줄로 바꾼다: `ubuntu-dev` → `vault_ubuntu_dev_*`)
+   (호스트명의 하이픈은 밑줄로 바꾼다: `my-box` → `vault_my_box_*`)
 3. 대상 머신에 공개키를 설치한다(아래 참고).
 
 per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml` 에 둔다.
@@ -438,7 +438,7 @@ macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한�
 
 ## Sunshine (게임 스트리밍 호스트)
 
-`v16` 을 Moonlight 클라이언트의 스트리밍 호스트로 쓰기 위한 롤이다. Windows 전용이라
+`desktop` 을 Moonlight 클라이언트의 스트리밍 호스트로 쓰기 위한 롤이다. Windows 전용이라
 `windows.yml` 하나만 두고(`debian.yml`/`darwin.yml` 없음), 설치 채널도 공용 `winget` 롤
 하나뿐이다. `LizardByte.Sunshine` MSI 가 방화벽 규칙, `SunshineService` 서비스와 자동
 시작을 스스로 구성하므로 롤은 설정 파일과 웹 UI 자격증명만 채운다. `ViGEm.ViGEmBus` 가

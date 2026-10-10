@@ -32,8 +32,8 @@
 # /dev/tty directly - redirecting stdin does not reach it. With a tty present it
 # asks "Uninstall the existing brew-managed Codex now? [y/N]" on any host that
 # already has a Codex from another package manager, and an Ansible run has
-# nobody to answer, so the play hangs forever (measured: 30+ minutes on
-# ubuntu-dev). Without a tty the script falls through to its non-interactive
+# nobody to answer, so the play hangs forever (measured: 30+ minutes on an
+# Ubuntu host). Without a tty the script falls through to its non-interactive
 # branch. "--wait" is what keeps the child's exit status, so a failed install
 # still fails the task. CODEX_NON_INTERACTIVE is the vendor's documented switch
 # and is set as well, belt and braces, since it also covers the "Start Codex
