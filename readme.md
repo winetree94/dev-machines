@@ -196,8 +196,8 @@ per-host 오버라이드(예: `gui: false`)는 `inventories/host_vars/<host>.yml
 
 - **GUI 앱** — `gui` 자동 감지에서 제외된다. 게스트에 데스크톱 앱을 깔아 봐야 실제
   화면은 Windows 쪽이고, 그 머신은 `desktop` 호스트로 따로 관리한다.
-- **VPN(`tailscale`, `wireguard`, `cloudflare_warp`, `nordvpn`)** — `vpn` 이 false 가
-  되어 네 롤을 건너뛴다. WSL 은
+- **VPN(`tailscale`, `wireguard`, `nordvpn`)** — `vpn` 이 false 가
+  되어 세 롤을 건너뛴다. WSL 은
   Windows 호스트 뒤에 NAT 되어 있어 VPN 은 호스트가 들고 있어야 하고, 게스트의
   `tailscaled` 는 systemd 와 `/dev/net/tun` 을 요구한 뒤 같은 라우팅을 두고 호스트와
   충돌한다.
@@ -379,25 +379,6 @@ App Store 로그인은 계속 수동이며, Apple ID 자격증명은 리포에�
 롤은 절대 `tailscale up` 을 실행하지 않는다. 각 머신의 최초 인증은 수동이다.
 macOS 는 cask 앱을 한 번 실행해 네트워크 확장을 승인해야 한다.
 
-## Cloudflare WARP
-
-`cloudflare_warp` 롤은 소비자용 1.1.1.1 with WARP 클라이언트와 백그라운드
-서비스만 설치한다. 약관 동의, 장치 등록, WARP 연결과 Cloudflare One Zero Trust
-enrollment는 자동화하지 않는다.
-
-- `debian.yml` — 최신 공개 키를 dearmor한 keyring과 공식
-  `https://pkg.cloudflareclient.com/` APT 저장소를 관리하고 `cloudflare-warp`를
-  설치한 뒤 `warp-svc`를 enable/start한다. Ubuntu amd64/arm64 모두 같은 저장소를
-  사용한다.
-- `darwin.yml` — Homebrew pkg cask `cloudflare-warp`. 비대화형 pkg 설치에 필요한
-  sudo 비밀번호는 Homebrew module의 일회용 `SUDO_ASKPASS` 경로로 전달한다.
-- `windows.yml` — 공유 winget 롤의 `Cloudflare.Warp` 패키지.
-
-설치 후 각 장치의 GUI에서 약관에 동의하고 연결한다. Linux에서는
-`warp-cli registration new`와 `warp-cli connect`를 수동으로 실행할 수도 있다.
-Tailscale 및 WireGuard와 함께 설치할 수 있지만 동시에 연결하면 기본 경로와 DNS가
-충돌할 수 있으므로 사용할 VPN 하나만 활성화한다.
-
 ## wireguard
 
 `wireguard` 롤은 **설치만** 담당한다. 터널 설정(`wg0.conf`)과 개인키는
@@ -454,20 +435,6 @@ Tailscale 및 WireGuard와 함께 설치할 수 있지만 동시에 연결하면
     가드한 `brew install --cask` 를 쓴다.
 - `windows.yml` — winget `Doppler.doppler`. Chocolatey 에는 Doppler 패키지가
   아예 없다.
-
-## syncthing
-
-`syncthing` 롤은 프로그램 설치와 자동 시작까지만 관리한다. 기기 연결, 공유 폴더,
-GUI 인증과 방화벽 규칙은 각 머신에서 별도로 설정한다.
-
-- `debian.yml` — Syncthing 공식 APT 저장소의 `stable-v2` 채널을 서명 키와 함께
-  등록하고 origin 우선순위를 990으로 고정한다. 패키지 설치 후
-  `syncthing@<접속 사용자>.service`를 enable/start해 로그인 전부터 해당 사용자
-  권한으로 실행한다.
-- `darwin.yml` — Homebrew core의 `syncthing` formula를 설치하고
-  `homebrew_services`로 사용자 launchd 서비스를 시작한다.
-- `windows.yml` — 현재 `v16`에서 사용하는 winget 패키지
-  `BillStewart.SyncthingWindowsSetup`을 공유 `winget` 롤로 관리한다.
 
 ## Sunshine (게임 스트리밍 호스트)
 
@@ -658,7 +625,7 @@ macOS와 Windows에서는 각각 cask와 winget을 사용한다.
 NordVPN은 GUI가 활성화되고 `vpn`이 true인 호스트에만 설치한다. Ubuntu 패키지는
 공식 저장소의 `nordvpn-gui`이며 CLI와 daemon도 의존성으로 함께 설치된다. 로그인,
 자동 연결, 서버 선택, Kill Switch, DNS와 LAN allowlist는 사용자가 앱에서 관리한다.
-Tailscale, WireGuard 또는 Cloudflare WARP와 동시에 연결하면 기본 경로와 DNS가
+Tailscale, WireGuard 또는 NordVPN을 동시에 연결하면 기본 경로와 DNS가
 충돌할 수 있으므로 실제 연결은 한 VPN만 활성화한다.
 
 AI CLI 세 개는 대응하는 GUI 롤과 함께 관리한다. GUI 롤에는 자체 태그와 CLI 태그가

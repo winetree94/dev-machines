@@ -409,10 +409,6 @@
         shared: brew.yml
         shared_contains: "name: himalaya"
         windows_source: local_manifest
-      - name: syncthing
-        debian: "name: syncthing"
-        darwin: syncthing
-        windows: BillStewart.SyncthingWindowsSetup
       - name: postgresql_client
         debian: "name: postgresql-client"
         darwin: libpq
@@ -550,6 +546,24 @@
         fail_msg: >-
           roles/kubernetes bundled ten unrelated tools and roles/node bundled
           four that were not Node.js. Both were split into one role per tool.
+
+    - name: Check the removed roles are gone
+      ansible.builtin.stat:
+        path: "{{ roles_dir }}/{{ item }}"
+      register: removed_role_stats
+      loop:
+        - syncthing
+        - cloudflare_warp
+
+    - name: Assert the removed roles stay gone
+      ansible.builtin.assert:
+        that:
+          - removed_role_stats.results | selectattr('stat.exists') | list | length == 0
+          - "'- role: syncthing' not in setup_playbook_content"
+          - "'- role: cloudflare_warp' not in setup_playbook_content"
+        fail_msg: >-
+          roles/syncthing and roles/cloudflare_warp were removed from this
+          repository; their directories and their setup.yml entries must stay gone.
 
     - name: Find any default.yml left in the repository
       ansible.builtin.find:

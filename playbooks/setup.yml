@@ -230,9 +230,6 @@
     - role: wireguard
       tags: [wireguard]
       when: vpn | bool
-    - role: cloudflare_warp
-      tags: [cloudflare_warp]
-      when: vpn | bool
     - role: docker
       tags: [docker]
     # hardware monitoring exporters must be ready before Alloy starts scraping.
@@ -350,8 +347,6 @@
       tags: [awscli]
     - role: rclone
       tags: [rclone]
-    - role: syncthing
-      tags: [syncthing]
     - role: postgresql_client
       tags: [postgresql_client]
     # mobile

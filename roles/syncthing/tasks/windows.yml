@@ -1,7 +1,0 @@
----
-- name: Syncthing | Install Syncthing Windows Setup (winget)
-  ansible.builtin.include_role:
-    name: winget
-  vars:
-    winget_packages:
-      - BillStewart.SyncthingWindowsSetup
